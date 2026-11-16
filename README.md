@@ -7,6 +7,9 @@ don't need an account or an API key.
 
 **Created By Shane BlackbuRn**
 
+*Shane's design and Claude's coding.* Every feature started as Shane's idea and
+design; Claude (Anthropic's AI) wrote the code and the tests to his spec.
+
 ## Features
 
 * Search for any city or town worldwide; save up to 50 locations and reorder them.
