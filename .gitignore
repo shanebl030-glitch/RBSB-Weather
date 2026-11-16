@@ -1,0 +1,7 @@
+# Build output and local test logs (release packages are attached to GitHub Releases instead)
+dist/
+build/
+test-results.log
+__pycache__/
+*.pyc
+*.tmp

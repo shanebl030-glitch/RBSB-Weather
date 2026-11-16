@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=WeatherDesk
+GenericName=Weather Forecast
+Comment=Current weather, 24-hour chart and 7-day forecast (Created By Shane BlackbuRn)
+Exec=weatherdesk
+Icon=weatherdesk
+Terminal=false
+Categories=Utility;
+Keywords=weather;forecast;temperature;rain;
+StartupNotify=true
+StartupWMClass=weatherdesk
