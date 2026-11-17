@@ -65,6 +65,9 @@ class ProviderInfo:
     # several windows can't then burn through a small free allowance.
     min_interval_s: int = 0
     max_days: int = 16              # most days the service can return
+    # Non-secret settings the provider accepts, shown in Settings → Weather Providers:
+    # ((name, label, help, regex the value must match), ...)
+    options: tuple = ()
 
 
 class KeyMissing(WeatherError):
@@ -80,6 +83,7 @@ class Provider(JsonHttpClient):
         super().__init__(timeout=timeout, ssl_context=ssl_context)
         self.base_url = (base_url or self.default_base_url()).rstrip("/")
         self.api_key = api_key
+        self.options: dict[str, str] = {}      # values for info.options (set by the manager)
 
     # ---- subclass interface -------------------------------------------------
     @classmethod

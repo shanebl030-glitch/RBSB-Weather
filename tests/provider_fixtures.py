@@ -19,9 +19,10 @@ from zoneinfo import ZoneInfo
 
 AKL = ZoneInfo("Pacific/Auckland")
 KEYS = {"openweather": "owm-test-key-0123456789abcdef", "weatherapi": "wapi-test-key-0123456789",
-        "visualcrossing": "VCTESTKEY0123456789ABCDEF", "tomorrow": "tio-test-key-0123456789abcd"}
+        "visualcrossing": "VCTESTKEY0123456789ABCDEF", "tomorrow": "tio-test-key-0123456789abcd",
+        "wunderground": "0123456789abcdef0123456789abcdef"}
 PREFIX = {"openweather": "/owm/data", "weatherapi": "/wapi/v1", "visualcrossing": "/vc/timeline",
-          "tomorrow": "/tio/v4"}
+          "tomorrow": "/tio/v4", "wunderground": "/wu"}
 
 
 def _now():
@@ -194,6 +195,52 @@ def tio_forecast(lat, lon) -> dict:
             "location": {"lat": lat, "lon": lon}}
 
 
+# ------------------------------------------------------- Weather Underground
+WU_STATIONS = ["IAUCKL999", "IWAIUK12", "IAUCKL123", "IAUCKL456"]
+
+
+def wu_5day(lat, lon, afternoon=False) -> dict:
+    days = _days(6)
+    def iso(d, h, m=0):
+        return dt.datetime.combine(d, dt.time(h, m), AKL).strftime("%Y-%m-%dT%H:%M:%S%z")
+    icons = [12, 11, 32, 31, 4, 47, 26, 27, 30, 29, 14, 46]
+    parts = {"dayOrNight": ["D", "N"] * 6, "daypartName": ["Today", "Tonight"] + ["x"] * 10,
+             "iconCode": icons, "precipChance": [60, 30, 10, 5, 80, 70, 20, 15, 10, 10, 40, 30],
+             "relativeHumidity": [70] * 12, "windSpeed": [20, 12, 15, 10, 35, 30, 18, 12, 14, 9, 22, 16],
+             "windDirection": [220] * 12, "uvIndex": [9, 0, 10, 0, 6, 0, 9, 0, 10, 0, 7, 0],
+             "cloudCover": [80, 60, 10, 5, 95, 90, 70, 60, 40, 30, 85, 70],
+             "temperature": [20, 12, 22, 11, 19, 13, 21, 12, 22, 12, 18, 10],
+             "wxPhraseLong": ["Rain", "Showers", "Sunny", "Clear", "Thunderstorms", "T-Storms",
+                              "Cloudy", "Mostly Cloudy", "Partly Cloudy", "Partly Cloudy", "Snow Showers",
+                              "Snow Showers"]}
+    if afternoon:                     # after 3 pm the day part of today is null
+        for k in parts:
+            parts[k][0] = None
+    return {"calendarDayTemperatureMax": [21, 23, 20, 22, 23, 19],
+            "calendarDayTemperatureMin": [11, 10, 12, 11, 12, 9],
+            "dayOfWeek": [d.strftime("%A") for d in days],
+            "narrative": ["x"] * 6, "qpf": [5.1, 0.0, 12.7, 0.0, 0.0, 2.0], "qpfSnow": [0] * 6,
+            "sunriseTimeLocal": [iso(d, 6, 1) for d in days], "sunsetTimeLocal": [iso(d, 20, 9) for d in days],
+            "temperatureMax": [None if afternoon else 21, 23, 20, 22, 23, 19],
+            "temperatureMin": [11, 10, 12, 11, 12, 9],
+            "validTimeLocal": [iso(d, 7) for d in days],
+            "validTimeUtc": [int(dt.datetime.combine(d, dt.time(7), AKL).timestamp()) for d in days],
+            "daypart": [parts]}
+
+
+def wu_obs(sid, age_s=120) -> dict:
+    now = _now()
+    t = now - dt.timedelta(seconds=age_s)
+    return {"observations": [{"stationID": sid, "obsTimeUtc": t.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                              "obsTimeLocal": t.astimezone(AKL).strftime("%Y-%m-%d %H:%M:%S"),
+                              "neighborhood": "Waiuku", "country": "NZ", "solarRadiation": 410.2,
+                              "lon": 174.73, "lat": -37.25, "epoch": int(t.timestamp()), "uv": 4.0,
+                              "winddir": 235, "humidity": 68.0, "qcStatus": 1,
+                              "metric": {"temp": 17.4, "heatIndex": 17.4, "dewpt": 11.3, "windChill": 17.4,
+                                         "windSpeed": 13.0, "windGust": 22.3, "pressure": 1015.92,
+                                         "precipRate": 0.0, "precipTotal": 1.2, "elev": 30.0}}]}
+
+
 # ----------------------------------------------------------------- serving
 def _j(code, obj, hdrs=None):
     return code, json.dumps(obj).encode(), hdrs or {}
@@ -272,8 +319,40 @@ def install(server) -> None:
         lat, lon = (float(x) for x in q["location"].split(","))
         return _j(200, tio_forecast(lat, lon), limits)
 
+    server.wu_requests = []
+
+    def wu(path, q, h):
+        server.wu_requests.append(path)
+        bad = _j(401, {"metadata": {"transaction_id": "x"}, "success": False,
+                       "errors": [{"error": {"code": "CDN-0001", "message": "Invalid apiKey."}}]})
+        r = common("wunderground", q.get("apiKey") == KEYS["wunderground"], bad,
+                   _j(429, {"success": False, "errors": [{"error": {"code": "CDN-0002",
+                                                                    "message": "Too many requests."}}]}))
+        if r:
+            return r
+        mode = server.provider_mode["wunderground"]
+        if path.endswith("/v3/wx/forecast/daily/5day"):
+            lat, lon = (float(x) for x in q["geocode"].split(","))
+            return _j(200, wu_5day(lat, lon, afternoon=(mode == "afternoon")))
+        if path.endswith("/v3/location/near"):
+            if mode == "no_stations":
+                return 404, b"", {}
+            return _j(200, {"location": {"stationName": ["a", "b", "c", "d"], "stationId": WU_STATIONS,
+                                         "qcStatus": [-1, 1, 1, 1], "distanceKm": [0.5, 1.0, 2.0, 3.0],
+                                         "partnerId": [None] * 4}})
+        if path.endswith("/v2/pws/observations/current"):
+            sid = q.get("stationId")
+            if sid == "IWAIUK12":
+                return 204, b"", {}                      # offline: The Weather Company sends 204
+            if sid == "IAUCKL123":
+                return _j(200, wu_obs(sid, age_s=5 * 3600))
+            if sid == "IOFFLINE1" or mode == "all_offline":
+                return 204, b"", {}
+            return _j(200, wu_obs(sid))
+        return _j(404, {"success": False})
+
     server.routes.update({PREFIX["openweather"]: owm, PREFIX["weatherapi"]: wapi,
-                          PREFIX["visualcrossing"]: vc, PREFIX["tomorrow"]: tio})
+                          PREFIX["visualcrossing"]: vc, PREFIX["tomorrow"]: tio, PREFIX["wunderground"]: wu})
 
 
 def base_url(server, pid: str) -> str:

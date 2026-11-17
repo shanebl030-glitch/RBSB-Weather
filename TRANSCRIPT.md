@@ -833,3 +833,21 @@ Weatherbit as planned.
 test aside). Screenshots checked: the window on a backup, the dialog with
 key entry (masked) and a successful test with usage.
 
+## Session 1v – 2026-11-17 – v1.13.1 and v1.14.0
+
+**1.13.1:** Shane's screenshot of the provider list showed "MET Norway
+(backup 1)…" cut to one line. Rows now get an explicit two-line height, and
+a test checks every row.
+
+**1.14.0:** "can you add weather underground I have a API key with them".
+- The Weather Company's PWS-contributor API list includes PWS observations,
+  Location Services and the Daily Forecast (5 Day), but no hourly forecast.
+- Done: `providers/wunderground.py`, provider options (Station ID), the
+  dialog's option field, and the chart's "doesn't provide an hourly forecast"
+  message.
+- After the first screenshot, current conditions showed "Rain" (from the
+  forecast) while the station measured 0 mm/h. The station's rain gauge now
+  corrects the forecast's condition.
+- Not tested against the live API (no access from here); Shane's key and Test
+  connection are the live check.
+

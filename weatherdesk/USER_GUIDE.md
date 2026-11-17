@@ -268,8 +268,21 @@ and to its documentation.
 | WeatherAPI.com | free key | 100,000 calls a month | 3 days (free), 14 (paid) |
 | Visual Crossing | free key | 1,000 records a day (a forecast = 1) | 7 of 15 days, hourly |
 | Tomorrow.io | free key | 500 a day, 25 an hour | 5 days, 120 hours hourly |
+| Weather Underground | weather-station (PWS) owner's key | about 1,500 a day | today + 5 days; no hourly |
 
 AccuWeather and Weatherbit are listed as planned; the dialog says why.
+
+**Weather Underground** keys are given to members who send data from a
+personal weather station (wunderground.com → My Profile → API Keys). The
+forecast comes from The Weather Company; current conditions come from a
+weather station: enter your station's ID under *Settings for this provider*,
+or leave it empty to use the nearest station that's reporting (stations that
+are offline, failing quality checks or more than 2 hours old are skipped).
+Stations don't report a condition, so it comes from the forecast for this
+part of the day, corrected by the station's rain gauge (no rain falling
+shows the cloud instead; rain falling shows rain). A PWS key has no hourly
+forecast, so the 24-hour chart says so while Weather Underground supplies
+the weather.
 
 **API keys.** Select the provider, click **Add key…**, paste the key and
 click **Save key**. WeatherDesk tests it straight away. Once saved, a key is
@@ -360,7 +373,8 @@ used, so nothing is silently lost.
 Weather data by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0) and
 [MET Norway](https://api.met.no/) (CC BY 4.0), or, if you add their keys,
 [OpenWeather](https://openweathermap.org/), [WeatherAPI.com](https://www.weatherapi.com/),
-[Visual Crossing](https://www.visualcrossing.com/) and [Tomorrow.io](https://www.tomorrow.io/).
+[Visual Crossing](https://www.visualcrossing.com/), [Tomorrow.io](https://www.tomorrow.io/) and
+[Weather Underground](https://www.wunderground.com/).
 The status bar always credits the service supplying the weather on screen.
 
 Earth maps by [Solar System Scope](https://www.solarsystemscope.com/textures/)

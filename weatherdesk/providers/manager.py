@@ -91,7 +91,8 @@ class ProviderManager:
                  keystore: Optional[KeyStore] = None, overrides: Optional[dict[str, Provider]] = None,
                  status_file: Optional[Path] = None, timeout: float = 15.0, ssl_context=None,
                  clock: Callable[[], float] = time.time,
-                 factories: Optional[dict[str, Callable[[], Provider]]] = None):
+                 factories: Optional[dict[str, Callable[[], Provider]]] = None,
+                 options: Optional[dict[str, dict]] = None):
         self._lock = threading.RLock()
         self.keystore = keystore if keystore is not None else KeyStore()
         self.timeout = timeout
@@ -100,6 +101,13 @@ class ProviderManager:
         self._overrides = dict(overrides or {})
         self._factories = dict(factories or {})      # tests: build providers against a fake server
         self._instances: dict[str, Provider] = dict(self._overrides)
+        self.options: dict[str, dict] = {}            # provider id -> {option: value} (not secret)
+        for pid, opts in (options or {}).items():
+            for name, value in (opts or {}).items():
+                try:
+                    self.set_option(pid, name, value, reset=False)
+                except ValueError:
+                    pass
         self.chain = valid_chain(chain)
         self.recovery = recovery if recovery in RECOVERY else DEFAULT_RECOVERY
         self._failed_at: dict[str, float] = {}      # provider id -> clock time of the last failure
@@ -135,7 +143,30 @@ class ProviderManager:
                 self._instances[pid] = p
             if p.info.needs_key:
                 p.api_key = self.keystore.get(pid)
+            p.options = dict(self.options.get(pid, {}))
             return p
+
+    def set_option(self, pid: str, name: str, value: str, reset: bool = True) -> None:
+        """Set a provider option (e.g. a weather station ID); empty clears it.
+        Raises ValueError if the provider has no such option or the value is invalid."""
+        import re
+        inf = provider_info(pid)
+        spec = next((o for o in (inf.options if inf else ()) if o[0] == name), None)
+        if spec is None:
+            raise ValueError(f"{pid} has no option {name!r}")
+        value = (value or "").strip()
+        if value and not re.fullmatch(spec[3], value):
+            raise ValueError(f"That doesn't look like a valid {spec[1].lower()}.")
+        with self._lock:
+            opts = self.options.setdefault(pid, {})
+            if value:
+                opts[name] = value
+            else:
+                opts.pop(name, None)
+            if not opts:
+                self.options.pop(pid, None)
+        if reset:
+            self._reset_provider(pid, keep_key=True)
 
     # --------------------------------------------------------------------- keys
     def has_key(self, pid: str) -> bool:
@@ -149,12 +180,12 @@ class ProviderManager:
         self.keystore.delete(pid)
         self._reset_provider(pid)
 
-    def _reset_provider(self, pid: str) -> None:
-        """A new key means a fresh start: new instance, no cached forecasts or failures."""
+    def _reset_provider(self, pid: str, keep_key: bool = False) -> None:
+        """A new key or option means a fresh start: new instance, no cached forecasts or failures."""
         with self._lock:
             if pid not in self._overrides:
                 self._instances.pop(pid, None)
-            elif self._instances.get(pid) is not None:
+            elif self._instances.get(pid) is not None and not keep_key:
                 self._instances[pid].api_key = None
             self._failed_at.pop(pid, None)
             for k in [k for k in self._recent if k[0] == pid]:
@@ -334,6 +365,7 @@ class ProviderManager:
             p = cls(timeout=self.timeout, ssl_context=self.ssl_context)
         if cls.info.needs_key:
             p.api_key = (key or "").strip() or self.keystore.get(pid)
+        p.options = dict(self.options.get(pid, {}))
         t0 = time.monotonic()
         try:
             fc, usage = p.test(location)

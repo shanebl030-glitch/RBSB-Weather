@@ -33,7 +33,8 @@ MET Norway (Norwegian Meteorological Institute), licensed CC BY 4.0 (https://api
 Optional providers (used only with your own API key, under each provider's terms):
 OpenWeather (https://openweathermap.org/, CC BY-SA 4.0), WeatherAPI.com
 (https://www.weatherapi.com/), Visual Crossing (https://www.visualcrossing.com/)
-and Tomorrow.io (https://www.tomorrow.io/).
+Tomorrow.io (https://www.tomorrow.io/) and Weather Underground / The Weather
+Company (https://www.wunderground.com/, PWS contributor API).
 Moon textures: see /usr/lib/weatherdesk/weatherdesk/assets/moon_textures.json. When built
 from NASA's CGI Moon Kit (https://svs.gsfc.nasa.gov/4720) they are public domain
 imagery from NASA's Scientific Visualization Studio. Moon positions, phases and
@@ -62,8 +63,9 @@ Description: Desktop weather app (Created By Shane BlackbuRn)
  and a 7-day forecast for any number of saved locations, with a system-tray
  temperature readout, offline fallback to the last saved forecast, and
  unit choices. Uses the free Open-Meteo and MET Norway services with no
- account or key, and optionally OpenWeather, WeatherAPI.com, Visual Crossing
- or Tomorrow.io with your own API key (stored in the system keyring).
+ account or key, and optionally OpenWeather, WeatherAPI.com, Visual Crossing,
+ Tomorrow.io or Weather Underground with your own API key (stored in the
+ system keyring).
 EOF
 
 # remove compiled files from older byte-compilation on uninstall

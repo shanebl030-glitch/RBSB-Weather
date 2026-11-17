@@ -43,7 +43,7 @@ def all_infos() -> list[ProviderInfo]:
 
 
 # Registration order is the order shown in Settings → Weather Providers.
-from . import openmeteo, metno, openweather, weatherapi, visualcrossing, tomorrow, planned  # noqa: E402,F401
+from . import openmeteo, metno, openweather, weatherapi, visualcrossing, tomorrow, wunderground, planned  # noqa: E402,F401
 
 __all__ = ["FEATURES", "KeyMissing", "PLANNED", "Provider", "ProviderInfo", "REGISTRY",
            "all_infos", "info", "integrated_ids", "plan", "register"]

@@ -2,6 +2,41 @@
 
 Created By Shane BlackbuRn
 
+## 1.14.0 – 2026-11-17 (on branch claude/weatherdesk-1.12.0; not released)
+
+### Added
+- **Weather Underground** as a provider (requested by Shane, who has a key).
+  It uses the API The Weather Company gives personal weather station (PWS)
+  contributors:
+  - **Daily Forecast (5 Day)**: today plus 5 days, with day and night parts
+    (condition, chance of rain, rain amount, wind, UV, sunrise/sunset). After
+    3 pm, when The Weather Company blanks today's day part, tonight's is used.
+  - **Current conditions from a weather station**: your own, if you enter its
+    Station ID, or else the nearest one that's reporting, found with Location
+    Services "near" (the list is kept for a day). Stations that fail quality
+    checks, are offline (HTTP 204) or haven't reported for 2 hours are
+    skipped. If your own station is offline, the backups take over, and the
+    message names the station.
+  - Stations don't report a weather condition. It comes from the forecast for
+    this part of the day, corrected by the station's rain gauge (a wet
+    forecast with no rain falling shows the cloud cover; rain falling shows
+    rain). This is listed under "Calculated by WeatherDesk".
+  - A PWS key has no hourly forecast. The 24-hour chart now says "Weather
+    Underground doesn't provide an hourly forecast" instead of a bare
+    "No hourly data".
+- **Provider settings** in Settings → Weather Providers. Providers can now
+  declare non-secret options (here, the Station ID), validated and saved in
+  settings.json. API keys stay in the keyring or private key file.
+
+### Tests
+- 6 new Weather Underground tests (the fake server serves the 5-day
+  forecast, PWS observations including 204 "offline", and nearby stations),
+  plus option validation and saving, the dialog's option field, and the
+  chart's message. The other provider tests (bad key never echoed, usage
+  limit, garbled data, the whole window) now cover Weather Underground too.
+
+Created By Shane BlackbuRn
+
 ## 1.13.1 – 2026-11-17 (on branch claude/weatherdesk-1.12.0; not released)
 
 ### Fixed

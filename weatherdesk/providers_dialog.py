@@ -160,6 +160,11 @@ class ProvidersDialog(QDialog):
         kl.addWidget(self.key_store_note)
         lay.addWidget(self.key_box)
 
+        self.opt_box = QGroupBox("Settings for this provider")
+        self.opt_lay = QVBoxLayout(self.opt_box)
+        self.opt_widgets: dict[str, QLineEdit] = {}
+        lay.addWidget(self.opt_box)
+
         trow = QHBoxLayout()
         self.btn_test = QPushButton("Test connection")
         self.btn_test.clicked.connect(self._test)
@@ -341,6 +346,7 @@ class ProvidersDialog(QDialog):
             self.btn_remove.setEnabled(has)
             self.key_store_note.setText(f"Keys are stored in {self.manager.keystore.backend}, never in "
                                         f"WeatherDesk's settings, logs or reports.")
+        self._build_options(pid, integrated)
         self.btn_test.setVisible(integrated)
         self.btn_test.setEnabled(integrated and self._testing is None)
         if pid in self._results:
@@ -352,6 +358,48 @@ class ProvidersDialog(QDialog):
             self.test_result.setText("")
         if self._testing == pid:
             self.test_result.setText("Testing…")
+
+    def _build_options(self, pid: str, integrated: bool) -> None:
+        """Non-secret settings such as a weather station ID (never the API key)."""
+        while self.opt_lay.count():
+            item = self.opt_lay.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
+            elif item.layout() is not None:
+                while item.layout().count():
+                    sub = item.layout().takeAt(0).widget()
+                    if sub is not None:
+                        sub.deleteLater()
+        self.opt_widgets = {}
+        inf = providers.info(pid)
+        opts = inf.options if integrated else ()
+        self.opt_box.setVisible(bool(opts))
+        for name, label, help_text, _rx in opts:
+            row = QHBoxLayout()
+            row.addWidget(QLabel(f"{label}:"))
+            edit = QLineEdit(self.manager.options.get(pid, {}).get(name, ""))
+            edit.setPlaceholderText("(not set)")
+            edit.setMaxLength(64)
+            row.addWidget(edit, 1)
+            save = QPushButton("Save")
+            save.clicked.connect(lambda _=False, n=name, e=edit: self._save_option(pid, n, e))
+            row.addWidget(save)
+            self.opt_lay.addLayout(row)
+            note = QLabel(help_text)
+            note.setWordWrap(True)
+            note.setStyleSheet("color: palette(placeholder-text);")
+            self.opt_lay.addWidget(note)
+            self.opt_widgets[name] = edit
+
+    def _save_option(self, pid: str, name: str, edit: QLineEdit) -> None:
+        try:
+            self.win.set_provider_option(pid, name, edit.text())
+        except ValueError as e:
+            self._show_result(False, str(e))
+            return
+        self._results.pop(pid, None)
+        self._show_result(True, "Saved.")
 
     def _set_row_visible(self, key: str, on: bool) -> None:
         w = self.f[key]

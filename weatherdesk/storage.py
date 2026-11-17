@@ -94,6 +94,7 @@ class Settings:
     # to the primary after it failed (see providers/manager.py RECOVERY)
     provider_chain: list = field(default_factory=lambda: ["open-meteo", "met.no"])
     provider_recovery: str = "30"
+    provider_options: dict = field(default_factory=dict)   # {provider id: {option: value}}, never keys
 
     # ---------------------------------------------------------- helpers
     def selected_location(self) -> Optional[Location]:
@@ -154,6 +155,7 @@ class Settings:
             "weather_source": self.weather_source,
             "provider_chain": list(self.provider_chain),
             "provider_recovery": self.provider_recovery,
+            "provider_options": {k: dict(v) for k, v in self.provider_options.items()},
         }
 
     @classmethod
@@ -204,6 +206,11 @@ class Settings:
                     ids.append(x)
             if ids:
                 s.provider_chain = ids[:10]
+        opts = d.get("provider_options")
+        if isinstance(opts, dict):
+            s.provider_options = {
+                str(pid): {str(k): str(v) for k, v in o.items() if isinstance(v, str) and len(v) <= 64}
+                for pid, o in opts.items() if isinstance(o, dict) and re.fullmatch(r"[a-z0-9.\-]{1,40}", str(pid))}
         if d.get("provider_recovery") in ("next", "15", "30", "60", "stay"):
             s.provider_recovery = d["provider_recovery"]
         if d.get("widget_size") in WIDGET_SIZES:

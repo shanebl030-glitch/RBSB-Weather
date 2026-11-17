@@ -5,6 +5,6 @@ Created By Shane BlackbuRn
 
 APP_NAME = "WeatherDesk"
 APP_ID = "weatherdesk"
-__version__ = "1.13.1"
+__version__ = "1.14.0"
 AUTHOR_CREDIT = "Created By Shane BlackbuRn"
 DATA_CREDIT = "Weather data by Open-Meteo.com (CC BY 4.0)"

@@ -190,6 +190,75 @@ class TestIntegrations(ProviderCase):
         self.assertEqual(u["today"], "487 of 500 requests left today")
         self.assertEqual(m.status("tomorrow").usage, u)
 
+    def test_wunderground_nearest_station(self):
+        m = self.manager(["wunderground"])
+        fc = m.fetch_forecast(self.loc())
+        self.check_common(fc, "wunderground", 6, 0)
+        self.assertEqual(len(fc.daily), 6)                       # today + 5
+        self.assertEqual(fc.hourly, [])                          # none on a PWS key
+        c = fc.current
+        self.assertEqual((c.temperature, c.wind_speed, c.wind_gusts, c.wind_direction, c.humidity),
+                         (17.4, 13.0, 22.3, 235.0, 68.0))
+        self.assertEqual(c.pressure, 1015.92)
+        # today's day part says rain (icon 12), but the station measures none right now:
+        # the cloud cover (80 %) is shown instead
+        self.assertEqual(c.weather_code, 3)
+        self.assertIsNotNone(c.apparent_temperature)             # calculated, like the other providers
+        self.assertEqual([d.weather_code for d in fc.daily], [63, 0, 95, 3, 2, 85])
+        d0 = fc.daily[0]
+        self.assertEqual((d0.temp_max, d0.temp_min, d0.precipitation_probability_max, d0.precipitation_sum,
+                          d0.uv_index_max, d0.wind_speed_max), (21.0, 11.0, 60.0, 5.1, 9.0, 20.0))
+        self.assertEqual((d0.sunrise[11:], d0.sunset[11:]), ("06:01", "20:09"))
+        self.assertIn("current condition (forecast for this part of the day, no rain at the station now)",
+                      fc.calculated)
+        # qcStatus -1, offline (204) and 5-hour-old stations are skipped
+        self.assertEqual(m.provider("wunderground").station_used, "IAUCKL456")
+        self.assertIn("IAUCKL456", m.status("wunderground").usage["station"])
+        near = sum(1 for r in self.server.wu_requests if r.endswith("/location/near"))
+        m._recent.clear(); m._asked.clear()
+        m.fetch_forecast(self.loc())
+        self.assertEqual(sum(1 for r in self.server.wu_requests if r.endswith("/location/near")), near)  # cached
+
+    def test_wunderground_rain_at_station(self):
+        from weatherdesk.providers import wunderground as WU
+        ob = PF.wu_obs("IX")["observations"][0]
+        ob["metric"]["precipRate"] = 4.2
+        fcd = PF.wu_5day(0, 0)
+        fcd["daypart"][0]["iconCode"][0] = 32                         # forecast: sunny
+        fc = WU.parse_wunderground(fcd, ob, self.loc())
+        self.assertEqual(fc.current.weather_code, 63)                  # but 4.2 mm/h is falling
+        ob["metric"]["precipRate"] = None                              # unknown: keep the forecast's
+        fcd["daypart"][0]["iconCode"][0] = 12
+        self.assertEqual(WU.parse_wunderground(fcd, ob, self.loc()).current.weather_code, 63)
+
+    def test_wunderground_own_station(self):
+        m = self.manager(["wunderground", "met.no"])
+        m.set_option("wunderground", "station_id", "IMYSTATION7")
+        fc = m.fetch_forecast(self.loc())
+        self.assertEqual((fc.provider_id, m.provider("wunderground").station_used), ("wunderground", "IMYSTATION7"))
+        self.assertFalse(any(r.endswith("/location/near") for r in self.server.wu_requests))
+        m.set_option("wunderground", "station_id", "IOFFLINE1")       # own station offline: backup
+        fc = m.fetch_forecast(self.loc())
+        self.assertEqual(fc.provider_id, "met.no")
+        self.assertIn("Your weather station IOFFLINE1 isn't reporting", m.status("wunderground").last_error)
+        for bad in ("has space", "ab", "x" * 30, "../x"):
+            with self.assertRaises(ValueError):
+                m.set_option("wunderground", "station_id", bad)
+        with self.assertRaises(ValueError):
+            m.set_option("tomorrow", "station_id", "IWAIUK12")         # not an option there
+        m.set_option("wunderground", "station_id", "")
+        self.assertNotIn("wunderground", m.options)
+
+    def test_wunderground_afternoon_and_no_stations(self):
+        self.server.provider_mode["wunderground"] = "afternoon"         # today's day part is null
+        fc = self.manager(["wunderground"]).fetch_forecast(self.loc())
+        self.assertEqual(fc.current.weather_code, 2)                    # tonight showers, dry station, 60 % cloud
+        self.assertEqual((fc.daily[0].weather_code, fc.daily[0].temp_max), (81, 21.0))
+        self.server.provider_mode["wunderground"] = "all_offline"
+        with self.assertRaises(DataError) as cm:
+            self.manager(["wunderground"]).fetch_forecast(self.loc())
+        self.assertIn("No nearby weather station is reporting", str(cm.exception))
+
     def test_unknown_condition_codes_are_worked_out_not_guessed(self):
         for pid in ("openweather", "weatherapi"):
             self.server.provider_mode[pid] = "unknown_codes"
@@ -581,6 +650,12 @@ class TestSettingsMigration(unittest.TestCase):
                                 "provider_recovery": "stay"})
         self.assertEqual((s.provider_chain, s.provider_recovery), (["tomorrow", "met.no"], "stay"))
         self.assertEqual(Settings.from_dict({"provider_recovery": "never"}).provider_recovery, "30")
+        o = Settings.from_dict({"provider_options": {"wunderground": {"station_id": "IWAIUK12", "n": 5},
+                                                      "BAD ID": {"x": "y"}, "tomorrow": "nope"}})
+        self.assertEqual(o.provider_options, {"wunderground": {"station_id": "IWAIUK12"}})
+        m = ProviderManager(chain=["open-meteo"], options=o.provider_options | {"wunderground2": {"a": "b"}},
+                            keystore=KeyStore(Path("/nonexistent-wd"), use_keyring=False))
+        self.assertEqual(m.options, {"wunderground": {"station_id": "IWAIUK12"}})   # unknown ids ignored
         d = Settings(provider_chain=["weatherapi", "open-meteo"]).to_dict()
         self.assertEqual(d["provider_chain"], ["weatherapi", "open-meteo"])
 
@@ -658,7 +733,11 @@ class TestWindowProviders(WindowCase):
             self.assertIn(providers.info(pid).credit, w.status_label.text())
             self.assertIn("Updated", w.status_label.text())
             self.assertIn("just now", w.status_label.text())
-            self.assertGreater(w.chart.point_count(), 0, pid)
+            if pid == "wunderground":      # no hourly forecast on a PWS key: says so instead
+                self.assertEqual(w.chart.point_count(), 0)
+                self.assertEqual(w.chart.empty_text, "Weather Underground doesn't provide an hourly forecast")
+            else:
+                self.assertGreater(w.chart.point_count(), 0, pid)
             self.assertTrue(w.day_rows[0][0].text())
             self.assertNotEqual(w.detail["sunrise"].text(), "–", pid)
             w.set_desktop_widget(True)
@@ -701,12 +780,12 @@ class TestProvidersDialog(WindowCase):
         w = self.make(["open-meteo", "met.no"])
         self.add(w)
         d = self.open(w)
-        self.assertEqual(d.list.count(), 8)
+        self.assertEqual(d.list.count(), 9)
         texts = [d.list.item(i).text() for i in range(d.list.count())]
         self.assertIn("(primary)", texts[0])
         self.assertIn("supplying now", texts[0])
         self.assertIn("Needs an API key", texts[2])
-        self.assertIn("Planned", texts[6])
+        self.assertIn("Planned", texts[7])
         self.assertEqual([d.primary.itemData(i) for i in range(d.primary.count())], ALL)   # no planned ones
         self.select(d, "accuweather")
         self.assertFalse(d.key_box.isVisible())
@@ -813,6 +892,25 @@ class TestProvidersDialog(WindowCase):
         d.btn_primary_now.click()
         self.assertTrue(wait_until(lambda: k not in w._pending and w.forecasts[k].provider_id == "tomorrow"))
         self.assertTrue(wait_until(lambda: "<b>Tomorrow.io</b> (primary)" in d.supplying.text()))
+
+    def test_station_id_option(self):
+        w = self.make(["open-meteo"])
+        d = self.open(w)
+        self.select(d, "tomorrow")
+        self.assertFalse(d.opt_box.isVisible())
+        self.select(d, "wunderground")
+        self.assertTrue(d.opt_box.isVisible())
+        self.assertIn("none with a PWS key", d.f["hourly"].text())
+        edit = d.opt_widgets["station_id"]
+        edit.setText("bad id!")
+        d._save_option("wunderground", "station_id", edit)
+        self.assertIn("valid station id", d.test_result.text())
+        edit.setText("IWAIUK12")
+        d._save_option("wunderground", "station_id", edit)
+        self.assertEqual(w.store.load().provider_options, {"wunderground": {"station_id": "IWAIUK12"}})
+        self.assertEqual(w.client.options["wunderground"]["station_id"], "IWAIUK12")
+        self.select(d, "tomorrow"); self.select(d, "wunderground")
+        self.assertEqual(d.opt_widgets["station_id"].text(), "IWAIUK12")       # shown again (not secret)
 
     def test_menu(self):
         w = self.make(["open-meteo"])

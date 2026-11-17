@@ -1,12 +1,13 @@
-# WeatherDesk 1.13.1
+# WeatherDesk 1.14.0
 
 A desktop weather app for Linux Mint (and other Ubuntu 24.04-based systems).
 It shows current conditions, a 24-hour chart, a 7-day forecast, and the
 temperature in your system tray. It uses the free Open-Meteo service, with
 MET Norway (yr.no) as an automatic backup, so you don't need an account or an
 API key. If you like, Settings → Weather Providers adds OpenWeather,
-WeatherAPI.com, Visual Crossing or Tomorrow.io with your own API key, as the
-primary provider or as backups.
+WeatherAPI.com, Visual Crossing, Tomorrow.io or Weather Underground (with a
+personal weather station key) using your own API key, as the primary provider
+or as backups.
 
 **Created By Shane BlackbuRn**
 

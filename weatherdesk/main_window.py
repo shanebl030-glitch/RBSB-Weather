@@ -754,6 +754,8 @@ class MainWindow(QMainWindow):
             if hp.time[:13] >= cur_hour:
                 start = i
                 break
+        self.chart.empty_text = ("No hourly data" if fc.hourly else
+                                 f"{fc.source} doesn't provide an hourly forecast")
         self.chart.set_data(fc.hourly[start:start + 24], s.temp_unit)
 
         try:
@@ -1138,7 +1140,8 @@ class MainWindow(QMainWindow):
                                    overrides={"open-meteo": OpenMeteoProvider(client=client)},
                                    ssl_context=getattr(client, "ssl_context", None))
         return ProviderManager(chain=self.settings.provider_chain, recovery=self.settings.provider_recovery,
-                               status_file=Path(self.cache.dir) / "providers.json")
+                               status_file=Path(self.cache.dir) / "providers.json",
+                               options=self.settings.provider_options)
 
     def _credit(self, fc: Optional[Forecast]) -> str:
         inf = providers.info(fc.provider_id) if fc is not None else None
@@ -1152,6 +1155,14 @@ class MainWindow(QMainWindow):
         self._providers_dialog.show()
         self._providers_dialog.raise_()
         self._providers_dialog.activateWindow()
+
+    def set_provider_option(self, pid: str, name: str, value: str) -> None:
+        """From the Weather Providers dialog (e.g. a station ID). Raises ValueError if invalid."""
+        self.client.set_option(pid, name, value)
+        self.settings.provider_options = {k: dict(v) for k, v in self.client.options.items()}
+        self.save_settings()
+        if pid == getattr(self.client, "active", None) or pid == self.client.primary:
+            self.refresh_selected(force=True)
 
     def apply_provider_settings(self, chain: list[str], recovery: str) -> None:
         """From the Weather Providers dialog: save the order and recovery, then update."""

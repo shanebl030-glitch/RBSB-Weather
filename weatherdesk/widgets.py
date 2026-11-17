@@ -25,6 +25,8 @@ class HourlyChart(QWidget):
         self.setMinimumHeight(190)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
+    empty_text = "No hourly data"      # shown when there are no points (the window may set a reason)
+
     def set_data(self, points: list[HourlyPoint], temp_unit: str) -> None:
         self._points = list(points)
         self._unit = temp_unit
@@ -52,14 +54,14 @@ class HourlyChart(QWidget):
         pts = self._points
         if not pts:
             p.setPen(faint)
-            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "No hourly data")
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self.empty_text)
             return
 
         temps = [units.convert_temp(x.temperature, self._unit) for x in pts]
         valid = [t for t in temps if t is not None]
         if not valid:
             p.setPen(faint)
-            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "No hourly data")
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self.empty_text)
             return
 
         left, right, top, bottom = 12.0, 12.0, 26.0, 40.0
