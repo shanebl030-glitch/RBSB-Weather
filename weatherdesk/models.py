@@ -55,7 +55,7 @@ class CurrentWeather:
     temperature: float
     apparent_temperature: Optional[float]
     humidity: Optional[float]
-    weather_code: int
+    weather_code: Optional[int]      # WMO code; None if the provider's condition is unknown
     is_day: bool
     wind_speed: Optional[float]
     wind_direction: Optional[float]
@@ -97,5 +97,9 @@ class Forecast:
     daily: list[DailyPoint] = field(default_factory=list)
     fetched_at: float = 0.0      # unix time when downloaded
     utc_offset_seconds: Optional[int] = None
-    source: str = "Open-Meteo"   # which service the forecast came from ("Open-Meteo" / "MET Norway")
+    source: str = "Open-Meteo"   # name of the service the forecast came from ("Open-Meteo", "MET Norway", ...)
+    provider_id: str = "open-meteo"   # its id in the provider registry (weatherdesk/providers)
+    # values WeatherDesk worked out itself because the provider doesn't supply them
+    # (e.g. "sunrise/sunset", "feels like"); shown in the provider's details
+    calculated: list[str] = field(default_factory=list)
     from_cache: bool = False

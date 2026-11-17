@@ -315,8 +315,14 @@ class TestWindow(TempEnvTestCase):
         super().tearDown()
 
     def make(self, backup=True):
-        c = OpenMeteoClient(self.server.forecast_url, self.server.geocode_url, timeout=2,
-                            backup=MetNoClient(self.server.metno_url, timeout=2) if backup else None)
+        if backup:      # 1.13: the backup is the Provider Manager's chain
+            import provider_fixtures as PF
+            from weatherdesk.keystore import KeyStore
+            from weatherdesk.providers.manager import ProviderManager
+            c = ProviderManager(chain=["open-meteo", "met.no"], factories=PF.factories(self.server, 2),
+                                keystore=KeyStore(self.tmp / "keys", use_keyring=False))
+        else:
+            c = OpenMeteoClient(self.server.forecast_url, self.server.geocode_url, timeout=2)
         w = self.MW(client=c, enable_tray=False)
         self.windows.append(w)
         w.show()
@@ -385,19 +391,20 @@ class TestWindow(TempEnvTestCase):
         self.assertIn("MET Norway", w.status_label.text())
         self.assertNotIn("Open-Meteo.com", w.status_label.text())
 
-    def test_source_menu(self):
+    def test_choosing_met_norway_first(self):
+        """1.12's View → Weather source is now Settings → Weather Providers (primary + backups)."""
         w = self.make()
         k = self.add(w)
         self.assertEqual(w.forecasts[k].source, "Open-Meteo")
-        self.assertTrue(w.source_actions["open-meteo"].isChecked())
-        w.source_actions["met.no"].trigger()
-        self.assertTrue(w.client.prefer_backup)
+        w.apply_provider_settings(["met.no", "open-meteo"], "30")
         self.assertTrue(wait_until(lambda: k not in w._pending and w.forecasts[k].source == SOURCE_NAME))
-        self.assertEqual(w.store.load().weather_source, "met.no")
-        w.set_weather_source("open-meteo")
+        saved = w.store.load()
+        self.assertEqual((saved.weather_source, saved.provider_chain), ("met.no", ["met.no", "open-meteo"]))
+        w.apply_provider_settings(["open-meteo", "met.no"], "30")
         self.assertTrue(wait_until(lambda: k not in w._pending and w.forecasts[k].source == "Open-Meteo"))
-        w.set_weather_source("nonsense")
-        self.assertEqual(w.settings.weather_source, "open-meteo")
+        w.apply_provider_settings(["nonsense"], "bogus")           # invalid: back to the defaults
+        self.assertEqual(w.client.chain, ["open-meteo", "met.no"])
+        self.assertEqual(w.settings.provider_recovery, "30")
 
     def test_about_credits_both_sources(self):
         w = self.make()

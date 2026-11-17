@@ -234,7 +234,7 @@ class TestDiagnosticsDialog(TempEnvTestCase):
         w._start_diag()                       # second start while running is ignored
         self.assertTrue(wait_until(lambda: not w._diag_running, 15))
         self.assertIn("Summary", w.diag_text.toPlainText())
-        self.assertIn("Forecast download: OK", w.diag_text.toPlainText())
+        self.assertIn("Forecast – Open-Meteo (primary): OK", w.diag_text.toPlainText())   # 1.13: per provider
         self.assertTrue(w.diag_run_btn.isEnabled())
         self.assertEqual(self.server.count("/v1/forecast"), 1)
         w._diag_dialog.close()

@@ -19,7 +19,8 @@ from typing import Callable, Optional
 
 from . import APP_NAME, AUTHOR_CREDIT, __version__
 from . import net
-from .api import OpenMeteoClient, WeatherError, default_client
+from .api import OpenMeteoClient, WeatherError
+from .keystore import redact
 from .models import Location
 
 PROBE_TIMEOUT = 5.0
@@ -96,10 +97,11 @@ def _small_packet_handshake(host, addr, family, tls_ctx) -> str:
 def run_diagnostics(client: Optional[OpenMeteoClient] = None,
                     sample: Optional[Location] = None,
                     progress: Optional[Callable[[str], None]] = None) -> str:
-    client = client or default_client()
+    client = client or _default_manager()
     lines: list[str] = []
 
     def out(line: str = "") -> None:
+        line = redact(line)                 # no API key ever reaches the report
         lines.append(line)
         if progress:
             progress(line)
@@ -114,7 +116,9 @@ def run_diagnostics(client: Optional[OpenMeteoClient] = None,
     tls_stall = {"IPv4": False, "IPv6": False}
     hosts = []
     backup = getattr(client, "backup", None)
+    chain = _chain(client)               # [(label, provider)] when it's a ProviderManager
     urls = [client.geocode_url, client.forecast_url] + ([backup.forecast_url] if backup is not None else [])
+    urls += [getattr(getattr(p, "client", p), "forecast_url", p.base_url) for _l, p in chain]
     for url in urls:
         u = urllib.parse.urlsplit(url)
         port = u.port or (443 if u.scheme == "https" else 80)
@@ -145,8 +149,15 @@ def run_diagnostics(client: Optional[OpenMeteoClient] = None,
     sample = sample or Location("Auckland", -36.8485, 174.7635, "New Zealand", timezone="auto")
     results = {}
     main_fetch = getattr(client, "fetch_open_meteo", client.fetch_forecast)
-    checks = [("Location search", lambda: client.search_locations(sample.name)),
-              ("Forecast download", lambda: main_fetch(sample))]
+    checks = [("Location search", lambda: client.search_locations(sample.name))]
+    if chain:
+        for label, p in chain:
+            if p.info.needs_key and not p.api_key:
+                out(f"{label}: skipped – no API key saved (Settings → Weather Providers)")
+                continue
+            checks.append((label, lambda p=p: p.fetch_forecast(sample)))
+    else:
+        checks.append(("Forecast download", lambda: main_fetch(sample)))
     if backup is not None:
         checks.append((f"Backup forecast ({backup.source_name})", lambda: backup.fetch_forecast(sample)))
     for label, fn in checks:
@@ -162,15 +173,19 @@ def run_diagnostics(client: Optional[OpenMeteoClient] = None,
 
     out()
     out("Summary:")
+    if chain:
+        _summary_chain(out, chain, results)
     backup_label = next((k for k in results if k.startswith("Backup forecast")), None)
     if backup_label and results.get("Forecast download") is None and results.get(backup_label) is not None:
-        out(f"  Open-Meteo's forecast server couldn't be reached, but the backup source")
+        out("  Open-Meteo's forecast server couldn't be reached, but the backup source")
         out(f"  ({backup.source_name}) works, so WeatherDesk keeps updating from it automatically.")
-        out("  You can also choose it as the main source: View → Weather source.")
+        out("  You can also choose it as the main source: Settings → Weather Providers.")
     elif backup_label and results.get(backup_label) is None and \
             all(v is not None for k, v in results.items() if k != backup_label):
         out(f"  Open-Meteo works. The backup source ({backup.source_name}) couldn't be reached,")
         out("  which only matters if Open-Meteo fails.")
+    elif chain:
+        pass
     elif any(v is None for v in results.values()):
         out("  The weather service could not be reached. Check your internet connection,")
         out("  firewall or proxy settings, then try again.")
@@ -196,6 +211,46 @@ def run_diagnostics(client: Optional[OpenMeteoClient] = None,
     if h["small_packets"]:
         out("  Using small packets (MSS %d) for: %s" % (net.CLAMP_MSS, ", ".join(h["small_packets"])))
     return "\n".join(lines)
+
+
+def _default_manager():
+    from .providers.manager import ProviderManager
+    from .storage import SettingsStore
+    s = SettingsStore().load()
+    return ProviderManager(chain=s.provider_chain, recovery=s.provider_recovery)
+
+
+def _chain(client) -> list:
+    if not hasattr(client, "chain") or not hasattr(client, "provider"):
+        return []
+    out = []
+    for i, pid in enumerate(client.chain):
+        p = client.provider(pid)
+        role = "primary" if i == 0 else f"backup {i}"
+        key = (", key saved (not shown)" if p.api_key else "") if p.info.needs_key else ""
+        out.append((f"Forecast – {p.info.name} ({role}{key})", p))
+    return out
+
+
+def _summary_chain(out, chain, results) -> None:
+    ok = [lab for lab, _p in chain if results.get(lab) is not None]
+    names = {lab: p.info.name for lab, p in chain}
+    primary = chain[0][0]
+    if results.get("Location search") is None:
+        out("  Location search (Open-Meteo) couldn't be reached; saved locations still update.")
+    if results.get(primary) is not None:
+        slow = results[primary] > SLOW_MS
+        out(f"  {names[primary]} (primary) works{' but responded slowly' if slow else ''}.")
+        failed = [names[lab] for lab, _p in chain[1:] if lab in results and results[lab] is None]
+        if failed:
+            out(f"  Backup{'s' if len(failed) > 1 else ''} not working: {', '.join(failed)} – this only "
+                f"matters if the primary fails.")
+    elif ok:
+        out(f"  {names[primary]} (primary) couldn't supply the weather, but {names[ok[0]]} works,")
+        out("  so WeatherDesk keeps updating from it automatically (Settings → Weather Providers).")
+    else:
+        out("  No weather provider could be reached. Check your internet connection,")
+        out("  firewall or proxy settings, and any API keys, then try again.")
 
 
 def _fam(f: int) -> str:

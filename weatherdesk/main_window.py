@@ -18,8 +18,9 @@ from PyQt6.QtWidgets import (
 )
 
 from . import APP_NAME, AUTHOR_CREDIT, DATA_CREDIT, __version__, units, weather_codes
-from .metno import CREDIT as METNO_CREDIT, SOURCE_NAME as METNO_NAME
-from .api import OpenMeteoClient, default_client
+from .api import OpenMeteoClient
+from . import providers
+from .providers.manager import ProviderManager
 from .models import Forecast, Location
 from .storage import REFRESH_CHOICES, ForecastCache, Settings, SettingsStore
 from .scene import AnimationClock, Conditions, WeatherIcon, WeatherScene, conditions_from_forecast
@@ -37,8 +38,6 @@ STALE_AFTER_S = 10 * 60          # selecting a location re-fetches if older than
 OLD_DATA_WARN_S = 3 * 60 * 60    # status bar warns if shown data is older than this
 RETRY_AFTER_FAIL_S = 5 * 60      # longest wait before retrying a failed update (not a full interval)
 RETRY_STEPS_S = (30, 60, 120, RETRY_AFTER_FAIL_S)   # waits after the 1st, 2nd, 3rd, later failures in a row
-SOURCE_LABELS = {"open-meteo": "Open-Meteo (MET Norway as backup)",
-                 "met.no": "MET Norway (Open-Meteo as backup)"}
 SEARCH_DEBOUNCE_MS = 450
 DAYS_SHOWN = 7
 
@@ -95,7 +94,8 @@ class MainWindow(QMainWindow):
         self.store = store or SettingsStore()
         self.cache = cache or ForecastCache()
         self.settings: Settings = self.store.load()
-        self.client = client or default_client(self.settings.weather_source)
+        self.client: ProviderManager = self._make_manager(client)
+        self._providers_dialog = None
         units.set_time_format(self.settings.time_format)
         self.bridge = Bridge()          # no parent: see workers.retire()
         self.worker = Worker(self.client, self.bridge)
@@ -407,16 +407,6 @@ class MainWindow(QMainWindow):
             grp.addAction(a)
             sub.addAction(a)
             self.refresh_actions[mins] = a
-        sub = v.addMenu("Weather &source")
-        grp = QActionGroup(self)
-        self.source_actions: dict[str, QAction] = {}
-        for src, label in SOURCE_LABELS.items():
-            a = QAction(label, self, checkable=True)
-            a.setChecked(self.settings.weather_source == src)
-            a.triggered.connect(lambda _=False, s_=src: self.set_weather_source(s_))
-            grp.addAction(a)
-            sub.addAction(a)
-            self.source_actions[src] = a
         v.addSeparator()
         self.act_tray = QAction("Show &tray icon", self, checkable=True,
                                 checked=self.settings.show_tray, triggered=self.set_show_tray)
@@ -440,6 +430,11 @@ class MainWindow(QMainWindow):
                                      checked=autostart_path().exists(),
                                      triggered=self.set_autostart)
         v.addAction(self.act_autostart)
+
+        sm = mb.addMenu("&Settings")
+        self.act_providers = QAction("Weather &Providers…", self, shortcut=QKeySequence("Ctrl+,"),
+                                     triggered=self.show_providers)
+        sm.addAction(self.act_providers)
 
         hm = mb.addMenu("&Help")
         hm.addAction(QAction("&User Guide", self, shortcut=QKeySequence("F1"), triggered=self.show_guide))
@@ -650,6 +645,8 @@ class MainWindow(QMainWindow):
         self.forecasts[key] = fc
         self.errors.pop(key, None)
         self._fail_count.pop(key, None)
+        if self._providers_dialog is not None:
+            self._providers_dialog.refresh_status()
         self.cache.save(fc)
         self._refresh_location_texts()
         sel = self.settings.selected_location()
@@ -665,6 +662,8 @@ class MainWindow(QMainWindow):
         del self._pending[key]
         self.errors[key] = msg
         self._fail_count[key] = self._fail_count.get(key, 0) + 1
+        if self._providers_dialog is not None:
+            self._providers_dialog.refresh_status()
         log.info("forecast failed for %s (%d in a row): %s", key, self._fail_count[key], msg)
         if self.settings.refresh_minutes > 0:
             self.retry_timer.start(int(self._retry_delay(key) * 1000))
@@ -809,12 +808,14 @@ class MainWindow(QMainWindow):
             txt = f"Updated {stamp} ({_age_text(age)})"
             if fc.from_cache:
                 txt += " · saved copy"
+            elif fc.provider_id != self.client.primary:
+                txt += f" · from {fc.source} (backup)"
             if age > OLD_DATA_WARN_S:
                 txt += " · ⚠️ data may be out of date"
             parts.append(txt)
         if self.errors.get(loc.key):
             parts.append("Offline / update failed")
-        parts.append(METNO_CREDIT if fc is not None and fc.source == METNO_NAME else DATA_CREDIT)
+        parts.append(self._credit(fc))
         self.status_label.setText("   ·   ".join(parts))
 
     def _update_tray(self, fc: Optional[Forecast]) -> None:
@@ -1124,17 +1125,49 @@ class MainWindow(QMainWindow):
             log.info("retrying the failed update for %s", loc.name)
             self.refresh_selected()
 
-    def set_weather_source(self, source: str) -> None:
+    # ================================================= Weather providers
+    def _make_manager(self, client) -> ProviderManager:
+        """The weather client. Normally a ProviderManager built from the saved chain. A
+        plain Open-Meteo client (as the tests pass) becomes a one-provider manager, so
+        nothing else is ever contacted."""
+        if isinstance(client, ProviderManager):
+            return client
+        if client is not None:
+            from .providers.openmeteo import OpenMeteoProvider
+            return ProviderManager(chain=["open-meteo"],
+                                   overrides={"open-meteo": OpenMeteoProvider(client=client)},
+                                   ssl_context=getattr(client, "ssl_context", None))
+        return ProviderManager(chain=self.settings.provider_chain, recovery=self.settings.provider_recovery,
+                               status_file=Path(self.cache.dir) / "providers.json")
+
+    def _credit(self, fc: Optional[Forecast]) -> str:
+        inf = providers.info(fc.provider_id) if fc is not None else None
+        return inf.credit if inf else DATA_CREDIT
+
+    def show_providers(self) -> None:
+        from .providers_dialog import ProvidersDialog
+        if self._providers_dialog is None:
+            self._providers_dialog = ProvidersDialog(self)
+        self._providers_dialog.reload()
+        self._providers_dialog.show()
+        self._providers_dialog.raise_()
+        self._providers_dialog.activateWindow()
+
+    def apply_provider_settings(self, chain: list[str], recovery: str) -> None:
+        """From the Weather Providers dialog: save the order and recovery, then update."""
         from .storage import WEATHER_SOURCES
-        if source not in WEATHER_SOURCES:
-            return
-        self.settings.weather_source = source
-        self.source_actions[source].setChecked(True)
+        old = (list(self.client.chain), self.client.recovery)
+        self.client.set_chain(chain)
+        self.client.set_recovery(recovery)
+        self.settings.provider_chain = list(self.client.chain)
+        self.settings.provider_recovery = self.client.recovery
+        self.settings.weather_source = self.client.primary if self.client.primary in WEATHER_SOURCES \
+            else "open-meteo"
         self.save_settings()
-        if getattr(self.client, "backup", None) is not None:
-            self.client.prefer_backup = (source == "met.no")
-            self.client._down_until.clear()        # give the newly preferred source a fresh try
-        self.refresh_selected(force=True)
+        if old[0] != self.client.chain:
+            self.client.try_primary_now()
+            self.refresh_selected(force=True)
+        self._update_status()
 
     def _apply_refresh_interval(self) -> None:
         self.refresh_timer.stop()
@@ -1242,11 +1275,19 @@ class MainWindow(QMainWindow):
         return (f"<h2>{APP_NAME} {__version__}</h2>"
                 f"<p>A desktop weather app for Linux.</p>"
                 f"<p><b>{AUTHOR_CREDIT}</b></p>"
-                f"<p>{DATA_CREDIT} – "
-                f"<a href='https://open-meteo.com/'>open-meteo.com</a><br>"
-                f"{METNO_CREDIT} – <a href='https://api.met.no/'>api.met.no</a></p>"
+                f"<p>{self._credits_html()}</p>"
                 f"<p>{self._moon_credit()}</p>"
                 f"<p>Settings: {self.store.path}<br>Cache: {self.cache.dir}</p>")
+
+    def _credits_html(self) -> str:
+        """Every provider in use (primary and backups), with links."""
+        lines = []
+        for pid in self.client.chain:
+            inf = providers.info(pid)
+            if inf:
+                host = inf.website.split("//")[-1].strip("/")
+                lines.append(f"{inf.credit} – <a href='{inf.website}'>{host}</a>")
+        return "<br>".join(lines) or DATA_CREDIT
 
     @staticmethod
     def _moon_credit() -> str:

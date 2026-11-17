@@ -27,6 +27,9 @@ def _setup_logging(verbose: bool) -> None:
     logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
                         handlers=handlers)
+    # API keys never reach the terminal or the log file (see keystore.py)
+    from .keystore import install_log_redaction
+    install_log_redaction()
 
 
 def main(argv: list[str] | None = None) -> int:

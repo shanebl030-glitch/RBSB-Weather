@@ -15,6 +15,7 @@ override the locations (used by the test suite).
 from __future__ import annotations
 
 import json
+import re
 import logging
 import os
 import tempfile
@@ -88,7 +89,11 @@ class Settings:
     widget_size: str = "medium"               # small | medium | large
     widget_on_top: bool = False
     earth_clouds: bool = True                 # live clouds on the Earth tabs
-    weather_source: str = "open-meteo"        # preferred source: open-meteo | met.no (the other is the backup)
+    weather_source: str = "open-meteo"        # 1.12 setting; kept in step with provider_chain[0]
+    # Weather Providers (1.13): primary first, then backups in order; and when to go back
+    # to the primary after it failed (see providers/manager.py RECOVERY)
+    provider_chain: list = field(default_factory=lambda: ["open-meteo", "met.no"])
+    provider_recovery: str = "30"
 
     # ---------------------------------------------------------- helpers
     def selected_location(self) -> Optional[Location]:
@@ -147,6 +152,8 @@ class Settings:
             "widget_on_top": self.widget_on_top,
             "earth_clouds": self.earth_clouds,
             "weather_source": self.weather_source,
+            "provider_chain": list(self.provider_chain),
+            "provider_recovery": self.provider_recovery,
         }
 
     @classmethod
@@ -187,6 +194,18 @@ class Settings:
                 setattr(s, k, v)
         if d.get("weather_source") in WEATHER_SOURCES:
             s.weather_source = d["weather_source"]
+            if d["weather_source"] == "met.no":          # 1.12 "MET Norway (Open-Meteo as backup)"
+                s.provider_chain = ["met.no", "open-meteo"]
+        chain = d.get("provider_chain")
+        if isinstance(chain, list):
+            ids = []
+            for x in chain:
+                if isinstance(x, str) and re.fullmatch(r"[a-z0-9.\-]{1,40}", x) and x not in ids:
+                    ids.append(x)
+            if ids:
+                s.provider_chain = ids[:10]
+        if d.get("provider_recovery") in ("next", "15", "30", "60", "stay"):
+            s.provider_recovery = d["provider_recovery"]
         if d.get("widget_size") in WIDGET_SIZES:
             s.widget_size = d["widget_size"]
         if isinstance(d.get("window_geometry"), str):

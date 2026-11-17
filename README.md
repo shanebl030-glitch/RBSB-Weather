@@ -1,10 +1,12 @@
-# WeatherDesk 1.12.0
+# WeatherDesk 1.13.0
 
 A desktop weather app for Linux Mint (and other Ubuntu 24.04-based systems).
 It shows current conditions, a 24-hour chart, a 7-day forecast, and the
 temperature in your system tray. It uses the free Open-Meteo service, with
 MET Norway (yr.no) as an automatic backup, so you don't need an account or an
-API key.
+API key. If you like, Settings → Weather Providers adds OpenWeather,
+WeatherAPI.com, Visual Crossing or Tomorrow.io with your own API key, as the
+primary provider or as backups.
 
 **Created By Shane BlackbuRn**
 
@@ -115,6 +117,10 @@ workflows, and stress/leak checks. The full log is written to
 |---|---|
 | `weatherdesk/api.py` | Open-Meteo client, response parsing, retries and the automatic backup (standard library only) |
 | `weatherdesk/metno.py` | MET Norway client: the second weather source |
+| `weatherdesk/providers/` | Weather providers: one module per service, the registry, the common-format normaliser and the ProviderManager (fallback chain, recovery, quota guards, status) |
+| `weatherdesk/providers_dialog.py` | Settings → Weather Providers |
+| `weatherdesk/keystore.py` | API key storage (system keyring or a 0600 file) and log redaction |
+| `weatherdesk/sun.py` | Sunrise/sunset, day/night and "feels like" for providers that don't supply them |
 | `weatherdesk/storage.py` | Settings and forecast cache (atomic JSON writes) |
 | `weatherdesk/workers.py` | Background network threads |
 | `weatherdesk/main_window.py` | The main window, tray, and menus |
@@ -136,11 +142,35 @@ workflows, and stress/leak checks. The full log is written to
 | `tests/` | Test suite and fake server |
 | `packaging/` | Launcher, .desktop file, and icon |
 
+## Adding a weather provider
+
+1. Create `weatherdesk/providers/<name>.py` with a class derived from
+   `Provider` and decorated with `@register`:
+   * `info = ProviderInfo(...)`: id, name, whether it needs a key, website,
+     credit, coverage, forecast days, hourly, limits, the features it supplies,
+     sign-up and documentation links, and `min_interval_s` if its free
+     allowance is small;
+   * `default_base_url()`;
+   * `_fetch(location, days)`: request the data (the key is `self.api_key`),
+     convert it to a `Forecast`: WMO weather codes, °C, km/h, mm, hPa, %, and
+     local times as `YYYY-MM-DDTHH:MM`. Leave anything the service doesn't
+     supply as `None`;
+   * optionally `_error_reason(body)` and `usage()`.
+2. Import the module in `weatherdesk/providers/__init__.py`.
+3. Add its documented response shape to `tests/provider_fixtures.py` and its
+   tests to `tests/test_providers.py`.
+
+The normaliser, fallback, key storage, Settings dialog, connection test and
+the rest of the app need no changes.
+
 ## Data and privacy
 
 The app sends only the search text and the coordinates of your saved
-locations to Open-Meteo, and the coordinates to MET Norway when it's used
-(as the backup, or if you choose it under View → Weather source). While an Earth tab is open with **Live clouds** on,
+locations to Open-Meteo, and the coordinates to MET Norway or any other
+provider when it's used (as the primary or a backup, chosen in Settings →
+Weather Providers). API keys you add are sent only to their own provider and
+are stored in the system keyring or a private file, never in the settings,
+logs or reports. While an Earth tab is open with **Live clouds** on,
 it also downloads the global cloud map from clouds.matteason.co.uk (at most
 once an hour; nothing about you or your locations is sent). There's no
 tracking or analytics. Weather data

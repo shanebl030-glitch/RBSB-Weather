@@ -2,6 +2,110 @@
 
 Created By Shane BlackbuRn
 
+## 1.13.0 – 2026-11-17 (on branch claude/weatherdesk-1.12.0; not released)
+
+### Added
+- **Settings → Weather Providers** (Ctrl+,): a provider manager.
+  - **Choose any integrated provider** as the primary, and any number of
+    **backups** in order. If the primary can't supply the weather, the next
+    backup is tried automatically.
+  - **Recovery**: return to the primary at the next update, after
+    15/30/60 minutes (30 is the default), or stay on the backup until it fails.
+    There's also a *Use the primary now* button.
+  - For each provider: status (working / not working / needs a key / not used
+    yet / planned), coverage, forecast length, hourly data, free allowance
+    and limits, the values it supplies, what WeatherDesk calculates for it,
+    last successful update, last problem, usage it reports, and sign-up and
+    documentation links.
+  - **API keys**: add, change or remove; **Test connection** shows the result
+    (and can test a typed key before saving it). It also shows which provider
+    is **currently supplying the weather**; the status bar says "from …
+    (backup)" and credits the provider in use.
+- **New providers, each fully integrated and tested** (they need your own free
+  API key):
+  - **OpenWeather**: One Call 3.0 (8 days, 48 h hourly, UV). It falls back to
+    the plain free key (current + 5-day/3-hour) automatically when the account
+    has no One Call subscription.
+  - **WeatherAPI.com**: 3 days on the free plan (14 on paid), hourly, UV.
+  - **Visual Crossing**: 15 days (7 used), hourly; one forecast costs 1 of
+    the 1,000 free daily records.
+  - **Tomorrow.io**: 5 days and 120 hours. It shows the requests left today
+    and this hour.
+- **Planned, not yet integrated** (listed in the dialog with the reason):
+  AccuWeather (paid-only after a 14-day trial, plus an extra location-key
+  call per update) and Weatherbit (50 requests a day on the free plan, no
+  hourly data).
+- **Extensible design**: each provider is one module in
+  `weatherdesk/providers/` registered with `@register`. The rest of the app
+  only uses the `ProviderManager`. See "Adding a weather provider" in the
+  README.
+
+### Data compatibility
+- Every provider is converted into WeatherDesk's existing forecast format:
+  WMO weather codes, °C, km/h, mm, hPa, % and the location's local time.
+  Code tables are included for OpenWeather, WeatherAPI.com, Visual Crossing
+  and Tomorrow.io.
+- A shared normaliser then:
+  - calculates sunrise/sunset, day/night and "feels like" only where a
+    provider leaves them out;
+  - works out an unknown condition from cloud and rain;
+  - fills a day's condition and rain chance from its hours;
+  - clamps percentages, drops impossible values, and sorts and limits the
+    days.
+
+  Anything that can't be worked out exactly shows "–", never a guess.
+  Calculated values are listed per provider in the dialog.
+- The scene, icons, Sun and Moon, mini forecast, chart, 7-day list, tray and
+  desktop widget work unchanged with every provider (tested for each one).
+  Providers with fewer than 7 days show the days they have.
+
+### Security
+- Keys are stored in the **system keyring** (Secret Service: GNOME Keyring /
+  KWallet) when `python3-keyring` is available (now a recommended package).
+  Otherwise they go in `~/.config/weatherdesk/keys.json`: folder 0700, file
+  0600, written atomically, and tightened again if the permissions are ever
+  loosened.
+- Keys are never stored in `settings.json`, the forecast cache or the
+  provider status file, and never appear in the window. Once saved, a key
+  shows only as "Saved ••••••••". The key field is masked, with an optional
+  "Show while typing", and is never pre-filled.
+- A logging filter removes saved keys, and any `key=`, `appid=`, `apikey=` or
+  `token=` value, from every log line, tracebacks included. Error messages
+  are cleaned too: Visual Crossing echoes the key back in its errors. The
+  connection test report shows only "key saved (not shown)".
+- `.gitignore` refuses `keys.json`, `*.key` and `.env` files; the source
+  archive excludes them as well.
+
+### Changed
+- View → Weather source (1.12) is replaced by Settings → Weather Providers.
+  A 1.12 choice of "MET Norway first" carries over as the provider order.
+- Help → Test connection checks every provider in your order: the
+  connection, the secure handshake and a real forecast.
+- Messages for a rejected key (HTTP 401/403) and a reached usage limit
+  (HTTP 429, or a "quota" reply) name the provider and say what to check.
+- Quota guards: Tomorrow.io is asked at most every 10 minutes per location,
+  and OpenWeather and Visual Crossing at most every 5. A refresh in between
+  shows the forecast already downloaded.
+
+### Tests
+- New `test_providers.py` (54 tests). Each provider is served by the local
+  fake server in its documented response shape (`provider_fixtures.py`).
+  Covered: conversion and units, code tables, unknown codes, bad key and
+  usage limit (with the key never echoed), garbled data, missing key,
+  fallback order, all four recovery modes, quota guards, the status file,
+  Test connection, the normaliser, key storage (file permissions, system
+  keyring, insecure keyrings refused), log redaction, settings migration,
+  diagnostics, the whole window driven by every provider, and the Settings
+  dialog (key add/change/remove never shown, test results, order and
+  recovery saved, warnings, primary now).
+- The full suite has 379 tests. As before, `test_sky`'s zoom-glide test is
+  timing-sensitive on a busy machine; it fails the same way on 1.11.1.
+- **Not tested against the live services**: the build environment can't
+  reach them. Each integration follows the provider's current
+  documentation; Test connection with a real key is the live check.
+
+Created By Shane BlackbuRn
+
 ## 1.12.0 – 2026-11-17
 
 ### Fixed

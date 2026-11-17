@@ -10,6 +10,7 @@ import json
 import logging
 import socket
 import ssl
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -55,7 +56,9 @@ class NetworkError(WeatherError):
 
 
 class ApiError(WeatherError):
-    pass
+    def __init__(self, message: str, status: Optional[int] = None):
+        super().__init__(message)
+        self.status = status            # HTTP status, when the server answered with an error
 
 
 class DataError(WeatherError):
@@ -73,9 +76,22 @@ class JsonHttpClient:
         # Races IPv6/IPv4 so a broken IPv6 route can't stall every request.
         self.ssl_context = ssl_context
         self._opener = build_opener(ssl_context)
+        self._local = threading.local()      # per-thread: headers of the last response
+
+    def last_headers(self) -> dict:
+        """Response headers of the last request made on this thread (lower-case names)."""
+        return getattr(self._local, "headers", None) or {}
+
+    def _error_reason(self, body: str) -> str:
+        """A short reason from an error response body (each source formats these differently)."""
+        try:
+            data = json.loads(body)
+        except ValueError:
+            return ""
+        return str(data.get("reason", "")) if isinstance(data, dict) else ""
 
     # ------------------------------------------------------------------ HTTP
-    def _get_json(self, url: str, params: dict[str, Any]) -> Any:
+    def _get_json(self, url: str, params: dict[str, Any], headers: Optional[dict] = None) -> Any:
         """GET with up to two automatic retries after a stall/timeout/reset, each one
         trying harder:
           1. the normal request;
@@ -90,8 +106,8 @@ class JsonHttpClient:
                 if attempt == ATTEMPTS:
                     limit = min(float(self.timeout), net.HANDSHAKE_TIMEOUT * LAST_TRY_HANDSHAKE_X)
                     with handshake_limit(max(limit, net.HANDSHAKE_TIMEOUT)):
-                        return self._get_json_once(url, params)
-                return self._get_json_once(url, params)
+                        return self._get_json_once(url, params, headers)
+                return self._get_json_once(url, params, headers)
             except NetworkError as e:
                 info = last_connection()
                 if attempt < ATTEMPTS and e.retryable:
@@ -104,25 +120,28 @@ class JsonHttpClient:
                 raise
         raise AssertionError("unreachable")      # pragma: no cover
 
-    def _get_json_once(self, url: str, params: dict[str, Any]) -> Any:
-        full = f"{url}?{urllib.parse.urlencode(params)}"
-        req = urllib.request.Request(full, headers={"User-Agent": self.user_agent,
-                                                    "Accept": "application/json"})
+    def _get_json_once(self, url: str, params: dict[str, Any], headers: Optional[dict] = None) -> Any:
+        full = f"{url}?{urllib.parse.urlencode(params, doseq=True)}" if params else url
+        hdrs = {"User-Agent": self.user_agent, "Accept": "application/json"}
+        hdrs.update(headers or {})
+        req = urllib.request.Request(full, headers=hdrs)
         t0 = time.monotonic()
+        self._local.headers = {}
         try:
             with self._opener.open(req, timeout=self.timeout) as resp:
+                self._local.headers = {k.lower(): v for k, v in resp.headers.items()}
                 raw = resp.read(MAX_RESPONSE_BYTES + 1)
         except urllib.error.HTTPError as e:
             reason = ""
             try:
-                body = json.loads(e.read(65536).decode("utf-8", "replace"))
-                reason = body.get("reason", "") if isinstance(body, dict) else ""
+                self._local.headers = {k.lower(): v for k, v in (e.headers or {}).items()}
+                reason = self._error_reason(e.read(65536).decode("utf-8", "replace"))[:200]
             except Exception:
                 pass
             finally:
                 e.close()
             raise ApiError(f"Weather service returned HTTP {e.code}"
-                           + (f": {reason}" if reason else "")) from None
+                           + (f": {reason}" if reason else ""), status=e.code) from None
         except (socket.timeout, TimeoutError):
             raise NetworkError("The weather service did not respond in time.", retryable=True) from None
         except urllib.error.URLError as e:
@@ -348,6 +367,10 @@ def forecast_to_dict(fc: Forecast) -> dict:
     return d
 
 
+def _provider_id_for(source: str) -> str:
+    return {"MET Norway": "met.no"}.get(source, "open-meteo")      # caches written before 1.13
+
+
 def forecast_from_dict(d: dict) -> Forecast:
     try:
         return Forecast(
@@ -359,6 +382,8 @@ def forecast_from_dict(d: dict) -> Forecast:
             fetched_at=float(d.get("fetched_at", 0.0)),
             utc_offset_seconds=d.get("utc_offset_seconds"),
             source=str(d.get("source") or "Open-Meteo"),
+            provider_id=str(d.get("provider_id") or _provider_id_for(str(d.get("source") or ""))),
+            calculated=[str(x) for x in d.get("calculated") or [] if isinstance(x, str)],
             from_cache=True,
         )
     except (KeyError, TypeError, ValueError) as e:

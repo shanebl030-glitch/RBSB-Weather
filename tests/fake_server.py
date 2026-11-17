@@ -107,6 +107,8 @@ class FakeServer:
         self.mode = "ok"
         self.metno_mode = "ok"            # ok | http500 | http429 | badjson
         self.metno_agents: collections.deque = collections.deque(maxlen=20)
+        # extra endpoints: path prefix -> handler(path, query, headers) -> (status, body bytes, headers)
+        self.routes: dict = {}
         self.delay = 0.0
         # live cloud map (/images/.../clouds.jpg): body, Last-Modified, and a mode:
         # ok | http404 | garbage | huge | slow
@@ -135,6 +137,10 @@ class FakeServer:
                     return self._clouds()
                 if u.path == METNO_PATH:
                     return self._metno(q)
+                for prefix, handler in list(outer.routes.items()):
+                    if u.path.startswith(prefix):
+                        code, body, hdrs = handler(u.path, q, dict(self.headers))
+                        return self._raw(code, body, hdrs)
                 if mode == "slow" or delay:
                     time.sleep(delay or 5)
                 if mode == "http500":
@@ -203,9 +209,11 @@ class FakeServer:
             def _send(self, code, obj):
                 self._raw(code, json.dumps(obj).encode())
 
-            def _raw(self, code, body):
+            def _raw(self, code, body, hdrs=None):
                 try:
                     self.send_response(code)
+                    for k, v in (hdrs or {}).items():
+                        self.send_header(k, v)
                     self.send_header("Content-Type", "application/json")
                     self.send_header("Content-Length", str(len(body)))
                     self.end_headers()

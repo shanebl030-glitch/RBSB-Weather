@@ -15,6 +15,8 @@ mkdir -p dist
 install -d "$ROOT/usr/lib/$PKG/$PKG" "$ROOT/usr/bin" "$ROOT/usr/share/applications" \
            "$ROOT/usr/share/icons/hicolor/scalable/apps" "$ROOT/usr/share/doc/$PKG" "$ROOT/DEBIAN"
 install -m 644 weatherdesk/*.py weatherdesk/USER_GUIDE.md "$ROOT/usr/lib/$PKG/$PKG/"
+install -d "$ROOT/usr/lib/$PKG/$PKG/providers"
+install -m 644 weatherdesk/providers/*.py "$ROOT/usr/lib/$PKG/$PKG/providers/"
 install -d "$ROOT/usr/lib/$PKG/$PKG/assets"
 install -m 644 weatherdesk/assets/*.jpg weatherdesk/assets/*.json "$ROOT/usr/lib/$PKG/$PKG/assets/"
 install -m 755 packaging/weatherdesk.sh "$ROOT/usr/bin/$PKG"
@@ -28,6 +30,10 @@ WeatherDesk $VERSION
 Created By Shane BlackbuRn
 Weather data: Open-Meteo.com, licensed CC BY 4.0 (https://open-meteo.com/), and
 MET Norway (Norwegian Meteorological Institute), licensed CC BY 4.0 (https://api.met.no/).
+Optional providers (used only with your own API key, under each provider's terms):
+OpenWeather (https://openweathermap.org/, CC BY-SA 4.0), WeatherAPI.com
+(https://www.weatherapi.com/), Visual Crossing (https://www.visualcrossing.com/)
+and Tomorrow.io (https://www.tomorrow.io/).
 Moon textures: see /usr/lib/weatherdesk/weatherdesk/assets/moon_textures.json. When built
 from NASA's CGI Moon Kit (https://svs.gsfc.nasa.gov/4720) they are public domain
 imagery from NASA's Scientific Visualization Studio. Moon positions, phases and
@@ -48,21 +54,23 @@ Section: utils
 Priority: optional
 Architecture: all
 Depends: python3 (>= 3.10), python3-pyqt6
-Recommends: fonts-noto-color-emoji, python3-numpy
+Recommends: fonts-noto-color-emoji, python3-numpy, python3-keyring
 Installed-Size: $SIZE
 Maintainer: Shane BlackbuRn <noreply@weatherdesk.invalid>
 Description: Desktop weather app (Created By Shane BlackbuRn)
  WeatherDesk shows current conditions, a 24-hour temperature and rain chart
  and a 7-day forecast for any number of saved locations, with a system-tray
  temperature readout, offline fallback to the last saved forecast, and
- unit choices. Uses the free Open-Meteo service - no account or API key.
+ unit choices. Uses the free Open-Meteo and MET Norway services with no
+ account or key, and optionally OpenWeather, WeatherAPI.com, Visual Crossing
+ or Tomorrow.io with your own API key (stored in the system keyring).
 EOF
 
 # remove compiled files from older byte-compilation on uninstall
 cat > "$ROOT/DEBIAN/prerm" <<'EOF'
 #!/bin/sh
 set -e
-rm -rf /usr/lib/weatherdesk/weatherdesk/__pycache__
+rm -rf /usr/lib/weatherdesk/weatherdesk/__pycache__ /usr/lib/weatherdesk/weatherdesk/providers/__pycache__
 EOF
 chmod 755 "$ROOT/DEBIAN/prerm"
 
@@ -72,7 +80,7 @@ dpkg-deb --root-owner-group --build "$ROOT" "$DEB" >/dev/null
 
 # --- clean source archive (no caches, logs or build output)
 SRC="dist/${PKG}-${VERSION}-source.tar.gz"
-tar --exclude='__pycache__' --exclude='*.pyc' --exclude='dist' --exclude='test-results.log' \
+tar --exclude=keys.json --exclude="*.key" --exclude=".env*" --exclude="__pycache__" --exclude='*.pyc' --exclude='dist' --exclude='test-results.log' \
     --transform "s,^\.,${PKG}-${VERSION}," -czf "$SRC" \
     ./weatherdesk ./tests ./tools ./packaging ./build_deb.sh ./run_tests.sh \
     ./README.md ./CHANGELOG.md ./TRANSCRIPT.md ./TEST_REPORT.md

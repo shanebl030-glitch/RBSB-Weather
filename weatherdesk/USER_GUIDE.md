@@ -239,23 +239,75 @@ bar, and shows *Couldn't update* with the reason in the top card, plus how
 old the weather on screen is. While auto refresh is on, a failed update is
 retried after 30 seconds, then 1, 2 and every 5 minutes until it works.
 
-## Weather source
+## Weather providers
 
-WeatherDesk gets forecasts from two free services, neither needing an
-account or key:
+Open **Settings → Weather Providers…** (Ctrl+,). The list on the left shows
+every weather service WeatherDesk knows and its status:
 
-* **Open-Meteo** (the default), and
-* **MET Norway** (the Norwegian Meteorological Institute, behind yr.no).
+| Symbol | Meaning |
+|---|---|
+| ✓ Working | its last update or test succeeded |
+| ⚠ Not working | its last update or test failed (the reason is shown) |
+| 🔑 Needs an API key | add a key before it can be used |
+| ○ Not used yet | ready, but hasn't supplied the weather yet |
+| … Planned | researched, not integrated yet |
 
-Whichever you choose under **View → Weather source** is asked first; the
-other is the automatic backup. If the first can't be reached, the forecast
-comes from the backup without any error, and for the next 30 minutes
-WeatherDesk goes straight to the backup so updates stay quick. The status
-bar's credit shows which service the weather on screen came from.
+Select a provider to see its coverage, how many days and hours it forecasts,
+its free allowance and limits, which values it supplies, which values
+WeatherDesk calculates for it, its last successful update, the usage it
+reports (for example Tomorrow.io's requests left today), and links to sign up
+and to its documentation.
 
-With MET Norway, today's high and low cover the rest of today, and the UV
-index is the clear-sky value. Sunrise and sunset are calculated on your
-computer.
+**Available now**
+
+| Provider | Key | Free allowance | Forecast |
+|---|---|---|---|
+| Open-Meteo | none | fair use | 7 days, hourly |
+| MET Norway | none | fair use | 7 days, hourly for about 2½ days |
+| OpenWeather | free key | 1,000 One Call calls a day (separate subscription), or 5-day/3-hour with a plain free key | 8 or 5 days |
+| WeatherAPI.com | free key | 100,000 calls a month | 3 days (free), 14 (paid) |
+| Visual Crossing | free key | 1,000 records a day (a forecast = 1) | 7 of 15 days, hourly |
+| Tomorrow.io | free key | 500 a day, 25 an hour | 5 days, 120 hours hourly |
+
+AccuWeather and Weatherbit are listed as planned; the dialog says why.
+
+**API keys.** Select the provider, click **Add key…**, paste the key and
+click **Save key**. WeatherDesk tests it straight away. Once saved, a key is
+never shown again (only "Saved ••••••••"); use **Change key…** or **Remove
+key**. **Test connection** makes one real request and shows the result; if the
+key field is open it tests the key you typed without saving it.
+
+Keys are kept in your desktop's keyring (GNOME Keyring / KWallet, unlocked
+with your login) when the `python3-keyring` package is installed, otherwise in
+`~/.config/weatherdesk/keys.json`, which only you can read. They are never
+written to the settings file, the log, the connection-test report or the
+screen.
+
+**Primary and backups.** Choose the **primary provider**, then tick the
+**backups** to use and put them in order (▲/▼). If the primary can't supply
+the weather, the backups are tried in order, and the status bar shows
+"from … (backup)". A provider that needs a key and has none is skipped.
+
+**When the primary fails**, WeatherDesk can:
+
+* return to the primary at the next update;
+* try the primary again after 15 minutes, 30 minutes (the default) or 1 hour;
+* stay on the backup until the backup fails.
+
+**Use the primary now** asks the primary first at the next update.
+
+To protect small free allowances, WeatherDesk asks Tomorrow.io at most every
+10 minutes per location, and OpenWeather and Visual Crossing at most every
+5 minutes; a refresh in between shows the forecast it already has.
+
+**Different services, same display.** Every provider's data is converted to
+the same format: °C, km/h, mm, local time, and the same weather conditions,
+so the scene, icons, Sun and Moon, mini forecast and desktop widget look the
+same whichever service supplies them. When a service doesn't supply
+something, WeatherDesk calculates it only if it can do so exactly (sunrise and
+sunset, day or night, "feels like"); otherwise the value shows "–" rather than
+a guess. Some services forecast fewer than 7 days (WeatherAPI.com's free plan
+gives 3, Tomorrow.io 5); WeatherDesk shows the days it has.
 
 ## If weather is slow or won't load
 
@@ -278,7 +330,7 @@ WeatherDesk automatically works around two common network faults:
   seconds, retries using smaller packets, then retries once more with the
   smallest packets and a longer wait, and remembers what worked for that
   server for a week, so only the first update is slow. If all of that
-  fails, the backup weather source is used.
+  fails, the backup providers are used.
 
 If Test connection says a handshake **STALLS** but **works with small
 packets**, it's this second fault. WeatherDesk is already handling it, but
@@ -306,7 +358,10 @@ used, so nothing is silently lost.
 ## Credits
 
 Weather data by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0) and
-[MET Norway](https://api.met.no/) (CC BY 4.0).
+[MET Norway](https://api.met.no/) (CC BY 4.0), or, if you add their keys,
+[OpenWeather](https://openweathermap.org/), [WeatherAPI.com](https://www.weatherapi.com/),
+[Visual Crossing](https://www.visualcrossing.com/) and [Tomorrow.io](https://www.tomorrow.io/).
+The status bar always credits the service supplying the weather on screen.
 
 Earth maps by [Solar System Scope](https://www.solarsystemscope.com/textures/)
 (CC BY 4.0), based on NASA imagery. Moon imagery from NASA's Scientific

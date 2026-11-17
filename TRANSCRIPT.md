@@ -787,3 +787,49 @@ they are left as a possible later option.
 
 **Tests:** 30 new; the full suite has 325. Screenshots checked: the window
 running on MET Norway, and both sources down.
+
+## Session 1u – 2026-11-17 – v1.13.0 (Weather Provider Manager)
+
+**Shane:** a configurable, extensible provider manager. Keep Open-Meteo and
+MET Norway; research OpenWeather, WeatherAPI.com, Visual Crossing,
+Tomorrow.io, AccuWeather and Weatherbit. Keys must be stored securely, never
+shown or logged. Primary plus ordered backups with configurable recovery. One
+common data format with graceful gaps. Status and limits per provider. Stay
+on the claude/weatherdesk-1.12.0 branch, with no merge or release.
+
+**Research (current docs):**
+- OpenWeather: One Call 3.0 is a separate subscription (1,000 calls a day
+  free); a free key gets current weather plus 5-day/3-hour.
+- WeatherAPI.com: 100,000 calls a month free, with 3 forecast days.
+- Visual Crossing: 1,000 records a day, and a forecast costs 1 record.
+- Tomorrow.io: 500 a day, 25 an hour, 5 days plus 120 h.
+- AccuWeather: free access ended in 2025 (a 14-day trial, then paid), and it
+  needs a location-key lookup.
+- Weatherbit: 50 a day non-commercial, no hourly data.
+
+Plan agreed: integrate four keyed providers now; list AccuWeather and
+Weatherbit as planned.
+
+**Done:**
+- `providers/` package: base, registry, normaliser, and modules for
+  openmeteo, metno, openweather, weatherapi, visualcrossing, tomorrow and
+  planned, plus `manager.py`.
+- `keystore.py`: keyring or a 0600 file, and redaction. `sun.py`: shared
+  astronomy.
+- `providers_dialog.py`; main window: Settings menu, credit and backup
+  status, `apply_provider_settings`. `diagnostics.py`: per-provider checks.
+- Settings migration; packaging of the subpackage; `Recommends:
+  python3-keyring`.
+
+**Found while testing:**
+- Keyed providers didn't stamp `fetched_at`, so the status bar lost
+  "Updated …" and auto-refresh would have run every minute. Fixed in the
+  base class, and a test now checks it for every provider.
+- Visual Crossing's error text contains the key. It's redacted, with a test.
+- `build_deb.sh` only copied `weatherdesk/*.py`, so the package would have
+  shipped without the providers. It now installs the subpackage.
+
+**Tests:** 54 new; the full suite has 379 (one known timing-sensitive globe
+test aside). Screenshots checked: the window on a backup, the dialog with
+key entry (masked) and a successful test with usage.
+

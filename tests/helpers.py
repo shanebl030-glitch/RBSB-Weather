@@ -18,6 +18,8 @@ if not os.environ.get("XDG_RUNTIME_DIR"):
     _rt = Path(tempfile.gettempdir()) / f"weatherdesk-test-runtime-{os.getuid()}"
     _rt.mkdir(mode=0o700, exist_ok=True)
     os.environ["XDG_RUNTIME_DIR"] = str(_rt)
+# Never touch the desktop's real keyring from tests: keys go to the temp config dir.
+os.environ["WEATHERDESK_KEYRING"] = "0"
 # Tests talk only to the local fake server; never route them through a proxy.
 for _k in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "all_proxy", "ALL_PROXY"):
     os.environ.pop(_k, None)

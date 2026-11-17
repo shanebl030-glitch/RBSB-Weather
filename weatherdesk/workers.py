@@ -34,6 +34,7 @@ class Bridge(QObject):
     moon_ok = pyqtSignal(int, object)              # token, MoonReport
     moon_saved = pyqtSignal(str, str)              # path, error ("" = ok)
     earth_ok = pyqtSignal(int, object, object, str, str)  # token, QImage|None, time, error, cloud note
+    provider_test = pyqtSignal(int, str, bool, str)       # token, provider id, ok, message (no keys)
 
 
 # Bridges are never destroyed while a worker thread might still emit on them.
@@ -117,6 +118,18 @@ class Worker:
                 return
             self.bridge.forecast_ok.emit(token, fc)
         self._spawn("forecast", job)
+
+    def test_provider(self, token: int, manager, provider_id: str, key, loc: Location) -> None:
+        """Settings → Weather Providers → Test connection, off the GUI thread."""
+        def job():
+            from .keystore import redact
+            try:
+                ok, msg, _usage = manager.test(provider_id, loc, key)
+            except Exception as e:                     # never let a key reach the UI or log
+                log.error("provider test crashed: %s", redact(f"{type(e).__name__}: {e}", [key]))
+                ok, msg = False, redact(f"Unexpected error: {e}", [key])
+            self.bridge.provider_test.emit(token, provider_id, ok, msg)
+        self._spawn("provider-test", job)
 
     def search(self, token: int, query: str) -> None:
         def job():
