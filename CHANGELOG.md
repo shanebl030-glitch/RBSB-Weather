@@ -2,6 +2,60 @@
 
 Created By Shane BlackbuRn
 
+## 1.12.0 – 2026-11-17
+
+### Fixed
+- **"Couldn't update: The secure connection to the weather service timed out"
+  and the weather stopping.** Shane's Waiuku connection still stalls on
+  Open-Meteo's forecast server (`api.open-meteo.com`) even with the 1.2.2
+  small-packet fix. WeatherDesk now keeps updating anyway:
+  - **A second weather source: MET Norway** (the Norwegian Meteorological
+    Institute, behind yr.no). It's free, with no account or key, and runs on
+    different servers and a different network route. If Open-Meteo can't be
+    reached (or returns a server error), the forecast comes from MET Norway
+    with no error shown. For the next 30 minutes WeatherDesk goes straight to
+    the working source, so updates don't wait out the failing one first.
+  - **Two retries that try harder** instead of one: small packets (MSS 1000),
+    then the smallest (MSS 536) with 2.5× longer (15 s) for the secure setup,
+    for a link that is slow rather than blocked. What worked is remembered.
+  - **Quicker retries after a failed update**: 30 s, then 1, 2 and every
+    5 minutes (was a fixed 5 minutes), while auto refresh is on.
+  - **A calmer message** while recent weather is still on screen: it says
+    how old that weather is and that it's retrying, in normal text. The bold
+    warning is kept for weather more than 3 hours old.
+
+### Added
+- **View → Weather source**: *Open-Meteo (MET Norway as backup)*, the
+  default, or *MET Norway (Open-Meteo as backup)*. Saved with your settings.
+- The status bar credit shows which service the weather on screen came from.
+  About and the user guide credit MET Norway.
+- **Help → Test connection** also tests MET Norway (connection, secure
+  handshake and a real forecast download), and says when the backup is what
+  keeps the weather updating.
+
+### MET Norway details
+- Times converted from UTC to the location's time zone; m/s to km/h; MET's
+  weather symbols to the app's weather codes (sleet is shown as snow).
+- "Feels like" uses the same formula as Open-Meteo. Sunrise and sunset are
+  calculated on your computer (within a minute of the Sun's true position).
+- Today's high and low cover the rest of today only, and the UV index is the
+  clear-sky value. Requests follow MET's terms: an identifying User-Agent,
+  at most 4 decimals in coordinates, and no more often than every 30 s.
+
+### Tests
+- New `test_metno.py` (30 tests): symbol mapping, sunrise/sunset (checked
+  against the Sun's computed position, plus polar day and night), parsing
+  with MET's real response shape, the cache round trip, the automatic
+  backup in both directions, both sources down, diagnostics, smaller
+  packets and the health file (old format still read), the retry back-off,
+  the calmer message, and the source menu.
+- The "only route stalls" test now expects three attempts.
+- The fake server also serves a MET Norway endpoint.
+- The full suite has 325 tests. `test_sky`'s zoom-glide test is
+  timing-sensitive on a busy machine; it fails the same way on 1.11.1.
+
+Created By Shane BlackbuRn
+
 ## 1.11.1 – 2026-11-16
 
 ### Changed

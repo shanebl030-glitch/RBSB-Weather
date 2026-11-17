@@ -33,6 +33,7 @@ log = logging.getLogger(__name__)
 MAX_LOCATIONS = 50
 REFRESH_CHOICES = (0, 10, 15, 30, 60, 120)   # minutes; 0 = off
 WIDGET_SIZES = {"small": (260, 130), "medium": (340, 170), "large": (440, 220)}
+WEATHER_SOURCES = ("open-meteo", "met.no")   # preferred forecast source; the other is the automatic backup
 
 
 def config_dir() -> Path:
@@ -87,6 +88,7 @@ class Settings:
     widget_size: str = "medium"               # small | medium | large
     widget_on_top: bool = False
     earth_clouds: bool = True                 # live clouds on the Earth tabs
+    weather_source: str = "open-meteo"        # preferred source: open-meteo | met.no (the other is the backup)
 
     # ---------------------------------------------------------- helpers
     def selected_location(self) -> Optional[Location]:
@@ -144,6 +146,7 @@ class Settings:
             "widget_size": self.widget_size,
             "widget_on_top": self.widget_on_top,
             "earth_clouds": self.earth_clouds,
+            "weather_source": self.weather_source,
         }
 
     @classmethod
@@ -182,6 +185,8 @@ class Settings:
             v = d.get(k)
             if isinstance(v, int) and not isinstance(v, bool) and -20000 < v < 20000:
                 setattr(s, k, v)
+        if d.get("weather_source") in WEATHER_SOURCES:
+            s.weather_source = d["weather_source"]
         if d.get("widget_size") in WIDGET_SIZES:
             s.widget_size = d["widget_size"]
         if isinstance(d.get("window_geometry"), str):

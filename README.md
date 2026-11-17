@@ -1,9 +1,10 @@
-# WeatherDesk 1.11.1
+# WeatherDesk 1.12.0
 
 A desktop weather app for Linux Mint (and other Ubuntu 24.04-based systems).
 It shows current conditions, a 24-hour chart, a 7-day forecast, and the
-temperature in your system tray. It uses the free Open-Meteo service, so you
-don't need an account or an API key.
+temperature in your system tray. It uses the free Open-Meteo service, with
+MET Norway (yr.no) as an automatic backup, so you don't need an account or an
+API key.
 
 **Created By Shane BlackbuRn**
 
@@ -112,7 +113,8 @@ workflows, and stress/leak checks. The full log is written to
 
 | Path | Purpose |
 |---|---|
-| `weatherdesk/api.py` | Open-Meteo client and response parsing (standard library only) |
+| `weatherdesk/api.py` | Open-Meteo client, response parsing, retries and the automatic backup (standard library only) |
+| `weatherdesk/metno.py` | MET Norway client: the second weather source |
 | `weatherdesk/storage.py` | Settings and forecast cache (atomic JSON writes) |
 | `weatherdesk/workers.py` | Background network threads |
 | `weatherdesk/main_window.py` | The main window, tray, and menus |
@@ -137,11 +139,13 @@ workflows, and stress/leak checks. The full log is written to
 ## Data and privacy
 
 The app sends only the search text and the coordinates of your saved
-locations to Open-Meteo. While an Earth tab is open with **Live clouds** on,
+locations to Open-Meteo, and the coordinates to MET Norway when it's used
+(as the backup, or if you choose it under View → Weather source). While an Earth tab is open with **Live clouds** on,
 it also downloads the global cloud map from clouds.matteason.co.uk (at most
 once an hour; nothing about you or your locations is sent). There's no
 tracking or analytics. Weather data
-comes from [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0). Earth maps
+comes from [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0) and
+[MET Norway](https://api.met.no/) (CC BY 4.0). Earth maps
 come from [Solar System Scope](https://www.solarsystemscope.com/textures/)
 (CC BY 4.0). Moon imagery comes from NASA's Scientific Visualization Studio
 (public domain). Live clouds come from [Live Cloud Maps](https://github.com/matteason/live-cloud-maps)

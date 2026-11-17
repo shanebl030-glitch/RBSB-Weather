@@ -19,7 +19,7 @@ from typing import Callable, Optional
 
 from . import APP_NAME, AUTHOR_CREDIT, __version__
 from . import net
-from .api import OpenMeteoClient, WeatherError
+from .api import OpenMeteoClient, WeatherError, default_client
 from .models import Location
 
 PROBE_TIMEOUT = 5.0
@@ -96,7 +96,7 @@ def _small_packet_handshake(host, addr, family, tls_ctx) -> str:
 def run_diagnostics(client: Optional[OpenMeteoClient] = None,
                     sample: Optional[Location] = None,
                     progress: Optional[Callable[[str], None]] = None) -> str:
-    client = client or OpenMeteoClient()
+    client = client or default_client()
     lines: list[str] = []
 
     def out(line: str = "") -> None:
@@ -113,7 +113,9 @@ def run_diagnostics(client: Optional[OpenMeteoClient] = None,
     slow_v6 = False
     tls_stall = {"IPv4": False, "IPv6": False}
     hosts = []
-    for url in (client.geocode_url, client.forecast_url):
+    backup = getattr(client, "backup", None)
+    urls = [client.geocode_url, client.forecast_url] + ([backup.forecast_url] if backup is not None else [])
+    for url in urls:
         u = urllib.parse.urlsplit(url)
         port = u.port or (443 if u.scheme == "https" else 80)
         if (u.hostname, port) not in hosts:
@@ -130,7 +132,7 @@ def run_diagnostics(client: Optional[OpenMeteoClient] = None,
             out()
             continue
         scheme_https = any(urllib.parse.urlsplit(u).scheme == "https" and urllib.parse.urlsplit(u).hostname == host
-                           for u in (client.geocode_url, client.forecast_url))
+                           for u in urls)
         tls_ctx = (client.ssl_context or ssl.create_default_context()) if scheme_https else None
         for fam, name in ((socket.AF_INET, "IPv4"), (socket.AF_INET6, "IPv6")):
             res, stalled = _probe_family(host, port, fam, tls_ctx)
@@ -142,8 +144,12 @@ def run_diagnostics(client: Optional[OpenMeteoClient] = None,
 
     sample = sample or Location("Auckland", -36.8485, 174.7635, "New Zealand", timezone="auto")
     results = {}
-    for label, fn in (("Location search", lambda: client.search_locations(sample.name)),
-                      ("Forecast download", lambda: client.fetch_forecast(sample))):
+    main_fetch = getattr(client, "fetch_open_meteo", client.fetch_forecast)
+    checks = [("Location search", lambda: client.search_locations(sample.name)),
+              ("Forecast download", lambda: main_fetch(sample))]
+    if backup is not None:
+        checks.append((f"Backup forecast ({backup.source_name})", lambda: backup.fetch_forecast(sample)))
+    for label, fn in checks:
         t0 = time.monotonic()
         try:
             fn()
@@ -156,7 +162,16 @@ def run_diagnostics(client: Optional[OpenMeteoClient] = None,
 
     out()
     out("Summary:")
-    if any(v is None for v in results.values()):
+    backup_label = next((k for k in results if k.startswith("Backup forecast")), None)
+    if backup_label and results.get("Forecast download") is None and results.get(backup_label) is not None:
+        out(f"  Open-Meteo's forecast server couldn't be reached, but the backup source")
+        out(f"  ({backup.source_name}) works, so WeatherDesk keeps updating from it automatically.")
+        out("  You can also choose it as the main source: View → Weather source.")
+    elif backup_label and results.get(backup_label) is None and \
+            all(v is not None for k, v in results.items() if k != backup_label):
+        out(f"  Open-Meteo works. The backup source ({backup.source_name}) couldn't be reached,")
+        out("  which only matters if Open-Meteo fails.")
+    elif any(v is None for v in results.values()):
         out("  The weather service could not be reached. Check your internet connection,")
         out("  firewall or proxy settings, then try again.")
     elif any(v > SLOW_MS for v in results.values()):

@@ -756,3 +756,34 @@ same.
 3. Optional ideas for 1.1: weather alerts and notifications (for example,
    rain within the hour), a dark/light theme toggle, and hourly detail on
    hover.
+
+## Session 1t – 2026-11-17 – v1.12.0 (a second weather source)
+
+**Shane:** a screenshot of "Couldn't update: The secure connection to the
+weather service timed out (the network may be blocking or slowing it)", with
+the weather not updating. Then: "I'd like to try a more reliable weather host,
+free with no API key or with an API key."
+
+**Diagnosis:** that message comes only from a stalled TLS handshake, after
+1.2.2's retry with small packets has also stalled. So the route to
+`api.open-meteo.com` still fails from Waiuku. It couldn't be tested from
+here: this sandbox can't reach weather services.
+
+**Choice of host:** MET Norway's Locationforecast 2.0: free, no key, global,
+government-run, on separate infrastructure. Keyed services (OpenWeatherMap,
+WeatherAPI.com, Tomorrow.io) would need Shane to sign up and store a key, so
+they are left as a possible later option.
+
+**Done:**
+- `metno.py`: client and parser into the existing Forecast model, symbol to
+  WMO mapping, apparent temperature, local sunrise/sunset.
+- `api.py`: shared `JsonHttpClient`; three escalating attempts; the
+  OpenMeteoClient takes a `backup` and `prefer_backup`, with a 30-minute
+  "go straight to the working source" memory; `default_client()`.
+- `net.py`: MSS 1000 then 536 (saved per address), and a per-thread
+  handshake limit for the last attempt.
+- `main_window.py`: View → Weather source, retries at 30 s/1/2/5 min, the
+  calmer message, source-aware credit. `diagnostics.py`: tests MET Norway.
+
+**Tests:** 30 new; the full suite has 325. Screenshots checked: the window
+running on MET Norway, and both sources down.

@@ -97,4 +97,5 @@ class Forecast:
     daily: list[DailyPoint] = field(default_factory=list)
     fetched_at: float = 0.0      # unix time when downloaded
     utc_offset_seconds: Optional[int] = None
+    source: str = "Open-Meteo"   # which service the forecast came from ("Open-Meteo" / "MET Norway")
     from_cache: bool = False

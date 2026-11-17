@@ -50,6 +50,11 @@ class TLSFakeServer(FakeServer):
     def geocode_url(self):
         return f"https://{HOST}:{self.port}/v1/search"
 
+    @property
+    def metno_url(self):
+        from fake_server import METNO_PATH
+        return f"https://{HOST}:{self.port}{METNO_PATH}"
+
 
 class SilentServer:
     """Accepts connections, reads nothing useful, never replies."""

@@ -18,7 +18,8 @@ from PyQt6.QtWidgets import (
 )
 
 from . import APP_NAME, AUTHOR_CREDIT, DATA_CREDIT, __version__, units, weather_codes
-from .api import OpenMeteoClient
+from .metno import CREDIT as METNO_CREDIT, SOURCE_NAME as METNO_NAME
+from .api import OpenMeteoClient, default_client
 from .models import Forecast, Location
 from .storage import REFRESH_CHOICES, ForecastCache, Settings, SettingsStore
 from .scene import AnimationClock, Conditions, WeatherIcon, WeatherScene, conditions_from_forecast
@@ -34,7 +35,10 @@ log = logging.getLogger(__name__)
 
 STALE_AFTER_S = 10 * 60          # selecting a location re-fetches if older than this
 OLD_DATA_WARN_S = 3 * 60 * 60    # status bar warns if shown data is older than this
-RETRY_AFTER_FAIL_S = 5 * 60      # a failed automatic update is retried this soon, not after a full interval
+RETRY_AFTER_FAIL_S = 5 * 60      # longest wait before retrying a failed update (not a full interval)
+RETRY_STEPS_S = (30, 60, 120, RETRY_AFTER_FAIL_S)   # waits after the 1st, 2nd, 3rd, later failures in a row
+SOURCE_LABELS = {"open-meteo": "Open-Meteo (MET Norway as backup)",
+                 "met.no": "MET Norway (Open-Meteo as backup)"}
 SEARCH_DEBOUNCE_MS = 450
 DAYS_SHOWN = 7
 
@@ -88,10 +92,10 @@ class MainWindow(QMainWindow):
                  cache: Optional[ForecastCache] = None,
                  enable_tray: bool = True):
         super().__init__()
-        self.client = client or OpenMeteoClient()
         self.store = store or SettingsStore()
         self.cache = cache or ForecastCache()
         self.settings: Settings = self.store.load()
+        self.client = client or default_client(self.settings.weather_source)
         units.set_time_format(self.settings.time_format)
         self.bridge = Bridge()          # no parent: see workers.retire()
         self.worker = Worker(self.client, self.bridge)
@@ -135,6 +139,12 @@ class MainWindow(QMainWindow):
         self.search_timer.timeout.connect(self._run_search)
 
         self._last_attempt: dict[str, float] = {}
+        self._fail_count: dict[str, int] = {}      # failed updates in a row, per location
+        # a failed update is retried soon (30 s, 1, 2, then every 5 min) rather than
+        # waiting for the next scheduled refresh
+        self.retry_timer = QTimer(self)
+        self.retry_timer.setSingleShot(True)
+        self.retry_timer.timeout.connect(self._retry_failed)
         self.refresh_timer = QTimer(self)
         self.refresh_timer.timeout.connect(self.refresh_selected)
         self._apply_refresh_interval()
@@ -397,6 +407,16 @@ class MainWindow(QMainWindow):
             grp.addAction(a)
             sub.addAction(a)
             self.refresh_actions[mins] = a
+        sub = v.addMenu("Weather &source")
+        grp = QActionGroup(self)
+        self.source_actions: dict[str, QAction] = {}
+        for src, label in SOURCE_LABELS.items():
+            a = QAction(label, self, checkable=True)
+            a.setChecked(self.settings.weather_source == src)
+            a.triggered.connect(lambda _=False, s_=src: self.set_weather_source(s_))
+            grp.addAction(a)
+            sub.addAction(a)
+            self.source_actions[src] = a
         v.addSeparator()
         self.act_tray = QAction("Show &tray icon", self, checkable=True,
                                 checked=self.settings.show_tray, triggered=self.set_show_tray)
@@ -629,6 +649,7 @@ class MainWindow(QMainWindow):
         fc.location = saved
         self.forecasts[key] = fc
         self.errors.pop(key, None)
+        self._fail_count.pop(key, None)
         self.cache.save(fc)
         self._refresh_location_texts()
         sel = self.settings.selected_location()
@@ -643,7 +664,10 @@ class MainWindow(QMainWindow):
             return
         del self._pending[key]
         self.errors[key] = msg
-        log.info("forecast failed for %s: %s", key, msg)
+        self._fail_count[key] = self._fail_count.get(key, 0) + 1
+        log.info("forecast failed for %s (%d in a row): %s", key, self._fail_count[key], msg)
+        if self.settings.refresh_minutes > 0:
+            self.retry_timer.start(int(self._retry_delay(key) * 1000))
         sel = self.settings.selected_location()
         if sel and sel.key == key:
             self.render()
@@ -693,11 +717,20 @@ class MainWindow(QMainWindow):
         self.symbol_label.setText(weather_codes.symbol(c.weather_code, c.is_day))
         self.temp_label.setText(units.fmt_temp(c.temperature, s.temp_unit))
         self.desc_label.setText(weather_codes.describe(c.weather_code))
-        self.message_label.setText(
-            f"⚠️ Couldn't update: {err}" if err else
-            (f"Local time at location: {_hhmm(c.time)}" if c.time else ""))
-        self.message_label.setStyleSheet("color: #ffd2c8; background: transparent; font-weight: bold;"
-                                         if err else "color: white; background: transparent;")
+        age = time.time() - fc.fetched_at if fc.fetched_at else None
+        old = age is None or age > OLD_DATA_WARN_S
+        if err:
+            shown = f"Showing weather from {_age_text(age)}" if age is not None else "Showing saved weather"
+            retry = "; retrying automatically" if self.settings.refresh_minutes > 0 else ""
+            text = f"⚠️ Couldn't update: {err.rstrip('.')}. {shown}{retry}."
+        else:
+            text = f"Local time at location: {_hhmm(c.time)}" if c.time else ""
+        self.message_label.setText(text)
+        # recent data still on screen: a quiet note; old data: the bold warning
+        self.message_label.setStyleSheet(
+            "color: #ffd2c8; background: transparent; font-weight: bold;" if err and old else
+            "color: #ffe9e3; background: transparent;" if err else
+            "color: white; background: transparent;")
         self.scene.set_conditions(conditions_from_forecast(fc))
 
         today = fc.daily[0] if fc.daily else None
@@ -781,7 +814,7 @@ class MainWindow(QMainWindow):
             parts.append(txt)
         if self.errors.get(loc.key):
             parts.append("Offline / update failed")
-        parts.append(DATA_CREDIT)
+        parts.append(METNO_CREDIT if fc is not None and fc.source == METNO_NAME else DATA_CREDIT)
         self.status_label.setText("   ·   ".join(parts))
 
     def _update_tray(self, fc: Optional[Forecast]) -> None:
@@ -1071,12 +1104,37 @@ class MainWindow(QMainWindow):
         fc = self.forecasts.get(loc.key)
         age = now - fc.fetched_at if fc is not None and fc.fetched_at else float("inf")
         since_try = now - self._last_attempt.get(loc.key, 0.0)
-        if self.errors.get(loc.key) and since_try < RETRY_AFTER_FAIL_S:
+        if self.errors.get(loc.key) and since_try < self._retry_delay(loc.key):
             return
         if age >= mins * 60 - 20 and since_try >= 60:
             log.info("weather is %s old; updating", _age_text(age).replace(" ago", ""))
             self.refresh_selected()
             self._apply_refresh_interval()        # restart the interval from now
+
+    def _retry_delay(self, key: str) -> float:
+        n = max(1, self._fail_count.get(key, 1))
+        return RETRY_STEPS_S[min(n, len(RETRY_STEPS_S)) - 1]
+
+    def _retry_failed(self) -> None:
+        """Retry timer: try the selected location again if its last update failed."""
+        loc = self.settings.selected_location()
+        if loc is None or self.settings.refresh_minutes <= 0 or loc.key in self._pending:
+            return
+        if self.errors.get(loc.key):
+            log.info("retrying the failed update for %s", loc.name)
+            self.refresh_selected()
+
+    def set_weather_source(self, source: str) -> None:
+        from .storage import WEATHER_SOURCES
+        if source not in WEATHER_SOURCES:
+            return
+        self.settings.weather_source = source
+        self.source_actions[source].setChecked(True)
+        self.save_settings()
+        if getattr(self.client, "backup", None) is not None:
+            self.client.prefer_backup = (source == "met.no")
+            self.client._down_until.clear()        # give the newly preferred source a fresh try
+        self.refresh_selected(force=True)
 
     def _apply_refresh_interval(self) -> None:
         self.refresh_timer.stop()
@@ -1185,7 +1243,8 @@ class MainWindow(QMainWindow):
                 f"<p>A desktop weather app for Linux.</p>"
                 f"<p><b>{AUTHOR_CREDIT}</b></p>"
                 f"<p>{DATA_CREDIT} – "
-                f"<a href='https://open-meteo.com/'>open-meteo.com</a></p>"
+                f"<a href='https://open-meteo.com/'>open-meteo.com</a><br>"
+                f"{METNO_CREDIT} – <a href='https://api.met.no/'>api.met.no</a></p>"
                 f"<p>{self._moon_credit()}</p>"
                 f"<p>Settings: {self.store.path}<br>Cache: {self.cache.dir}</p>")
 

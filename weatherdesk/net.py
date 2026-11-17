@@ -32,6 +32,7 @@ STAGGER = 0.25          # seconds before starting the next address in parallel
 HANDSHAKE_TIMEOUT = 6.0  # secure-connection setup limit (the full timeout still applies to reading)
 BAD_FOR_S = 600.0       # how long a failing address / broken IPv6 is avoided
 CLAMP_MSS = 1000        # max TCP segment size requested after a stalled handshake
+CLAMP_MSS_MIN = 536     # ...and after a stall even at CLAMP_MSS (the IPv4 minimum, safe everywhere)
 CLAMP_FOR_S = 7 * 24 * 3600.0   # remembered (on disk) for a week
 HEALTH_FILE = None      # set by the app (cache dir) so the small-packet setting survives restarts
 
@@ -48,9 +49,25 @@ _bad_family: dict[int, float] = {}         # family  -> monotonic time it's trus
 # after a successful TCP connect is the classic sign of a path-MTU "black hole":
 # the server's certificate is sent in full-size packets that something on the
 # route silently drops. Asking for smaller segments (TCP_MAXSEG) gets around it.
-_clamp: dict[tuple, float] = {}             # (address, port) -> wall-clock expiry
+_clamp: dict[tuple, tuple] = {}             # (address, port) -> (wall-clock expiry, mss)
 _clamp_loaded = False
 _tls = threading.local()
+
+
+class handshake_limit:
+    """Context manager: use a different secure-setup limit for connections opened on
+    this thread (the last retry allows a slow-but-working link more time)."""
+    def __init__(self, seconds: float):
+        self.seconds = float(seconds)
+
+    def __enter__(self):
+        self._prev = getattr(_tls, "handshake", None)
+        _tls.handshake = self.seconds
+        return self
+
+    def __exit__(self, *exc):
+        _tls.handshake = self._prev
+        return False
 
 
 def last_connection() -> Optional[dict]:
@@ -63,24 +80,37 @@ def clear_last_connection() -> None:
 
 
 def mark_bad(address: str, port: int, family: int, clamp: bool = True) -> None:
+    """Avoid an address (and IPv6, if that failed) for a while, and use small packets
+    to it. A second stall while already on small packets steps down to the smallest
+    size (CLAMP_MSS_MIN), in case the route's limit is lower than CLAMP_MSS allows."""
     until = time.monotonic() + BAD_FOR_S
+    mss = None
     with _health_lock:
         _bad_addr[(address, int(port))] = until
         if family == socket.AF_INET6:
             _bad_family[socket.AF_INET6] = until
         if clamp:
             _load_clamp_locked()
-            _clamp[(address, int(port))] = time.time() + CLAMP_FOR_S
+            now = time.time()
+            prev = _clamp.get((address, int(port)))
+            mss = CLAMP_MSS_MIN if prev and prev[0] > now else CLAMP_MSS
+            _clamp[(address, int(port))] = (now + CLAMP_FOR_S, mss)
             _save_clamp_locked()
     log.warning("avoiding %s %s for %d min after a failed connection%s",
                 _family_name(family), address, BAD_FOR_S // 60,
-                f"; using small packets (MSS {CLAMP_MSS}) to it from now on" if clamp else "")
+                f"; using small packets (MSS {mss}) to it from now on" if clamp else "")
+
+
+def clamp_mss(address: str, port: int) -> Optional[int]:
+    """The small segment size to request from this address, or None for normal packets."""
+    with _health_lock:
+        _load_clamp_locked()
+        entry = _clamp.get((address, int(port)))
+        return entry[1] if entry and entry[0] > time.time() else None
 
 
 def clamped(address: str, port: int) -> bool:
-    with _health_lock:
-        _load_clamp_locked()
-        return _clamp.get((address, int(port)), 0) > time.time()
+    return clamp_mss(address, port) is not None
 
 
 def _load_clamp_locked() -> None:
@@ -95,8 +125,9 @@ def _load_clamp_locked() -> None:
         now = time.time()
         for item in data.get("small_packets", []):
             key = (str(item["address"]), int(item["port"]))
-            if float(item["until"]) > now:
-                _clamp[key] = float(item["until"])
+            mss = int(item.get("mss", CLAMP_MSS))
+            if float(item["until"]) > now and CLAMP_MSS_MIN <= mss <= CLAMP_MSS:
+                _clamp[key] = (float(item["until"]), mss)
     except (OSError, ValueError, KeyError, TypeError):
         pass
 
@@ -109,7 +140,8 @@ def _save_clamp_locked() -> None:
         from pathlib import Path
         now = time.time()
         atomic_write_json(Path(HEALTH_FILE), {"small_packets": [
-            {"address": a, "port": p, "until": t} for (a, p), t in _clamp.items() if t > now]})
+            {"address": a, "port": p, "until": t, "mss": m}
+            for (a, p), (t, m) in _clamp.items() if t > now]})
     except Exception as e:                    # best effort only
         log.debug("could not save network health: %s", e)
 
@@ -129,7 +161,8 @@ def health_snapshot() -> dict:
         wall = time.time()
         return {"addresses": sorted(f"{a}:{p}" for (a, p), t in _bad_addr.items() if t > now),
                 "ipv6_avoided": _bad_family.get(socket.AF_INET6, 0) > now,
-                "small_packets": sorted(f"{a}:{p}" for (a, p), t in _clamp.items() if t > wall)}
+                "small_packets": sorted(f"{a}:{p}" for (a, p), (t, _m) in _clamp.items() if t > wall),
+                "small_packet_sizes": {f"{a}:{p}": m for (a, p), (t, m) in _clamp.items() if t > wall}}
 
 
 def order_addresses(infos: list) -> list:
@@ -207,9 +240,10 @@ def fast_create_connection(address, timeout=socket._GLOBAL_DEFAULT_TIMEOUT,
                 s = None
                 try:
                     s = socket.socket(fam, typ, proto)
-                    if clamped(sa[0], sa[1]):
+                    mss = clamp_mss(sa[0], sa[1]) if clamped(sa[0], sa[1]) else None
+                    if mss:
                         try:      # must be set before connect so it goes in the SYN
-                            s.setsockopt(socket.IPPROTO_TCP, socket.TCP_MAXSEG, CLAMP_MSS)
+                            s.setsockopt(socket.IPPROTO_TCP, socket.TCP_MAXSEG, mss)
                         except (OSError, AttributeError):
                             pass
                     s.setblocking(False)
@@ -301,8 +335,9 @@ class FastHTTPSConnection(http.client.HTTPSConnection):
         # Limit only the connect + TLS handshake, so a stalled handshake fails in
         # a few seconds (and gets retried elsewhere) rather than the full timeout.
         full = self.timeout
-        if isinstance(full, (int, float)) and full > HANDSHAKE_TIMEOUT:
-            self.timeout = HANDSHAKE_TIMEOUT
+        limit = getattr(_tls, "handshake", None) or HANDSHAKE_TIMEOUT
+        if isinstance(full, (int, float)) and full > limit:
+            self.timeout = limit
         try:
             super().connect()
         finally:

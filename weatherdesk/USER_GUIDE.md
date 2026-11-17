@@ -235,7 +235,27 @@ recognised and replaced.
 
 The last successful forecast for each location is saved. If the internet is
 unavailable, WeatherDesk shows that saved copy, marks it as such in the status
-bar, and shows *Couldn't update* with the reason in the top card.
+bar, and shows *Couldn't update* with the reason in the top card, plus how
+old the weather on screen is. While auto refresh is on, a failed update is
+retried after 30 seconds, then 1, 2 and every 5 minutes until it works.
+
+## Weather source
+
+WeatherDesk gets forecasts from two free services, neither needing an
+account or key:
+
+* **Open-Meteo** (the default), and
+* **MET Norway** (the Norwegian Meteorological Institute, behind yr.no).
+
+Whichever you choose under **View → Weather source** is asked first; the
+other is the automatic backup. If the first can't be reached, the forecast
+comes from the backup without any error, and for the next 30 minutes
+WeatherDesk goes straight to the backup so updates stay quick. The status
+bar's credit shows which service the weather on screen came from.
+
+With MET Norway, today's high and low cover the rest of today, and the UV
+index is the clear-sky value. Sunrise and sunset are calculated on your
+computer.
 
 ## If weather is slow or won't load
 
@@ -243,7 +263,8 @@ Open **Help → Test connection…**. It checks, step by step:
 
 * how long the name lookup (DNS) takes,
 * whether IPv4 and IPv6 connections work,
-* how long a real location search and forecast download take,
+* how long a real location search and forecast download take, from
+  Open-Meteo and from the backup (MET Norway),
 
 then gives a short summary. **Copy report** puts the results on the clipboard
 so you can share them. You can also run the same test from a terminal with
@@ -254,8 +275,10 @@ WeatherDesk automatically works around two common network faults:
 * **IPv6 offered but broken.** It switches to IPv4.
 * **Secure connections that stall** ("handshake operation timed out"). Some
   routes silently drop large packets. WeatherDesk notices the stall within 6
-  seconds, retries using smaller packets, and remembers to do that for that
-  server for a week, so only the first update is slow.
+  seconds, retries using smaller packets, then retries once more with the
+  smallest packets and a longer wait, and remembers what worked for that
+  server for a week, so only the first update is slow. If all of that
+  fails, the backup weather source is used.
 
 If Test connection says a handshake **STALLS** but **works with small
 packets**, it's this second fault. WeatherDesk is already handling it, but
@@ -282,7 +305,8 @@ used, so nothing is silently lost.
 
 ## Credits
 
-Weather data by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0).
+Weather data by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0) and
+[MET Norway](https://api.met.no/) (CC BY 4.0).
 
 Earth maps by [Solar System Scope](https://www.solarsystemscope.com/textures/)
 (CC BY 4.0), based on NASA imagery. Moon imagery from NASA's Scientific

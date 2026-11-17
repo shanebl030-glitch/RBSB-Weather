@@ -105,8 +105,13 @@ class TestHandshakeStall(TLSCase):
         with self.assertRaises(NetworkError) as cm:
             self.client().fetch_forecast(self.place(0))
         el = time.monotonic() - t0
-        self.assertLess(el, 2 * net.HANDSHAKE_TIMEOUT + 1.0)       # exactly one retry
-        self.assertEqual(self.silent.connections, 2)
+        # 1.12.0: two retries, the last allowing the handshake LAST_TRY_HANDSHAKE_X times longer
+        from weatherdesk.api import LAST_TRY_HANDSHAKE_X
+        self.assertLess(el, (2 + LAST_TRY_HANDSHAKE_X) * net.HANDSHAKE_TIMEOUT + 1.0)
+        self.assertGreaterEqual(el, (2 + LAST_TRY_HANDSHAKE_X) * net.HANDSHAKE_TIMEOUT * 0.9)
+        self.assertEqual(self.silent.connections, 3)
+        # each retry used smaller packets: 1000, then the minimum
+        self.assertEqual(net.clamp_mss("127.0.0.1", self.silent.port), net.CLAMP_MSS_MIN)
         self.assertIn("secure connection to the weather service timed out", str(cm.exception))
 
     def test_reading_still_gets_the_full_timeout(self):

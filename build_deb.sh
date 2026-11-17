@@ -26,7 +26,8 @@ chmod 644 "$ROOT/usr/share/doc/$PKG/changelog.gz"
 cat > "$ROOT/usr/share/doc/$PKG/copyright" <<EOF
 WeatherDesk $VERSION
 Created By Shane BlackbuRn
-Weather data: Open-Meteo.com, licensed CC BY 4.0 (https://open-meteo.com/).
+Weather data: Open-Meteo.com, licensed CC BY 4.0 (https://open-meteo.com/), and
+MET Norway (Norwegian Meteorological Institute), licensed CC BY 4.0 (https://api.met.no/).
 Moon textures: see /usr/lib/weatherdesk/weatherdesk/assets/moon_textures.json. When built
 from NASA's CGI Moon Kit (https://svs.gsfc.nasa.gov/4720) they are public domain
 imagery from NASA's Scientific Visualization Studio. Moon positions, phases and

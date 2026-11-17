@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import collections
 import json
+import math
 import threading
 import time
 import urllib.parse
@@ -62,9 +63,50 @@ def make_forecast(lat: float, lon: float, days: int = 7) -> dict:
     }
 
 
+METNO_PATH = "/weatherapi/locationforecast/2.0/complete"
+METNO_SYMBOLS = ["clearsky_day", "fair_night", "partlycloudy_day", "cloudy", "lightrainshowers_day",
+                 "rain", "heavyrainandthunder", "fog"]
+
+
+def make_metno(lat: float, lon: float, start=None, hourly_steps: int = 60, days: int = 9) -> dict:
+    """A MET Norway locationforecast/2.0/complete response with the real shape: hourly
+    steps (instant + next_1/6/12_hours) for `hourly_steps` hours, then 6-hourly steps."""
+    import datetime as dt
+    start = (start or dt.datetime.now(dt.timezone.utc)).replace(minute=0, second=0, microsecond=0)
+    end = start + dt.timedelta(days=days)
+    times, t = [], start
+    while t < end:
+        times.append(t)
+        t += dt.timedelta(hours=1 if len(times) < hourly_steps else 6)
+    series = []
+    for i, t in enumerate(times):
+        base = 14.0 + 4.0 * math.sin((t.hour - 3) / 24 * 2 * math.pi)
+        sym = METNO_SYMBOLS[i % len(METNO_SYMBOLS)]
+        data = {"instant": {"details": {
+            "air_pressure_at_sea_level": 1012.3, "air_temperature": round(base, 1),
+            "cloud_area_fraction": 80.5, "relative_humidity": 75.0, "wind_from_direction": 225.0,
+            "wind_speed": 5.0, "wind_speed_of_gust": 10.0, "ultraviolet_index_clear_sky": 4.0 + (i % 3)}},
+            "next_6_hours": {"summary": {"symbol_code": sym},
+                             "details": {"air_temperature_max": round(base + 2, 1),
+                                         "air_temperature_min": round(base - 2, 1),
+                                         "precipitation_amount": 1.2, "probability_of_precipitation": 40.0}},
+            "next_12_hours": {"summary": {"symbol_code": sym}, "details": {"probability_of_precipitation": 50.0}}}
+        if i < hourly_steps:
+            data["next_1_hours"] = {"summary": {"symbol_code": sym},
+                                    "details": {"precipitation_amount": 0.2, "probability_of_precipitation": 20.0}}
+        series.append({"time": t.strftime("%Y-%m-%dT%H:%M:%SZ"), "data": data})
+    return {"type": "Feature",
+            "geometry": {"type": "Point", "coordinates": [lon, lat, 10]},
+            "properties": {"meta": {"updated_at": start.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                                    "units": {"air_temperature": "celsius", "wind_speed": "m/s"}},
+                           "timeseries": series}}
+
+
 class FakeServer:
     def __init__(self):
         self.mode = "ok"
+        self.metno_mode = "ok"            # ok | http500 | http429 | badjson
+        self.metno_agents: collections.deque = collections.deque(maxlen=20)
         self.delay = 0.0
         # live cloud map (/images/.../clouds.jpg): body, Last-Modified, and a mode:
         # ok | http404 | garbage | huge | slow
@@ -91,6 +133,8 @@ class FakeServer:
                     mode, delay = outer.mode, outer.delay
                 if u.path.endswith("/clouds.jpg"):
                     return self._clouds()
+                if u.path == METNO_PATH:
+                    return self._metno(q)
                 if mode == "slow" or delay:
                     time.sleep(delay or 5)
                 if mode == "http500":
@@ -112,6 +156,17 @@ class FakeServer:
                         data.pop("current")
                     return self._send(200, data)
                 return self._send(404, {"error": True, "reason": "not found"})
+
+            def _metno(self, q):
+                outer.metno_agents.append(self.headers.get("User-Agent", ""))
+                m = outer.metno_mode
+                if m == "http500":
+                    return self._raw(500, b"Internal Server Error")
+                if m == "http429":
+                    return self._raw(429, b"Too Many Requests")
+                if m == "badjson":
+                    return self._raw(200, b"{not json")
+                return self._send(200, make_metno(float(q["lat"]), float(q["lon"])))
 
             def _clouds(self):
                 outer.cloud_headers.append(dict(self.headers))
@@ -166,6 +221,10 @@ class FakeServer:
     @property
     def forecast_url(self):
         return f"http://127.0.0.1:{self.port}/v1/forecast"
+
+    @property
+    def metno_url(self):
+        return f"http://127.0.0.1:{self.port}{METNO_PATH}"
 
     @property
     def cloud_url(self):
