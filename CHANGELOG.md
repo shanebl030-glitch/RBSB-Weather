@@ -2,6 +2,16 @@
 
 Created By Shane BlackbuRn
 
+## 1.13.1 – 2026-11-17 (on branch claude/weatherdesk-1.12.0; not released)
+
+### Fixed
+- **Settings → Weather Providers: a provider's status line could be cut off**
+  (Shane's screenshot showed "MET Norway (backup 1)…" on one line, without
+  "Not used yet"). Each row now has an explicit two-line height. A new test
+  checks every row before and after a status change. Nothing else changed.
+
+Created By Shane BlackbuRn
+
 ## 1.13.0 – 2026-11-17 (on branch claude/weatherdesk-1.12.0; not released)
 
 ### Added

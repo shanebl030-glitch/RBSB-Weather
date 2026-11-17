@@ -15,7 +15,8 @@ import datetime as dt
 import time
 from typing import Optional
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QSize, Qt
+from PyQt6.QtGui import QFontMetrics
 from PyQt6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QFrame, QGroupBox,
     QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QPushButton, QScrollArea, QSplitter,
@@ -275,6 +276,15 @@ class ProvidersDialog(QDialog):
             it.setToolTip(text)
             if inf.status != "integrated":
                 it.setForeground(Qt.GlobalColor.gray)
+            # Two lines per provider. Set the height explicitly: Qt can keep a one-line
+            # height for a row (seen with symbols drawn from a fallback font), which cut
+            # the second line off as "…" (reported on 1.13.0).
+            it.setSizeHint(QSize(0, self._row_height()))
+        self.list.doItemsLayout()
+
+    def _row_height(self) -> int:
+        fm = QFontMetrics(self.list.font())
+        return 2 * fm.lineSpacing() + max(10, fm.lineSpacing() // 2)
 
     def _show_details(self) -> None:
         pid = self._current_id()

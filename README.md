@@ -1,4 +1,4 @@
-# WeatherDesk 1.13.0
+# WeatherDesk 1.13.1
 
 A desktop weather app for Linux Mint (and other Ubuntu 24.04-based systems).
 It shows current conditions, a 24-hour chart, a 7-day forecast, and the

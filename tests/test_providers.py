@@ -717,6 +717,21 @@ class TestProvidersDialog(WindowCase):
         self.assertIn("✓ UV index", d.f["features"].text())
         self.assertIn("Currently supplying the weather: <b>Open-Meteo</b>", d.supplying.text())
 
+    def test_every_row_shows_both_lines(self):
+        """1.13.0 on Shane's desktop: one row kept a one-line height and showed
+        "MET Norway (backup 1)…" with its status cut off."""
+        from PyQt6.QtGui import QFontMetrics
+        w = self.make(["open-meteo", "met.no"])
+        self.add(w)
+        d = self.open(w)
+        two_lines = 2 * QFontMetrics(d.list.font()).lineSpacing()
+        for _ in range(2):                                   # before and after a status change
+            for i in range(d.list.count()):
+                self.assertGreaterEqual(d.list.visualItemRect(d.list.item(i)).height(), two_lines,
+                                        d.list.item(i).text())
+            d.manager.set_key("tomorrow", PF.KEYS["tomorrow"])
+            d._refresh_list()
+
     def test_add_change_remove_key_never_shown(self):
         self.keys.delete("weatherapi")
         w = self.make(["open-meteo"])
