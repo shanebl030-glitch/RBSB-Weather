@@ -114,7 +114,8 @@ class Provider(JsonHttpClient):
             fc = self._fetch(location, days)
         except WeatherError as e:
             raise _with_message(e, self._explain(e)) from None
-        except (KeyError, TypeError, ValueError, AttributeError, IndexError) as e:
+        except (KeyError, TypeError, ValueError, AttributeError, IndexError, ArithmeticError,
+                RecursionError, UnicodeError) as e:
             raise DataError(f"{self.info.name} sent data WeatherDesk couldn't read "
                             f"({redact(type(e).__name__ + ': ' + str(e), [self.api_key])[:120]}).") from None
         fc.source = self.info.name

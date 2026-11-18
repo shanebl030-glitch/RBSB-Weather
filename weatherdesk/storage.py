@@ -95,6 +95,9 @@ class Settings:
     provider_chain: list = field(default_factory=lambda: ["open-meteo", "met.no"])
     provider_recovery: str = "30"
     provider_options: dict = field(default_factory=dict)   # {provider id: {option: value}}, never keys
+    # Settings written by a newer WeatherDesk that this version doesn't know. They're kept
+    # and written back unchanged, so rolling back and forward again loses nothing (1.15).
+    extra: dict = field(default_factory=dict, repr=False, compare=False)
 
     # ---------------------------------------------------------- helpers
     def selected_location(self) -> Optional[Location]:
@@ -133,6 +136,11 @@ class Settings:
 
     # ---------------------------------------------------- (de)serialise
     def to_dict(self) -> dict:
+        d = dict(self.extra)
+        d.update(self._known_dict())
+        return d
+
+    def _known_dict(self) -> dict:
         return {
             "version": 1,
             "locations": [l.to_dict() for l in self.locations],
@@ -217,6 +225,10 @@ class Settings:
             s.widget_size = d["widget_size"]
         if isinstance(d.get("window_geometry"), str):
             s.window_geometry = d["window_geometry"]
+        known = set(cls()._known_dict())
+        extra = {k: v for k, v in d.items() if isinstance(k, str) and k not in known}
+        if len(json.dumps(extra, default=str)) <= 64_000:     # a damaged file can't grow without limit
+            s.extra = extra
         return s
 
 

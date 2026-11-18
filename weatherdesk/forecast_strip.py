@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from PyQt6.QtCore import QPointF, QRectF, Qt
-from PyQt6.QtGui import QColor, QFont, QFontMetricsF, QPainter, QPainterPath, QPen, QRadialGradient
+from PyQt6.QtGui import QColor, QFont, QFontMetricsF, QPainter, QPainterPath, QRadialGradient
 
 from . import units
 
@@ -31,7 +31,6 @@ WINDY_KMH = 40.0                  # daily max wind at or above this shows the wi
 MARGIN = 0.035                    # of the scene's smaller side
 GAP_TEXT = 14.0                   # px kept clear of the scene's text
 SUN_CLEARANCE = 1.6               # Sun disc radius multiplier kept clear (disc + inner rays)
-MOON_CLEARANCE = 1.3
 LONG_NAMES = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 SHORT_NAMES = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 

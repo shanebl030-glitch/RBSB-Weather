@@ -4,16 +4,53 @@ Created By Shane BlackbuRn
 
 | Item | Result |
 |---|---|
-| Version | 1.11.1 |
-| Date | 2026-11-16 |
-| Environment | Ubuntu 24.04.5 (Linux Mint 22 base), Python 3.12, PyQt6 6.6.1 / Qt 6.4.2, headless (offscreen) |
-| Suites | `test_core`, `test_net`, `test_tls`, `test_scene`, `test_moon`, `test_earth`, `test_globe`, `test_clouds`, `test_sky`, `test_refresh`, `test_timefmt`, `test_arc`, `test_forecast_strip`, `test_instance`, `test_gui`, `test_stress` |
-| Tests run | 295 |
-| Passed | 293 |
+| Version | 1.15.0 (stability audit release candidate) |
+| Date | 2026-11-18 |
+| Environment | Ubuntu 24.04.5 (Linux Mint 22 base), Python 3.12, PyQt6 6.6.1 / Qt 6.4.2, headless (offscreen), 2 CPUs, `python3-keyring` installed (no D-Bus, so keys use the private file) |
+| Suites | `test_core`, `test_net`, `test_tls`, `test_metno`, `test_providers`, `test_scene`, `test_moon`, `test_earth`, `test_globe`, `test_clouds`, `test_sky`, `test_refresh`, `test_timefmt`, `test_arc`, `test_forecast_strip`, `test_instance`, `test_gui`, `test_stress`, **`test_robustness`**, **`test_audit`**, **`test_packaging`**, **`test_soak`** (bold = new in 1.15.0) |
+| Tests run | 417 |
+| Passed | 415 |
 | Failed / errors | 0 / 0 |
-| Skipped | 2: `test_readonly_dir_raises_oserror` is skipped when run as root (it passed as the `nobody` user), and the NASA-converter test needs build-time tools (numpy and tifffile). It passed in a run with those installed, where all 28 Moon tests passed. |
-| Run time | about 216 s (2 CPUs) |
-| Command | `./run_tests.sh` (full log in `test-results.log`) |
+| Skipped | 2: `test_readonly_dir_raises_oserror` (root ignores directory permissions; it passed as the `nobody` user in 1.11), and the NASA-converter test (needs build-time numpy + tifffile). Neither is a WeatherDesk fault |
+| Run time | about 420 s (2 CPUs), including the 60 s soak |
+| Command | `PYTHON=/usr/bin/python3.12 ./run_tests.sh` (full log in `test-results.log`) |
+| Baseline before the audit (1.14.0) | 2 errors, both `ModuleNotFoundError: keyring`: the package wasn't installed on this new build machine. Fixed by installing it; the two tests now skip with a reason if it's missing |
+
+**Mocks and simulations.** Every provider test runs against a local fake
+server sending replies in each service's documented format. That proves
+WeatherDesk handles those formats, failures and recoveries. It does **not**
+prove the live services still send them. None of the weather services could
+be reached from the build machine (all blocked, HTTP 403 from its proxy).
+
+## 1.15.0 audit results
+
+| Check | Result |
+|---|---|
+| Damaged replies, 300 per parser × 8 parsers (wrong types, missing parts, `Infinity`, huge numbers, deep nesting) | **0 crashes.** Open-Meteo 283 usable / 17 clean errors · MET Norway 278/22 · OpenWeather One Call 295/5 · OpenWeather free 266/34 · WeatherAPI 287/13 · Visual Crossing 298/2 · Tomorrow.io 288/12 · Weather Underground 285/15. Before the fixes: `OverflowError` escaped (stopping the backups) and "feels like" could be infinite. Seeds 2–6 also run by hand: 0 crashes |
+| Non-JSON replies (`null`, `[]`, `""`, `42`, unexpected object) to every parser | All clean errors |
+| Any unexpected exception in a provider (RuntimeError, OverflowError, ZeroDivisionError, RecursionError) | Logged, shown as "sent data WeatherDesk couldn't use (…)", next backup used |
+| API key in an unexpected error, `--diagnose` warnings, providers dialog | Masked / masked / shown as plain text (HTML-escaped) |
+| Keyring lookups for 20 dialog refreshes × 2 providers | 1 lookup (cached); a failing keyring is asked again each time, so unlocking it later works |
+| Secrets in the package and source archive (a planted `keys.json`, `.key` and `.env` in the build copy) | None shipped |
+| Git history | No real keys (only the obvious fake test keys in `tests/provider_fixtures.py`); `.gitignore` covers `keys.json`, `*.key`, `.env*`, `providers.json`, `dist/` |
+| Soak: 60 s, 233 steps of tab cycling, globe zoom, forced refreshes, unit switching, desktop widget on/off | Memory flat (802 MB at start, at ⅓ and at end; the figure is high because the whole suite shares one process and its image caches). Threads 2 (base 5), open files 8 (base 8). A 40 s run on its own: 336 MB flat |
+| Idle CPU, window open (sandbox, software rendering) | Animations on: 15–17% of one core on the Forecast tab, 17–20% on the rotating globe. **Animations off: 0.5%**, so all of it is the animated scene, which already pauses when hidden or minimised. No change made |
+| Fast Moon transit vs its slow reference scan, 40 dates and longitudes | Within 5 s (the reference had never been used by a test) |
+| Dead-code scan (`pyflakes`, `vulture`) | Removed: the 1.12 two-source client logic, `ProviderManager.backup`, `render_for_phase`, `MOON_CLEARANCE`, unused imports. Remaining hits checked: Qt event methods and test-only helpers |
+
+### Real install, upgrade and rollback (dpkg on the build machine)
+
+| Step | Result |
+|---|---|
+| Profile created by the **installed 1.11.1** code (2 locations, °F, 12-hour, 60-minute refresh), then 1.14.0 code added a provider chain (Weather Underground → Open-Meteo → MET Norway), a Station ID and two API keys (private-file store) | — |
+| `dpkg -i weatherdesk_1.15.0_all.deb` over installed 1.11.1 | Upgraded cleanly; `apt-get check` clean; the profile's files byte-for-byte unchanged by the upgrade |
+| Installed 1.15.0 reads the profile | Locations, units, time format, refresh, provider chain, Station ID and both keys all intact; key file still 0600 |
+| Launch the installed app (offscreen, 15 s) | Started; tried Weather Underground, then both backups (all blocked here), showed the error; no traceback; no key in the log, settings or status file; settings still intact after it saved on exit |
+| `dpkg --purge` | Program files and launcher removed; user profile untouched |
+| Clean install with `apt-get install ./weatherdesk_1.15.0_all.deb`, empty profile | Installed with dependencies satisfied; app started and exited with code 0 on a stop signal; no traceback |
+| `weatherdesk --version` / `--diagnose` | "WeatherDesk 1.15.0 – Created By Shane BlackbuRn" / ran every check and gave a clear "no provider could be reached" summary |
+| Rollback: `dpkg -i weatherdesk_1.11.1_all.deb` over 1.15.0, run it | Runs; locations, units and keys kept, but **1.11.1 dropped the provider chain and Station ID** when it saved. That can't be fixed in 1.11.1; it's documented in the README. **1.15.0 now keeps settings it doesn't know**, so rolling back from a future version won't lose them (regression test added) |
+| Final .deb: upgrade again from 1.11.1, profile with provider chain, Station ID, keys and a made-up "future version" setting; run the app | Upgraded cleanly; app ran with no traceback; after it saved on exit, every setting including the unknown one was still there; both keys intact; no key in the log or status file |
 
 ## What's covered
 
@@ -23,7 +60,7 @@ Created By Shane BlackbuRn
 | `test_net` | 17 | Fast connections with a dead first address; refused, all-dead and no-address cases; no socket leaks; the regression for the slow-loading bug; the connection test report, dialog and `--diagnose` flag |
 | `test_tls` | 21 | Secure-connection faults: the reported handshake stall reproduced and recovered; bounded failure time; full read timeout kept; no retry for certificate or HTTP errors; address ordering and expiry; small segments applied; corrupt health file; a **path-MTU black hole simulated with a network namespace and veth** (fails without the fix, recovers in about one stall limit, then about 4 ms per request; remembered across restarts; diagnostics explain it); GUI shows weather, not an error |
 | `test_scene` | 28 | Every weather code at day, dusk and night; day/dusk/night maths; sun position; clock moving on since download; wind direction; hemisphere; moon phase against known dates; paint-time limit; 10 simulated minutes of animation; lightning only in storms; rain slant; sprite cache limit; icons; animation clock pausing; desktop widget behaviour and persistence; off-screen recovery; toggle leak check |
-| `test_moon` | 37 | Moon rise/set against 120 PyEphem reference days in 4 cities; illumination (167 samples); new/quarter/full times (48); phase names; the 7-day view; polar always-up/down; timezones; rendering (lit area matches illumination, hemisphere orientation, earthshine, numpy and pure Python agree, cache, missing texture, bad metadata, size limits); NASA converter landmark placement; Moon tab (data, location switch, 10-minute refresh limit, rows never overlap at 3 window sizes, NASA credit, 2048 px save, save failure); night-scene moon |
+| `test_moon` | 38 | Moon rise/set against 120 PyEphem reference days in 4 cities; illumination (167 samples); new/quarter/full times (48); phase names; the 7-day view; polar always-up/down; timezones; rendering (lit area matches illumination, hemisphere orientation, earthshine, numpy and pure Python agree, cache, missing texture, bad metadata, size limits); NASA converter landmark placement; Moon tab (data, location switch, 10-minute refresh limit, rows never overlap at 3 window sizes, NASA credit, 2048 px save, save failure); night-scene moon |
 | `test_earth` | 18 | The sun's overhead point and height vs PyEphem; equinox and solstices; day/twilight/night; projection; masks; blended map pixels (day map under the sun, night map opposite); missing map; markers, card and clicks; fixed-time states; units and no-weather; card placement; redraw and clock behaviour; credits |
 | `test_globe` | 17 | Projection (centre, far side, limb, poles, 3000-point round trip); renderers (centre pixel, transparent outside, limb darkening, numpy vs pure Python identical, size cap, speed); tab names; facing the selected place; smooth turn on selection; marker click vs drag; drag rotation; far-side card hidden; one shared image for both Earth tabs; slow rotation only while visible; Centre button; no-numpy jump; missing map; credit |
 | `test_clouds` | 17 | Cloud map download, 304 re-check, newer map; hourly / 15-minute schedules; garbage, 404, oversize and wrong-shape downloads never replace the cache; unreachable and stalled servers; corrupt cache; haze curve; day clouds white; night clouds hide city lights; tick boxes in step, saved, redraw; offline without cache; no repeated downloads; closing mid-download; setting validation |
@@ -35,6 +72,12 @@ Created By Shane BlackbuRn
 | `test_instance` | 10 | Real-process single-instance hand-over: same version, upgrade, older launch versus newer, legacy (pre-1.1.1) copy, a busy copy never closed, abandoned requests while paused ignored, a decoy never signalled, a stale socket after a crash |
 | `test_gui` | 23 | Complete user workflows (search, add, units, remove, reorder, restart, offline, stale responses, autostart, settings failure, credit) |
 | `test_stress` | 7 | Repeated refreshes ×1/10/25/50, render ×200, stalled socket, closing mid-request, window open/close cycles, closing while results arrive ×40, signal flood during window destruction ×15 |
+| `test_metno` | 29 | MET Norway parsing, the provider chain with Open-Meteo, fallback messages, diagnostics for each provider |
+| `test_providers` | 60 | All seven providers: parsing, units, time zones, keys (keyring and private file, redaction), fallback, recovery modes, quota guard, usage, the dialog, Weather Underground stations |
+| `test_robustness` | 3 | 2,400 damaged replies across 8 parsers; undamaged samples still parse; non-JSON replies |
+| `test_audit` | 20 | A regression test for every 1.15.0 fix (see CHANGELOG) |
+| `test_packaging` | 8 | Builds the .deb and source archive from a copy; control fields and dependencies; every module and asset packaged and identical; launcher, menu entry, icon, docs; no caches or secrets; nothing touches `~/.config`; checksums; the packaged copy imports and reports its version |
+| `test_soak` | 1 | 60 s of mixed use: memory levels off, threads and files don't grow, idle CPU (length set with `WD_SOAK_SECONDS`) |
 
 ## Key results
 
@@ -85,6 +128,32 @@ Created By Shane BlackbuRn
 | Steady CPU with animation (sandbox software rendering, in-process timing) | Window + desktop widget: 19.2% at 30 fps → **15.9% at 24 fps** (shipped). Window only: **10.2%**. Hidden or off: **0.4%** |
 
 ## Not tested (needs your machine)
+
+**Live weather services. These are the most important checks.** Each needs
+your key, then **Test connection** in Settings → Weather Providers, then one
+update with that provider as primary:
+
+* **Tomorrow.io**: now asked *without* the `timesteps` parameter. Check that
+  the forecast still has both hourly and daily data (the chart and 5 days).
+* **OpenWeather**: with a One Call 3.0 subscription (8 days, hourly) and
+  with a plain free key (5 days from the 3-hour list, partial last day left
+  out).
+* **WeatherAPI.com** and **Visual Crossing**: field names and units against
+  the live reply.
+* **Weather Underground**: your own station by ID, the nearest-station
+  search with no ID, an offline station, and the after-3 pm day/night switch.
+* **Open-Meteo and MET Norway** live: confirmed by you on earlier versions;
+  re-check that 1.15 loads them.
+* **Rate limits and 429 handling** with real quotas, and the usage figures
+  the dialog shows (for example Tomorrow.io's requests left).
+
+**Your desktop:**
+
+* **GNOME Keyring**: saving, reading after a restart, and a locked keyring
+  at login. Here there was no D-Bus, so only the private-file store and a
+  fake keyring were tested.
+* Idle CPU with animations on, on your hardware (about 15% of one core here,
+  software rendering).
 
 * How the mini forecast looks with your fonts and display scaling. The
   layout measures the real fonts, so it adapts, but check the widget at

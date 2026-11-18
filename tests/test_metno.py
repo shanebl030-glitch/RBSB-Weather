@@ -21,7 +21,7 @@ from helpers import TempEnvTestCase, qapp, wait_until
 from fake_server import METNO_PATH, make_metno
 
 from weatherdesk import net
-from weatherdesk.api import ApiError, NetworkError, OpenMeteoClient, default_client
+from weatherdesk.api import NetworkError, OpenMeteoClient
 from weatherdesk.metno import (MetNoClient, SOURCE_NAME, SUN_ALT, apparent_temperature, parse_metno,
                                sun_rise_set, wmo_code)
 from weatherdesk.models import Location
@@ -166,75 +166,80 @@ class TestClientAndBackup(TempEnvTestCase):
         self.assertIn("WeatherDesk/", ua)
         self.assertIn("github.com/shanebl030-glitch/WeatherDesk", ua)
 
+    # 1.15: Open-Meteo's own built-in backup (1.12) was removed; the Provider Manager has
+    # done this job since 1.13. These are the same scenarios, through the manager.
+    def manager(self, om_url=None, chain=("open-meteo", "met.no"), clock=None):
+        from weatherdesk.keystore import KeyStore
+        from weatherdesk.providers.manager import ProviderManager
+        from weatherdesk.providers.metno import MetNoProvider
+        from weatherdesk.providers.openmeteo import OpenMeteoProvider
+        om = OpenMeteoProvider(client=OpenMeteoClient(om_url or self.server.forecast_url,
+                                                      self.server.geocode_url, timeout=2))
+        kw = {"clock": clock} if clock else {}
+        return ProviderManager(chain=list(chain), keystore=KeyStore(self.tmp / "k", use_keyring=False),
+                               overrides={"open-meteo": om, "met.no": MetNoProvider(client=self.metno())}, **kw)
+
     def test_backup_used_when_open_meteo_unreachable(self):
-        c = OpenMeteoClient(dead_url(), self.server.geocode_url, timeout=2, backup=self.metno())
-        fc = c.fetch_forecast(WAIUKU)
+        t = [1000.0]
+        m = self.manager(dead_url(), clock=lambda: t[0])
+        fc = m.fetch_forecast(WAIUKU)
         self.assertEqual(fc.source, SOURCE_NAME)
         self.assertEqual(len(fc.daily), 7)
         # the next refresh goes straight to the backup instead of waiting on the dead route
-        with mock.patch.object(c, "fetch_open_meteo", wraps=c.fetch_open_meteo) as spy:
-            c.fetch_forecast(WAIUKU)
+        om = m.provider("open-meteo")
+        with mock.patch.object(om.client, "fetch_open_meteo", wraps=om.client.fetch_open_meteo) as spy:
+            m.fetch_forecast(WAIUKU)
             self.assertEqual(spy.call_count, 0)
-        # ...until the main source's time-out is over
-        c._down_until["primary"] = time.monotonic() - 1
-        c.forecast_url = self.server.forecast_url
-        self.assertEqual(c.fetch_forecast(WAIUKU).source, "Open-Meteo")
+        # ...until the recovery time (30 min by default) is over
+        t[0] += 31 * 60
+        om.client.forecast_url = self.server.forecast_url
+        self.assertEqual(m.fetch_forecast(WAIUKU).source, "Open-Meteo")
 
     def test_backup_used_on_server_error(self):
         self.server.mode = "http500"
-        c = OpenMeteoClient(self.server.forecast_url, self.server.geocode_url, timeout=2,
-                            backup=self.metno())
-        self.assertEqual(c.fetch_forecast(WAIUKU).source, SOURCE_NAME)
+        self.assertEqual(self.manager().fetch_forecast(WAIUKU).source, SOURCE_NAME)
 
     def test_open_meteo_used_when_working(self):
-        c = OpenMeteoClient(self.server.forecast_url, self.server.geocode_url, timeout=2,
-                            backup=self.metno())
-        self.assertEqual(c.fetch_forecast(WAIUKU).source, "Open-Meteo")
+        self.assertEqual(self.manager().fetch_forecast(WAIUKU).source, "Open-Meteo")
         self.assertEqual(self.server.count(METNO_PATH), 0)
 
     def test_prefer_met_norway(self):
-        c = OpenMeteoClient(self.server.forecast_url, self.server.geocode_url, timeout=2,
-                            backup=self.metno(), prefer_backup=True)
-        self.assertEqual(c.fetch_forecast(WAIUKU).source, SOURCE_NAME)
+        m = self.manager(chain=("met.no", "open-meteo"))
+        self.assertEqual(m.fetch_forecast(WAIUKU).source, SOURCE_NAME)
         self.assertEqual(self.server.count("/v1/forecast"), 0)
         self.server.metno_mode = "http429"                 # MET busy: Open-Meteo steps in
-        self.assertEqual(c.fetch_forecast(WAIUKU).source, "Open-Meteo")
+        m.try_primary_now()
+        self.assertEqual(m.fetch_forecast(WAIUKU).source, "Open-Meteo")
 
     def test_both_down_gives_one_clear_error(self):
         self.server.metno_mode = "http500"
-        c = OpenMeteoClient(dead_url(), self.server.geocode_url, timeout=2, backup=self.metno())
+        m = self.manager(dead_url())
         with self.assertRaises(NetworkError) as cm:
-            c.fetch_forecast(WAIUKU)
+            m.fetch_forecast(WAIUKU)
         self.assertIn("Could not reach the weather service", str(cm.exception))
-        self.assertIn("other weather source (MET Norway) couldn't be reached either", str(cm.exception))
+        self.assertIn("backup (MET Norway) couldn't supply it either", str(cm.exception))
         # both are now marked as failing: both are still tried, and Open-Meteo's fault is reported
         with self.assertRaises(NetworkError) as cm:
-            c.fetch_forecast(WAIUKU)
+            m.fetch_forecast(WAIUKU)
         self.assertTrue(str(cm.exception).startswith("Could not reach the weather service"))
         self.assertIn("(MET Norway)", str(cm.exception))
         self.assertFalse(cm.exception.retryable)
 
     def test_bad_data_from_backup_not_hidden(self):
-        """A garbled reply isn't a network fault: the error is reported, not retried forever."""
+        """A garbled reply isn't hidden: the primary's error is reported and the backup named."""
         self.server.metno_mode = "badjson"
-        c = OpenMeteoClient(dead_url(), self.server.geocode_url, timeout=2, backup=self.metno())
-        from weatherdesk.api import DataError
-        with self.assertRaises(DataError):
-            c.fetch_forecast(WAIUKU)
-
-    def test_default_client(self):
-        c = default_client()
-        self.assertIsInstance(c.backup, MetNoClient)
-        self.assertFalse(c.prefer_backup)
-        self.assertTrue(default_client("met.no").prefer_backup)
+        m = self.manager(dead_url())
+        with self.assertRaises(NetworkError) as cm:
+            m.fetch_forecast(WAIUKU)
+        self.assertIn("MET Norway", str(cm.exception))
+        self.assertIn("could not be read", m.status("met.no").last_error)
 
     def test_diagnostics_reports_both_sources(self):
         from weatherdesk import diagnostics
-        c = OpenMeteoClient(dead_url(), self.server.geocode_url, timeout=2, backup=self.metno())
         with mock.patch.object(diagnostics, "PROBE_TIMEOUT", 1.0):
-            rep = diagnostics.run_diagnostics(c)
-        self.assertIn("Forecast download: FAILED", rep)
-        self.assertIn("Backup forecast (MET Norway): OK", rep)
+            rep = diagnostics.run_diagnostics(self.manager(dead_url()))
+        self.assertIn("Forecast – Open-Meteo (primary): FAILED", rep)
+        self.assertIn("Forecast – MET Norway (backup 1): OK", rep)
         self.assertIn("keeps updating from it automatically", rep)
 
 

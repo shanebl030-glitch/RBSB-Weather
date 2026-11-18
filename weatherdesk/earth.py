@@ -18,7 +18,6 @@ from __future__ import annotations
 import datetime as dt
 import math
 from pathlib import Path
-from typing import Optional
 
 from .moon import gmst, julian_day, moon_position, sun_position
 

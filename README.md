@@ -1,4 +1,4 @@
-# WeatherDesk 1.14.0
+# WeatherDesk 1.15.0
 
 A desktop weather app for Linux Mint (and other Ubuntu 24.04-based systems).
 It shows current conditions, a 24-hour chart, a 7-day forecast, and the
@@ -56,7 +56,7 @@ design; Claude (Anthropic's AI) wrote the code and the tests to his spec.
 ## Install
 
 ```bash
-sudo apt install ./weatherdesk_1.11.1_all.deb
+sudo apt install ./weatherdesk_1.15.0_all.deb
 ```
 
 `apt` pulls in `python3-pyqt6` automatically. Launch **WeatherDesk** from the
@@ -71,7 +71,8 @@ sha256sum -c SHA256SUMS
 ## Update
 
 Install the newer .deb the same way. Your settings and saved forecasts in
-`~/.config/weatherdesk` and `~/.cache/weatherdesk` are kept. Then open
+`~/.config/weatherdesk` and `~/.cache/weatherdesk` are kept, and so are API
+keys (in the keyring, or `~/.config/weatherdesk/keys.json`). Then open
 WeatherDesk: if an older copy is still running (for example in the tray), it
 closes itself cleanly and the new version takes over. From 1.1.1 on this is
 automatic; before that you had to quit the old copy first.
@@ -84,6 +85,11 @@ sudo apt remove weatherdesk                                # uninstall
 rm -rf ~/.config/weatherdesk ~/.cache/weatherdesk          # optional: remove your data
 rm -f ~/.config/autostart/weatherdesk.desktop              # if "Start at login" was on
 ```
+
+Rolling back keeps your locations, units and API keys. Versions before 1.13
+don't know about weather providers, so if you run one, the provider order and
+Weather Underground Station ID go back to the defaults; set them again after
+upgrading. From 1.15.0 on, settings a newer version added are kept.
 
 ## Run from source
 
@@ -101,9 +107,13 @@ logging, and `--version` prints the version.
 ./run_tests.sh
 ```
 
-The tests run fully offline against a local fake Open-Meteo server. They
-cover parsing, network error paths, settings and cache safety, complete GUI
-workflows, and stress/leak checks. The full log is written to
+The tests run fully offline against local fake weather servers. They
+cover parsing for all seven providers (including damaged and hostile replies),
+fallback and recovery, API-key safety, network error paths, settings and cache
+safety, complete GUI workflows, packaging, and stress, leak and soak checks.
+They don't contact the real weather services, so they show that WeatherDesk
+handles each service's documented format, not that the live service still
+sends it. The full log is written to
 `test-results.log`. See `TEST_REPORT.md` for the latest results.
 
 ## Build the package

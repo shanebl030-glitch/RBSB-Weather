@@ -52,3 +52,6 @@ def symbol(code: int | None, is_day: bool = True) -> str:
 
 def all_codes() -> list[int]:
     return sorted(_CODES)
+
+
+KNOWN_CODES = frozenset(_CODES)          # fast membership test (used for every forecast hour)

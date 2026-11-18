@@ -39,6 +39,4 @@ class OpenMeteoProvider(Provider):
         return FORECAST_URL
 
     def _fetch(self, location: Location, days: int) -> Forecast:
-        # fetch_open_meteo, not fetch_forecast: never the client's own 1.12 backup chain
-        fetch = getattr(self.client, "fetch_open_meteo", self.client.fetch_forecast)
-        return fetch(location, days)
+        return self.client.fetch_open_meteo(location, days)

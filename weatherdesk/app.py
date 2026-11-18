@@ -8,7 +8,6 @@ from __future__ import annotations
 import argparse
 import logging
 import logging.handlers
-import os
 import sys
 
 from . import APP_ID, APP_NAME, AUTHOR_CREDIT, __version__
@@ -41,6 +40,9 @@ def main(argv: list[str] | None = None) -> int:
                     help="test the connection to the weather service and exit")
     args = ap.parse_args(argv)
     if args.diagnose:
+        logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
+        from .keystore import install_log_redaction
+        install_log_redaction()             # warnings printed during the test never show a key
         from .diagnostics import run_diagnostics
         print(run_diagnostics())
         return 0

@@ -36,6 +36,30 @@ def _fin(v) -> Optional[float]:
     return f if math.isfinite(f) else None
 
 
+# Physically possible ranges (1.15 audit). A value outside them is a broken response,
+# not weather: it's dropped (shown as "–") rather than drawn, and can't overflow a
+# calculation such as "feels like".
+TEMP_C = (-100.0, 70.0)
+WIND_KMH = (0.0, 600.0)
+PRESSURE_HPA = (800.0, 1100.0)
+PRECIP_MM = (0.0, 1000.0)
+UV = (0.0, 25.0)
+
+
+def _rng(v, bounds) -> Optional[float]:
+    f = _fin(v)
+    return f if f is not None and bounds[0] <= f <= bounds[1] else None
+
+
+def _code(v) -> Optional[int]:
+    """A WMO code the app knows how to show, else None (then worked out where possible)."""
+    from ..weather_codes import KNOWN_CODES
+    f = _fin(v)
+    if f is None or f != int(f):
+        return None
+    return int(f) if int(f) in KNOWN_CODES else None
+
+
 def _pct(v) -> Optional[float]:
     f = _fin(v)
     return None if f is None else max(0.0, min(100.0, f))
@@ -56,7 +80,7 @@ def _tz(fc: Forecast) -> dt.tzinfo:
 
 
 def normalise(fc: Forecast, location: Location, days: int = 7) -> Forecast:
-    if fc.current is None or _fin(fc.current.temperature) is None:
+    if fc.current is None or _rng(fc.current.temperature, TEMP_C) is None:
         raise DataError(f"{fc.source} didn't supply a current temperature.")
     calc: list[str] = list(fc.calculated or [])
 
@@ -67,9 +91,10 @@ def normalise(fc: Forecast, location: Location, days: int = 7) -> Forecast:
     tz = _tz(fc)
     lat, lon = location.latitude, location.longitude
     c = fc.current
-    for name in ("temperature", "apparent_temperature", "wind_speed", "wind_gusts", "pressure",
-                 "precipitation"):
-        setattr(c, name, _fin(getattr(c, name)))
+    for name, bounds in (("temperature", TEMP_C), ("apparent_temperature", TEMP_C),
+                         ("wind_speed", WIND_KMH), ("wind_gusts", WIND_KMH), ("pressure", PRESSURE_HPA),
+                         ("precipitation", PRECIP_MM)):
+        setattr(c, name, _rng(getattr(c, name), bounds))
     c.humidity = _pct(c.humidity)
     c.cloud_cover = _pct(c.cloud_cover)
     wd = _fin(c.wind_direction)
@@ -88,8 +113,13 @@ def normalise(fc: Forecast, location: Location, days: int = 7) -> Forecast:
         c.is_day = is_daytime(cur_t, lat, lon)
         note("day/night")
     if c.apparent_temperature is None and c.humidity is not None and c.wind_speed is not None:
-        c.apparent_temperature = apparent_temperature(c.temperature, c.humidity, c.wind_speed / 3.6)
-        note("feels like")
+        c.apparent_temperature = _rng(apparent_temperature(c.temperature, c.humidity, c.wind_speed / 3.6),
+                                      TEMP_C)
+        if c.apparent_temperature is not None:
+            note("feels like")
+    c.weather_code = _code(c.weather_code)
+    if not isinstance(c.is_day, bool) and c.is_day is not None:
+        c.is_day = bool(c.is_day)
     if c.weather_code is None:
         c.weather_code = code_from(c.cloud_cover, c.precipitation)
         if c.weather_code is not None:
@@ -102,9 +132,10 @@ def normalise(fc: Forecast, location: Location, days: int = 7) -> Forecast:
         if not isinstance(h.time, str) or h.time in seen:
             continue
         seen.add(h.time)
-        h.temperature = _fin(h.temperature)
-        h.precipitation = _fin(h.precipitation)
+        h.temperature = _rng(h.temperature, TEMP_C)
+        h.precipitation = _rng(h.precipitation, PRECIP_MM)
         h.precipitation_probability = _pct(h.precipitation_probability)
+        h.weather_code = _code(h.weather_code)
         hourly.append(h)
     fc.hourly = hourly
 
@@ -115,14 +146,14 @@ def normalise(fc: Forecast, location: Location, days: int = 7) -> Forecast:
             by_date[d.date] = d
     daily = list(by_date.values())[:max(1, int(days))]
     for d in daily:
-        d.temp_max, d.temp_min = _fin(d.temp_max), _fin(d.temp_min)
+        d.temp_max, d.temp_min = _rng(d.temp_max, TEMP_C), _rng(d.temp_min, TEMP_C)
+        d.weather_code = _code(d.weather_code)
         if d.temp_max is not None and d.temp_min is not None and d.temp_min > d.temp_max:
             d.temp_max, d.temp_min = d.temp_min, d.temp_max
-        d.precipitation_sum = _fin(d.precipitation_sum)
+        d.precipitation_sum = _rng(d.precipitation_sum, PRECIP_MM)
         d.precipitation_probability_max = _pct(d.precipitation_probability_max)
-        d.wind_speed_max = _fin(d.wind_speed_max)
-        uv = _fin(d.uv_index_max)
-        d.uv_index_max = None if uv is None or uv < 0 else uv
+        d.wind_speed_max = _rng(d.wind_speed_max, WIND_KMH)
+        d.uv_index_max = _rng(d.uv_index_max, UV)
         day_hours = [h for h in hourly if h.time[:10] == d.date]
         if d.weather_code is None:
             codes = [h.weather_code for h in day_hours if h.weather_code is not None]

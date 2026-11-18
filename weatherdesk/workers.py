@@ -113,8 +113,9 @@ class Worker:
                 self.bridge.forecast_failed.emit(token, loc.key, str(e))
                 return
             except Exception as e:
+                from .keystore import redact
                 log.exception("unexpected forecast failure")
-                self.bridge.forecast_failed.emit(token, loc.key, f"Unexpected error: {e}")
+                self.bridge.forecast_failed.emit(token, loc.key, redact(f"Unexpected error: {e}"))
                 return
             self.bridge.forecast_ok.emit(token, fc)
         self._spawn("forecast", job)
@@ -163,8 +164,6 @@ class Worker:
                 rep = build_report(loc, tz_name, utc_offset)
             except Exception as e:
                 log.exception("moon calculation failed")
-                from .moon_panel import MoonReport
-                rep = None
                 self.bridge.moon_ok.emit(token, f"Moon calculation failed: {e}")
                 return
             self.bridge.moon_ok.emit(token, rep)

@@ -237,6 +237,10 @@ def parse_free(cur: Any, fcst: Any, location: Location) -> Forecast:
         lo = [x for x in a["lo"] if x is not None]
         if not hi:
             continue
+        if d != today and len(a["hi"]) < 4:
+            # the 5-day/3-hour list ends part-way through its last day: fewer than 12 hours
+            # of steps would give a misleading high/low, so that day is left out (1.15 audit)
+            continue
         if d == today:              # today's steps start now; include the current reading
             hi.append(current.temperature)
             lo.append(current.temperature)

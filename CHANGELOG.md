@@ -2,6 +2,98 @@
 
 Created By Shane BlackbuRn
 
+## 1.15.0 – 2026-11-18 (stable release candidate; on branch claude/weatherdesk-1.12.0, not released)
+
+A full stability, security and production-readiness audit of 1.14.0. No
+features were removed or redesigned; every fix below has a regression test in
+`tests/test_audit.py` unless another test is named.
+
+### Fixed – crashes and fallback
+- **A bad value could stop the backups being tried.** JSON allows
+  `Infinity`, and converting it to a whole number raised `OverflowError`. That
+  wasn't one of the errors a provider turned into a clean failure, so the
+  manager stopped instead of moving on to the backups. Non-finite numbers are
+  now dropped as missing values, the provider wrapper also catches arithmetic,
+  recursion and text-encoding errors, and the manager treats *any*
+  unexpected error from a provider as that provider failing ("… sent data
+  WeatherDesk couldn't use (OverflowError)"), logs it, and tries the next one.
+  Found by the new fuzz test (`tests/test_robustness.py`).
+- **Test connection** could raise on the same kind of error, or when a reply
+  had no current temperature. It now always shows a result.
+
+### Fixed – data quality
+- **Impossible values are dropped instead of shown.** Every provider's data
+  now goes through plausibility limits (temperature −100…+70 °C, wind
+  0–600 km/h, pressure 800–1100 hPa, rain 0–1000 mm, UV 0–25). A current
+  temperature outside the limits makes the reply unusable (backups take
+  over); other values show "–". Before, an absurd temperature from a damaged
+  reply produced an infinite "feels like".
+- **Unknown weather condition codes** are no longer passed to the scene.
+  They're worked out from the cloud and rain readings, as for a missing code.
+- **MET Norway:** a new or unknown symbol was shown as clear sky. It's now
+  treated as unknown and worked out from the measurements.
+- **OpenWeather (plain free key):** the 5-day/3-hour list ends part-way
+  through the last day, and that day's high and low came from just a few
+  hours. Days (other than today) with fewer than four 3-hour steps are left
+  out.
+- **Tomorrow.io:** the request sent two `timesteps` values in a format the
+  API documentation doesn't describe. The parameter is now left out; the
+  documented default returns both the hourly and the daily forecast.
+  *This needs confirming with a real Tomorrow.io key.*
+
+### Fixed – security and privacy
+- **Unexpected errors are redacted before they reach the window.** The
+  worker's "Unexpected error: …" message now goes through the key filter, as
+  the log already did.
+- **`weatherdesk --diagnose`** now applies the key filter to warnings printed
+  while it runs.
+- **Weather Providers dialog:** an error message or usage text from a
+  weather service was displayed as rich text, so a service (or something
+  pretending to be one) could add formatting or a clickable link to the
+  dialog. It's now always shown as plain text.
+- **Keyring lookups are cached.** The dialog asked the keyring for every
+  provider's key on every refresh, each a D-Bus call on the window's thread
+  (a visible pause if the keyring is slow or locked). A key is now read once;
+  saving or removing a key updates the cache. A keyring that fails is not
+  cached, so unlocking it later still works.
+
+### Fixed – upgrades and rollbacks
+- **Settings from a newer version are kept.** The real rollback test (1.15.0
+  → 1.11.1 → 1.15.0 with dpkg) showed that the older version, once run,
+  silently dropped the provider chain and Weather Underground Station ID,
+  because it didn't know those settings (API keys were kept). 1.11.1 can't be
+  changed, but from 1.15.0 on, settings written by a newer version are kept
+  and written back unchanged, so later rollbacks lose nothing. Invalid values
+  for known settings are still reset to defaults.
+
+### Removed – obsolete code
+- The 1.12 two-source logic left inside the Open-Meteo client
+  (`default_client`, its backup and retry timing), the matching branch in
+  diagnostics and the unused `ProviderManager.backup` property. The provider
+  manager has done this since 1.13. Old settings still migrate as before.
+- Unused imports, a `render_for_phase` helper nothing called, and a
+  leftover `MOON_CLEARANCE` constant.
+
+### Tests
+- New: `test_robustness` (2,400 damaged replies across all eight parsers,
+  plus non-JSON shapes: 0 crashes), `test_audit` (20 regression tests for
+  the fixes above), `test_packaging` (builds the .deb and source archive and
+  checks contents, dependencies, secrets, checksums, and runs the packaged
+  copy), `test_soak` (60 s of tab cycling, globe zoom, refreshes, unit and
+  widget switching, with memory, thread, file and idle-CPU checks), and a
+  check of the Moon's transit time against its slow reference method, which
+  had never been used by a test.
+- The two keyring tests now skip, with a reason, when `python3-keyring`
+  isn't installed instead of erroring.
+- Full suite: 417 tests, 0 failures, 2 skips (see TEST_REPORT.md).
+
+### Not verified (needs real accounts and your desktop)
+- None of the six key-based or keyless services could be reached from the
+  build machine, so every provider was tested against recorded documentation
+  formats only. See TEST_REPORT.md → "Not tested".
+
+Created By Shane BlackbuRn
+
 ## 1.14.0 – 2026-11-17 (on branch claude/weatherdesk-1.12.0; not released)
 
 ### Added

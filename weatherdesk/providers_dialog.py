@@ -12,6 +12,7 @@ Created By Shane BlackbuRn
 from __future__ import annotations
 
 import datetime as dt
+import html
 import time
 from typing import Optional
 
@@ -316,14 +317,16 @@ class ProvidersDialog(QDialog):
                        for a, b in zip(feats[:half], feats[half:] + [""]))
         self.f["features"].setText(f"<table cellspacing=0>{rows}</table>" if feats else "–")
         calc = self._calculated(pid)
-        self.f["calculated"].setText(", ".join(calc) if calc else "–")
+        # text that came from a weather service is escaped: it's shown, never interpreted
+        # as formatting or links (1.15 audit)
+        self.f["calculated"].setText(html.escape(", ".join(calc)) if calc else "–")
         self.f["last_ok"].setText(_when(st.last_ok) if integrated else "–")
         err = st.last_error if st.last_error_at and st.last_error_at >= st.last_ok else ""
-        self.f["last_error"].setText(f"{err} ({_when(st.last_error_at)})" if err else "–")
+        self.f["last_error"].setText(f"{html.escape(err)} ({_when(st.last_error_at)})" if err else "–")
         usage = dict(st.usage or {})
         if st.plan:
             usage.setdefault("plan", st.plan)
-        self.f["usage"].setText("<br>".join(f"{v}" for v in usage.values()) if usage
+        self.f["usage"].setText("<br>".join(html.escape(str(v)) for v in usage.values()) if usage
                                 else "This provider doesn't report usage." if integrated else "–")
         links = []
         if inf.signup_url and inf.needs_key:
@@ -417,7 +420,7 @@ class ProvidersDialog(QDialog):
     def _show_result(self, ok: bool, msg: str) -> None:
         color = "#2e7d32" if ok else "#c62828"
         self.test_result.setText(f"<span style='color:{color}'><b>{'✓ Connected' if ok else '⚠ Failed'}</b>"
-                                 f"</span> – {msg.replace('<', '&lt;')}")
+                                 f"</span> – {html.escape(msg)}")
 
     # ---------------------------------------------------------------- keys
     def _edit_key(self) -> None:

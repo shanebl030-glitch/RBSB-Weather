@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import socket
 import ssl
 import threading
@@ -30,7 +31,6 @@ GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
 DEFAULT_TIMEOUT = 15.0
 ATTEMPTS = 3              # first try, then two retries that escalate (see _get_json)
 LAST_TRY_HANDSHAKE_X = 2.5  # the last try allows this many times the usual secure-setup limit
-BACKUP_FOR_S = 30 * 60    # after the main source fails, use the backup directly for this long
 MAX_RESPONSE_BYTES = 5 * 1024 * 1024   # guard against runaway responses
 
 CURRENT_FIELDS = [
@@ -175,22 +175,16 @@ class JsonHttpClient:
 
 
 class OpenMeteoClient(JsonHttpClient):
-    """Open-Meteo forecasts and location search. If `backup` (another source with a
-    fetch_forecast method, e.g. MET Norway) is given, forecasts come from it whenever
-    Open-Meteo can't be reached - and, for BACKUP_FOR_S after such a failure, straight
-    from the backup so each refresh doesn't wait out the failing route first.
-    With prefer_backup=True the roles swap: the backup source is asked first."""
+    """Open-Meteo forecasts and location search. Falling back to other services is the
+    Provider Manager's job (providers/manager.py); 1.12's built-in MET Norway backup
+    here was removed in 1.15 as it was no longer used."""
     source_name = "Open-Meteo"
 
     def __init__(self, forecast_url: str = FORECAST_URL, geocode_url: str = GEOCODE_URL,
-                 timeout: float = DEFAULT_TIMEOUT, ssl_context=None, backup=None,
-                 prefer_backup: bool = False):
+                 timeout: float = DEFAULT_TIMEOUT, ssl_context=None):
         super().__init__(timeout=timeout, ssl_context=ssl_context)
         self.forecast_url = forecast_url
         self.geocode_url = geocode_url
-        self.backup = backup
-        self.prefer_backup = prefer_backup
-        self._down_until: dict[str, float] = {}     # "primary"/"backup" -> monotonic time
 
     # ------------------------------------------------------------ Geocoding
     def search_locations(self, query: str, count: int = 10) -> list[Location]:
@@ -205,40 +199,7 @@ class OpenMeteoClient(JsonHttpClient):
 
     # ------------------------------------------------------------- Forecast
     def fetch_forecast(self, location: Location, forecast_days: int = 7) -> Forecast:
-        if self.backup is None:
-            return self.fetch_open_meteo(location, forecast_days)
-        sources = [("primary", self.source_name, lambda: self.fetch_open_meteo(location, forecast_days)),
-                   ("backup", getattr(self.backup, "source_name", "backup source"),
-                    lambda: self.backup.fetch_forecast(location, forecast_days))]
-        if self.prefer_backup:
-            sources.reverse()
-        now = time.monotonic()
-        # a source that failed recently goes last (but is still tried if the other fails)
-        sources.sort(key=lambda s: self._down_until.get(s[0], 0.0) > now)
-        first_err: Optional[WeatherError] = None
-        errors: dict[str, WeatherError] = {}
-        for i, (name, _label, fetch) in enumerate(sources):
-            try:
-                fc = fetch()
-                self._down_until.pop(name, None)
-                if i:
-                    log.warning("forecast from the backup source (%s) because: %s", fc.source, first_err)
-                return fc
-            except (NetworkError, ApiError) as e:
-                # network faults and server errors (5xx, overloaded): the other source may work
-                self._down_until[name] = time.monotonic() + BACKUP_FOR_S
-                errors[name] = e
-                if first_err is None:
-                    first_err = e
-                log.info("%s source failed: %s", name, e)
-        # report the preferred source's problem, and name the other one
-        preferred = "backup" if self.prefer_backup else "primary"
-        main_err = errors[preferred]
-        other = next(label for name, label, _f in sources if name != preferred)
-        msg = f"{str(main_err).rstrip('.')}. The other weather source ({other}) couldn't be reached either."
-        if isinstance(main_err, ApiError):
-            raise ApiError(msg)
-        raise NetworkError(msg, retryable=False)
+        return self.fetch_open_meteo(location, forecast_days)
 
     def fetch_open_meteo(self, location: Location, forecast_days: int = 7) -> Forecast:
         data = self._get_json(self.forecast_url, {
@@ -263,7 +224,7 @@ def _num(v: Any) -> Optional[float]:
         f = float(v)
     except (TypeError, ValueError):
         return None
-    if f != f:  # NaN
+    if not math.isfinite(f):  # NaN or ±infinity (json accepts "Infinity"; int() of it would crash)
         return None
     return f
 
@@ -388,10 +349,3 @@ def forecast_from_dict(d: dict) -> Forecast:
         )
     except (KeyError, TypeError, ValueError) as e:
         raise DataError(f"Cached forecast is invalid: {e}") from None
-
-
-def default_client(prefer: str = "open-meteo") -> OpenMeteoClient:
-    """The app's client: Open-Meteo plus MET Norway, each the other's automatic backup.
-    `prefer` ("open-meteo" or "met.no") picks which is asked first."""
-    from .metno import MetNoClient
-    return OpenMeteoClient(backup=MetNoClient(), prefer_backup=(prefer == "met.no"))

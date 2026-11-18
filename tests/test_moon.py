@@ -179,6 +179,21 @@ def _arr(img):
     return bytes(ptr)
 
 
+class TestTransitReference(unittest.TestCase):
+    def test_fast_transit_matches_slow_scan(self):
+        """next_transit (Newton, ~5 steps) against the bisection scan reference, which had no
+        test using it (found in the 1.15.0 audit)."""
+        worst = 0.0
+        start = dt.datetime(2026, 1, 1, 3, 17, tzinfo=dt.timezone.utc)
+        for i in range(40):
+            t = start + dt.timedelta(days=9.37 * i, hours=5 * i)
+            lon = -180 + (i * 47) % 360
+            fast, slow = M.next_transit(t, lon), M._next_transit_scan(t, lon)
+            self.assertGreater(fast, t)
+            worst = max(worst, abs((fast - slow).total_seconds()))
+        self.assertLess(worst, 5.0, f"worst difference {worst:.1f} s")
+
+
 class TestRendering(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

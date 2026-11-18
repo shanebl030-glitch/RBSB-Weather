@@ -115,9 +115,8 @@ def run_diagnostics(client: Optional[OpenMeteoClient] = None,
     slow_v6 = False
     tls_stall = {"IPv4": False, "IPv6": False}
     hosts = []
-    backup = getattr(client, "backup", None)
     chain = _chain(client)               # [(label, provider)] when it's a ProviderManager
-    urls = [client.geocode_url, client.forecast_url] + ([backup.forecast_url] if backup is not None else [])
+    urls = [client.geocode_url, client.forecast_url]
     urls += [getattr(getattr(p, "client", p), "forecast_url", p.base_url) for _l, p in chain]
     for url in urls:
         u = urllib.parse.urlsplit(url)
@@ -158,8 +157,6 @@ def run_diagnostics(client: Optional[OpenMeteoClient] = None,
             checks.append((label, lambda p=p: p.fetch_forecast(sample)))
     else:
         checks.append(("Forecast download", lambda: main_fetch(sample)))
-    if backup is not None:
-        checks.append((f"Backup forecast ({backup.source_name})", lambda: backup.fetch_forecast(sample)))
     for label, fn in checks:
         t0 = time.monotonic()
         try:
@@ -175,16 +172,7 @@ def run_diagnostics(client: Optional[OpenMeteoClient] = None,
     out("Summary:")
     if chain:
         _summary_chain(out, chain, results)
-    backup_label = next((k for k in results if k.startswith("Backup forecast")), None)
-    if backup_label and results.get("Forecast download") is None and results.get(backup_label) is not None:
-        out("  Open-Meteo's forecast server couldn't be reached, but the backup source")
-        out(f"  ({backup.source_name}) works, so WeatherDesk keeps updating from it automatically.")
-        out("  You can also choose it as the main source: Settings → Weather Providers.")
-    elif backup_label and results.get(backup_label) is None and \
-            all(v is not None for k, v in results.items() if k != backup_label):
-        out(f"  Open-Meteo works. The backup source ({backup.source_name}) couldn't be reached,")
-        out("  which only matters if Open-Meteo fails.")
-    elif chain:
+    if chain:
         pass
     elif any(v is None for v in results.values()):
         out("  The weather service could not be reached. Check your internet connection,")

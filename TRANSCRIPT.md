@@ -851,3 +851,70 @@ a test checks every row.
 - Not tested against the live API (no access from here); Shane's key and Test
   connection are the live check.
 
+
+## Session 1w – 2026-11-18 – v1.15.0 (stability and production-readiness audit)
+
+**Request:** a full production-readiness audit of the whole app and all seven
+providers (architecture, bugs, obsolete code, crashes, security, logging,
+memory/CPU, timers, UI, packaging, upgrades, Mint compatibility), fixes for
+what was found without redesigning or removing features, more tests, and a
+stable release build. Work stays on `claude/weatherdesk-1.12.0`: no merge to
+`main`, no tag, no GitHub release, existing releases untouched, commits
+unsigned. (Shane said the current version was 1.13.0; the branch held 1.14.0,
+which added Weather Underground, so the audit started from 1.14.0.)
+
+### How the audit was done
+| Area | Method |
+|---|---|
+| Baseline | Full suite on the untouched 1.14.0: 2 errors, both `ModuleNotFoundError: keyring` (the package wasn't installed in this fresh build machine), so an environment gap, not a code fault. Installed `python3-keyring`; the tests now skip with a reason when it's missing |
+| Crashes | A new fuzz test sends 300 randomly damaged replies (wrong types, missing parts, `Infinity`, huge numbers, deep nesting) to each of the 8 parsers. The first run found two real bugs (below) |
+| Security | Read every path a key can travel: request URLs, logs, the status file, the worker's error signal, `--diagnose`, the providers dialog, git history, the source archive |
+| Providers | Re-read each provider's documentation for units, time zones, limits and request format |
+| Dead code | `pyflakes` and `vulture`, each hit checked by hand (most were Qt event methods) |
+| Memory and CPU | New soak test: tab cycling, globe zoom, refreshes, unit and widget switching, with memory, thread, file and idle-CPU checks |
+| Packaging | New package test, then real `dpkg` installs: upgrade 1.11.1 → 1.15.0 with a profile made by 1.11.1 and 1.14.0 code, clean install with apt, purge, and rollback to 1.11.1 and back |
+
+### Problems found and fixed
+1. **`Infinity` in a reply raised `OverflowError`.** It escaped the
+   provider, so the backups were never tried. Fixed in three layers: number
+   conversion, the provider wrapper and the manager, which now treats any
+   unexpected error as that provider failing.
+2. **An absurd temperature gave an infinite "feels like".** Plausibility
+   limits now apply to every provider's data.
+3. **Test connection could raise**, and it also failed when a reply had no
+   current temperature.
+4. **Unknown condition codes reached the scene.** MET Norway's unknown
+   symbols were also shown as clear sky.
+5. **OpenWeather (free key):** a partial last day's high and low were shown.
+6. **Tomorrow.io:** the request used an undocumented `timesteps` format. The
+   parameter is now left out, so the documented default is used.
+7. **Unexpected worker errors reached the window unredacted.**
+8. **`--diagnose` printed warnings without the key filter.**
+9. **The providers dialog showed service text as rich text** (formatting
+   or links could be injected).
+10. **Keyring D-Bus lookups on every dialog refresh.** Keys are now cached.
+11. **The rollback test showed 1.11.1 dropping provider settings.** 1.15 now
+    keeps settings it doesn't know, so future rollbacks are safe.
+12. **Obsolete code removed:** the 1.12 two-source client logic, an unused
+    manager property, a dead helper and constant, and unused imports.
+13. **A reference method was never used by a test.** The slow Moon-transit
+    scan is now a test that checks the fast method against it.
+
+### Looked at and deliberately left alone
+- **Idle CPU of about 15% of one core with animations on.** Measured at 0.5%
+  with animations off, so it is all the animated scene (software-rendered at
+  24 fps). This is the designed feature, it has a setting, and it already
+  pauses when hidden or minimised.
+- **Provider objects are shared between the worker threads.** At worst, the
+  usage counter display could be briefly out of date. No crash path was
+  found in the fuzz, stress or soak tests.
+- **The quota guard holds back an immediate retry of a failed paid
+  provider.** This is by design: the backups cover it.
+- **The `weather_source` setting.** Kept so 1.12 profiles still migrate.
+
+### What couldn't be checked here
+Every weather service is blocked from the build machine, so all provider work
+is against documented formats and recorded samples. It is not a live check.
+See TEST_REPORT.md → "Not tested".
+
+Created By Shane BlackbuRn

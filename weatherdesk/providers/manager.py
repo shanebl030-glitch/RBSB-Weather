@@ -306,7 +306,13 @@ class ProviderManager:
             except KeyMissing as e:
                 errors.append((pid, e))
                 continue
-            except WeatherError as e:
+            except Exception as e:
+                if not isinstance(e, WeatherError):
+                    # a bug or a response nobody expected: log it, and still try the backups
+                    log.error("%s: unexpected %s while getting the forecast: %s", p.info.name,
+                              type(e).__name__, redact(str(e), [p.api_key]))
+                    e = DataError(f"{p.info.name} sent data WeatherDesk couldn't use "
+                                  f"({type(e).__name__}).")
                 msg = redact(str(e), [p.api_key])
                 log.info("%s failed: %s", p.info.name, msg)
                 with self._lock:
@@ -369,7 +375,11 @@ class ProviderManager:
         t0 = time.monotonic()
         try:
             fc, usage = p.test(location)
-        except WeatherError as e:
+        except Exception as e:
+            if not isinstance(e, WeatherError):
+                log.error("%s test: unexpected %s: %s", cls.info.name, type(e).__name__,
+                          redact(str(e), [p.api_key, key]))
+                e = DataError(f"{cls.info.name} sent data WeatherDesk couldn't use ({type(e).__name__}).")
             msg = redact(str(e), [p.api_key, key])
             self._record(pid, test_ok=False, test_message=msg, test_at=time.time())
             return False, msg, {}
@@ -378,7 +388,8 @@ class ProviderManager:
         parts = [f"answered in {ms} ms",
                  f"{len(fc.daily)} day{'s' if len(fc.daily) != 1 else ''}",
                  f"{hours} hours hourly" if hours else "no hourly data",
-                 f"now {fc.current.temperature:.0f}°C at {location.name}"]
+                 (f"now {fc.current.temperature:.0f}°C at {location.name}"
+                  if fc.current.temperature is not None else f"no current temperature for {location.name}")]
         msg = " · ".join(parts)
         self._record(pid, test_ok=True, test_message=msg, test_at=time.time(), usage=usage or {},
                      plan=(usage or {}).get("plan", ""))
@@ -408,6 +419,3 @@ class ProviderManager:
         p = self.provider(self.primary)
         return getattr(getattr(p, "client", p), "forecast_url", p.base_url)
 
-    @property
-    def backup(self):
-        return None            # the 1.12 single-backup interface (diagnostics uses the chain instead)

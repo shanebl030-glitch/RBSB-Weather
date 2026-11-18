@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import (QCheckBox, QFrame, QHBoxLayout, QLabel, QSizePolicy
 
 from . import earth as E
 from .clouds import CREDIT as CLOUD_CREDIT
-from . import units, weather_codes
+from . import units
 from .moon import tz_for
 from .scene import WeatherIcon, _Animated
 

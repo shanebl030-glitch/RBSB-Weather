@@ -322,6 +322,12 @@ sunset, day or night, "feels like"); otherwise the value shows "–" rather than
 a guess. Some services forecast fewer than 7 days (WeatherAPI.com's free plan
 gives 3, Tomorrow.io 5); WeatherDesk shows the days it has.
 
+**Bad data is caught.** Values that can't be real (a temperature of 500 °C,
+negative wind, a pressure of 50 hPa) are shown as "–" instead, and an unknown
+weather condition is worked out from the cloud and rain readings rather than
+shown as clear sky. If a service's whole reply can't be used, that counts as
+a failure and the backups take over, exactly as if it were offline.
+
 ## If weather is slow or won't load
 
 Open **Help → Test connection…**. It checks, step by step:
@@ -353,7 +359,12 @@ antivirus that inspects HTTPS are the usual suspects.
 ## Files
 
 * Settings: `~/.config/weatherdesk/settings.json`
+* API keys (only if your desktop has no keyring): `~/.config/weatherdesk/keys.json`, readable only by you
+* Provider status (last success, last error, usage; never keys): `~/.cache/weatherdesk/providers.json`
 * Saved forecasts, the cloud map and log: `~/.cache/weatherdesk/`
+
+Installing a newer WeatherDesk never touches these files, so your locations,
+settings and API keys carry over. Removing the package leaves them too.
 
 Deleting these files resets WeatherDesk. If the settings file is ever
 damaged, it is moved aside to `settings.json.corrupt-<time>` and defaults are

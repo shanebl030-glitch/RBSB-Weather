@@ -99,6 +99,11 @@ class KeyStore:
         self.dir = Path(directory) if directory else _config_dir()
         self.path = self.dir / "keys.json"
         self._lock = threading.Lock()
+        # Keys looked up this session (1.15 audit): the Weather Providers dialog and every
+        # update ask for keys often, and each keyring lookup is a D-Bus call that can stall
+        # the window (or ask to unlock the keyring). Only answers the keyring really gave
+        # are kept, so a locked or failing keyring is asked again next time.
+        self._cache: dict[str, Optional[str]] = {}
         if use_keyring is None:
             use_keyring = os.environ.get("WEATHERDESK_KEYRING", "1") != "0"
         self._keyring = _usable_keyring() if use_keyring else None
@@ -112,16 +117,25 @@ class KeyStore:
 
     # -- public
     def get(self, provider_id: str) -> Optional[str]:
+        with self._lock:
+            if provider_id in self._cache:
+                return self._cache[provider_id]
         value = None
+        reliable = True
         if self._keyring is not None:
             try:
                 value = self._keyring.get_password(SERVICE, provider_id)
             except Exception as e:
+                reliable = False
                 log.warning("keyring read failed (%s); using the private key file", type(e).__name__)
         if value is None:
             value = self._read_file().get(provider_id)
         remember_secret(value)
-        return value or None
+        value = value or None
+        if reliable:
+            with self._lock:
+                self._cache[provider_id] = value
+        return value
 
     def has(self, provider_id: str) -> bool:
         return bool(self.get(provider_id))
@@ -133,10 +147,14 @@ class KeyStore:
         if len(value) > 512 or any(c.isspace() for c in value):
             raise ValueError("That doesn't look like an API key (it contains spaces or is too long).")
         remember_secret(value)
+        with self._lock:
+            self._cache.pop(provider_id, None)
         if self._keyring is not None:
             try:
                 self._keyring.set_password(SERVICE, provider_id, value)
                 self._delete_from_file(provider_id)        # don't leave an older copy behind
+                with self._lock:
+                    self._cache[provider_id] = value
                 return
             except Exception as e:
                 log.warning("keyring write failed (%s); using the private key file", type(e).__name__)
@@ -144,8 +162,11 @@ class KeyStore:
             data = self._read_file()
             data[provider_id] = value
             self._write_file(data)
+            self._cache[provider_id] = value
 
     def delete(self, provider_id: str) -> None:
+        with self._lock:
+            self._cache.pop(provider_id, None)
         if self._keyring is not None:
             try:
                 self._keyring.delete_password(SERVICE, provider_id)

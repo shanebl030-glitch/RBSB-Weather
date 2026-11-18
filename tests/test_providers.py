@@ -10,6 +10,7 @@ Created By Shane BlackbuRn
 from __future__ import annotations
 
 import datetime as dt
+import importlib.util
 import io
 import json
 import logging
@@ -542,6 +543,8 @@ class TestKeyStore(TempEnvTestCase):
         self.assertEqual(KeyStore(self.tmp, use_keyring=False).get("tomorrow"), "abc123def456")
         self.assertEqual(stat.S_IMODE(os.stat(ks.path).st_mode), 0o600)
 
+    @unittest.skipUnless(importlib.util.find_spec("keyring"), "python3-keyring not installed "
+                         "(it's a Recommends of the package; the private-file path is tested regardless)")
     def test_system_keyring_used_when_available(self):
         import keyring
         from keyring.backend import KeyringBackend
@@ -573,6 +576,7 @@ class TestKeyStore(TempEnvTestCase):
         finally:
             keyring.set_keyring(old)
 
+    @unittest.skipUnless(importlib.util.find_spec("keyring"), "python3-keyring not installed")
     def test_insecure_keyring_not_used(self):
         import keyring
         from keyring.backends import fail

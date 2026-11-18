@@ -251,11 +251,5 @@ def render_moon(size: int, phase_angle: float, bright_limb: float, southern: boo
     return img
 
 
-def render_for_phase(size: int, phase, southern: bool = False,
-                     rotation: Optional[float] = None) -> QImage:
-    """Convenience: render from a moon.Phase (optionally with a sky rotation)."""
-    return render_moon(size, phase.phase_angle, phase.bright_limb, southern, rotation=rotation)
-
-
 def has_numpy() -> bool:
     return _np is not None

@@ -87,9 +87,12 @@ class TomorrowProvider(Provider):
         return out
 
     def _fetch(self, location: Location, days: int) -> Forecast:
+        # No "timesteps" parameter: Tomorrow.io's documented examples leave it out and
+        # get both the hourly and daily timelines; how it parses two values (repeated or
+        # comma-separated) isn't documented, so it isn't risked (1.15 audit).
         data = self._get_json(f"{self.base_url}/weather/forecast", {
             "location": f"{location.latitude:.4f},{location.longitude:.4f}",
-            "timesteps": ["1h", "1d"], "units": "metric", "apikey": self.api_key})
+            "units": "metric", "apikey": self.api_key})
         return parse_tomorrow(data, location)
 
 
