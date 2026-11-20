@@ -4,15 +4,15 @@ Created By Shane BlackbuRn
 
 | Item | Result |
 |---|---|
-| Version | 1.15.0 (stability audit release candidate) |
-| Date | 2026-11-18 |
+| Version | 1.18.0 (forecast playback in the sky; built on 1.17.0 (clouds follow the wind) and 1.16.0 (startup updates, widget lock), on top of the approved 1.15.0) |
+| Date | 2026-11-20 |
 | Environment | Ubuntu 24.04.5 (Linux Mint 22 base), Python 3.12, PyQt6 6.6.1 / Qt 6.4.2, headless (offscreen), 2 CPUs, `python3-keyring` installed (no D-Bus, so keys use the private file) |
-| Suites | `test_core`, `test_net`, `test_tls`, `test_metno`, `test_providers`, `test_scene`, `test_moon`, `test_earth`, `test_globe`, `test_clouds`, `test_sky`, `test_refresh`, `test_timefmt`, `test_arc`, `test_forecast_strip`, `test_instance`, `test_gui`, `test_stress`, **`test_robustness`**, **`test_audit`**, **`test_packaging`**, **`test_soak`** (bold = new in 1.15.0) |
-| Tests run | 417 |
-| Passed | 415 |
+| Suites | `test_core`, `test_net`, `test_tls`, `test_metno`, `test_providers`, `test_scene`, `test_moon`, `test_earth`, `test_globe`, `test_clouds`, `test_sky`, `test_refresh`, `test_timefmt`, `test_arc`, `test_forecast_strip`, `test_instance`, `test_gui`, `test_stress`, **`test_robustness`**, **`test_audit`**, **`test_packaging`**, **`test_soak`** (new in 1.15.0), **`test_startup_all`** and **`test_widget_lock`** (new in 1.16.0), **`test_wind_clouds`** (new in 1.17.0), **`test_playback`** (new in 1.18.0) |
+| Tests run | 488 |
+| Passed | 486 |
 | Failed / errors | 0 / 0 |
 | Skipped | 2: `test_readonly_dir_raises_oserror` (root ignores directory permissions; it passed as the `nobody` user in 1.11), and the NASA-converter test (needs build-time numpy + tifffile). Neither is a WeatherDesk fault |
-| Run time | about 420 s (2 CPUs), including the 60 s soak |
+| Run time | about 506 s (2 CPUs), including the 60 s soak |
 | Command | `PYTHON=/usr/bin/python3.12 ./run_tests.sh` (full log in `test-results.log`) |
 | Baseline before the audit (1.14.0) | 2 errors, both `ModuleNotFoundError: keyring`: the package wasn't installed on this new build machine. Fixed by installing it; the two tests now skip with a reason if it's missing |
 
@@ -21,6 +21,93 @@ server sending replies in each service's documented format. That proves
 WeatherDesk handles those formats, failures and recoveries. It does **not**
 prove the live services still send them. None of the weather services could
 be reached from the build machine (all blocked, HTTP 403 from its proxy).
+
+## 1.18.0: forecast playback
+
+| Check | Result |
+|---|---|
+| The sky ahead (test data starts at 10:15) | Each hour's weather is that hour's forecast (checked at 7 offsets): +0 h day, +9 h day, +10 h dusk, +13 h night, +19.75 h dawn, +23 h day |
+| Tomorrow's hours | Use tomorrow's sunrise (06:01, not today's 06:00) |
+| The Moon at the chosen moment | Every Moon value equals the live calculation at that moment (3 offsets). Regression: a past moment is no longer the real now |
+| Wind during playback | Stays as now (the hourly data has none); said in the tooltip and the guide |
+| How far ahead | 24 h; a shorter forecast ends at its last hour; nothing ahead, or no codes: 0 (bar disabled) |
+| Cross-fade at the moment of change | Picture identical to the frame before |
+| Cross-fade, partly → overcast | Largest change in one frame 2.64 (mean pixel), against 26.55 if it jumped; done in 0.8 s |
+| 8 weather types 0.2 s apart (rain, snow, fog, clear…) | Largest change in one frame 2.83, against 36.59 when jumping; at most 2 cloud layouts fading |
+| Rain/snow/fog fading out | Keep falling and drifting while they fade |
+| Animations off / turned off mid-fade / resize mid-fade | Instant / finishes at the next paint / starts clean |
+| Thunder | Fades in, still flashes |
+| Bar | 3 forecast hours took 3.03 s (76 steps of 144 s); 15-minute slider steps; Now; quiet reset; disabled without hourly data; clamps to a shorter forecast |
+| In the app | Card and sky show the hour; details, desktop widget sky and text, and tray stay live; Now restores everything; a new place starts at now; refresh, °F and the minute tick keep the hour with no live-sky flicker; 12-hour clock ("3:15 pm"); a provider without hourly data |
+| Real play for 3 s in the app | 74 steps, 3 weather types, median 0.8 ms per step (worst 1.7 ms) |
+| Deliberate mistakes in the code | Moon at the real now: 2 tests failed · no cross-fade: 6 · live-sky flicker on redraw: 1 |
+| CPU (window and widget animating, 4 runs each) | 1.17.0 averaged 30.1%, 1.18.0 31.2%; the spread within each version is larger, so no measurable increase, at most about 1 point |
+| Earth Globe tests made reliable | Both failed on unchanged 1.17.0 at today's time. The Moon test counted the weather sky's Moon (the real Moon was up); it now checks the globe's own picture, and still fails if the globe re-renders. The zoom test measured before a status line wrapped (836×392 → 836×377 within 0.1 s); it now waits for the layout to settle. 3 runs out of 3 pass |
+| Screenshots | Real main window at now, +3, +6, +9 and +13 h, checked by eye |
+| Needs your desktop | How it looks and feels; the emoji drop with your colour emoji font; whether an hour a second is right |
+
+## 1.17.0: clouds follow the real wind
+
+Measured on the real animated scene by advancing its clock in 1/24 s frames.
+
+| Check | Result |
+|---|---|
+| Measured speed and direction (front clouds) | 0 km/h from W: right, crosses in 150 s · 10 km/h from W: right, 70 s · 20 km/h from E: left, 50 s · 40 km/h from NW: right, 40 s (80% of full) · 80 km/h from W: right, 21 s · 150 km/h from E: left, 19 s (capped). Each within 1% of the design |
+| From/to conversion | Checked for every whole degree from 0 to 359; Open-Meteo (from 225 → right) and MET Norway (from 90 → left, m/s → km/h) taken through to the scene |
+| Main window (640 px) vs widget (300 and 220 px) | Same crossing time, within 1% |
+| Calm and north/south winds | Still drifting (visible movement in 5 s) |
+| Strong wind | Capped at 19 s per crossing, 1.4 px per frame |
+| Refresh: 10 km/h W → 60 km/h E | No rebuild and no movement at the moment of the refresh; every frame matched the easing formula; largest single cloud step 1.05 px; turned round after 2.0 s; 95% of the new direction and speed after 9 s |
+| Rain, snow and fog when the wind reverses | Turn smoothly (largest change per frame under 0.1); with a steady wind, exactly as before |
+| Sun, Moon and mini forecast | Identical with 0 km/h from W and 90 km/h from E |
+| Real app (fake server) | The forecast's 18.7 km/h from 225° reaches both the main window and the widget; a refresh to 55 km/h from 80° eases in on both together |
+| Bug found and fixed | The first real forecast eased in from the placeholder wind for about 10 s (the window and the widget disagreed); now shown at once, with a regression test |
+| Deliberate mistakes in the code | From/to backwards: 11 tests failed · no easing: 4 · fixed pixel speeds: 1 |
+| CPU | Easing 0.0015 ms per frame. Window and widget animating: 1.16.0 31.3%, 1.17.0 28.8% (average of 3 runs each), the same within run-to-run variation |
+| Rendered frames | Checked by eye: slow drift right at 5 km/h from W, faster movement left at 60 km/h from E; Sun and Moon unchanged |
+| Needs your desktop | How the speeds feel on your screen, and a real refresh where the wind changes |
+
+## 1.16.0: lock position for the desktop widget
+
+All widget checks use real mouse press, move and release events.
+
+| Check | Result |
+|---|---|
+| Unlocked widget dragged 80 × 40 px | Moved exactly 80 × 40; new position saved |
+| Locked widget dragged 120 × 60 px | Didn't move; the lock and its position were saved; the tooltip says it's locked |
+| Unlock, then drag | Moves again |
+| Lock during a drag | The drag stops where it is |
+| Locked: double-click, Size, Keep on top | All still work |
+| Widget off and on / restart | Still locked, at the same spot; dragging still ignored |
+| Locked at an off-screen position | Brought back onto the screen, still locked |
+| Lock removed from the code on purpose | 2 tests failed, so the tests do catch it |
+| Needs your desktop | Cinnamon's Alt + drag moves windows through the window manager, which WeatherDesk can't block. A locked widget moved that way isn't saved, so it returns to its spot at the next start |
+
+## Test fix: `test_net` socket-leak check
+
+This test was last changed in 1.13.0, and the code it covers is unchanged.
+
+| Check | Result |
+|---|---|
+| What failed | Once in a full suite run: 14 open descriptors against a baseline of 13. Also 1 time in 5 when run on its own, and about 2 times in 300 in a recording loop |
+| What the extra descriptor was | A socket that closed by itself about 50 ms after the 2-second wait, with no WeatherDesk code running |
+| Why it isn't a WeatherDesk leak | The connection function runs on one thread and closes every socket except the one it returns, before returning |
+| Cause | The test's fake server, in the same process, closing its own end late |
+| Fix | Count only WeatherDesk's side of the connections; the wait wasn't lengthened |
+| Proof | A new test leaks 5 connections on purpose and checks they're counted; the leak test then passed 150 runs out of 150 |
+
+## 1.16.0: every location updates at startup
+
+| Check | Result |
+|---|---|
+| Restart with 4 saved locations | All 4 updated once. The selected one came first; the others followed in saved order, 1.47–1.59 s apart (3 runs). The whole round took about 4.6 s |
+| Restart within 2 minutes | Only the selected location updated (the others were already fresh) |
+| Setting off | Only the selected location updated. The menu tick and the saved setting agree |
+| Turned off mid-round / location removed mid-round / window closed mid-round | Round stops / that location is not fetched / no further requests and no crash |
+| Boot without network (server failing), then the network comes up | Each other location retried; all updated once the network was back; no errors left |
+| Network never comes up | Each other location tried 5 times (first try + 4 retries), then left with its saved forecast on screen |
+| Test failure during development | One test saw 4 tries instead of 5. The cause was a race in the test (it checked "finished" before the round had started), not in the feature. Fixed in the test; the test then passed 3 runs out of 3 and the full suite passed |
+| Needs your desktop | A real boot with "Start at login" on, especially with Wi-Fi joining late |
 
 ## 1.15.0 audit results
 

@@ -42,9 +42,61 @@ The top card shows a live sky for the selected place:
   together. By day it's pale, like the real daytime moon. When it's below
   the horizon it isn't shown. **Stars** come out at night. Everything
   glides smoothly, minute by minute.
-* **Clouds** drift with the wind speed and direction. Rain is slanted by the
-  wind, snow drifts down, fog rolls past, and thunderstorms flash with
-  lightning.
+* **Clouds** drift with the current wind from the forecast:
+  - **Speed:** the stronger the wind, the faster they move. In calm air
+    they still drift gently, taking about 2½ minutes to cross the sky. At
+    10 km/h it's about 70 seconds, at 40 km/h about 30 seconds, and from
+    100 km/h it's capped at about 19 seconds, so a gale stays easy to watch.
+    Distant clouds move more slowly than near ones.
+  - **Direction:** they move the way the wind is blowing *towards*. Forecasts
+    give the direction the wind comes *from*: a westerly blows from the west
+    towards the east.
+  - **East is to the right,** as on a weather map, so a westerly moves the
+    clouds right and an easterly moves them left. The picture is a side view,
+    so a wind blowing mostly north or south can't be shown head-on. Those
+    clouds drift slowly towards whichever side the wind leans.
+  - **When the forecast updates** with a different wind, the clouds ease
+    into the new speed and direction over a few seconds instead of jumping.
+    A change of direction slows them, turns them round, and speeds them up
+    again.
+  - **Main window and desktop widget:** the clouds take the same time to
+    cross both, whatever their size.
+* **Rain** is slanted by the wind, **snow** drifts down, **fog** rolls past,
+  and **thunderstorms** flash with lightning. Rain, snow and fog turn round
+  smoothly with the clouds when the wind changes direction.
+
+### Forecast playback: the next 24 hours in the sky
+
+The bar under the sky lets you see the coming hours as weather you can watch,
+not just numbers:
+
+* **▶ Play** runs the next 24 hours in the sky, an hour a second (about 24
+  seconds in all). Press **⏸** to pause.
+* **Drag the slider** to any time in the next 24 hours, in 15-minute steps.
+* **Now** goes back to the weather now.
+
+For the time shown, the sky has:
+* **that hour's weather** from the hourly forecast: clear, cloudy, rain,
+  showers, snow, fog or thunderstorms;
+* **the Sun and Moon where they'll be,** with day, dusk and night at the
+  right times (tomorrow's hours use tomorrow's sunrise and sunset);
+* **the card text for that hour:** its temperature, its weather and its
+  chance of rain, marked "▶ Forecast for …".
+
+When the weather changes from hour to hour, the clouds, rain and sky colour
+blend smoothly into the next. They do the same when a refresh brings new
+weather.
+
+**The clouds keep the wind of now,** because the hourly forecast doesn't
+include wind. Hover over the time to see this note.
+
+**The rest stays live:** the details beside the sky, the 7-day list, the tray
+icon and the desktop widget keep showing the weather now. Choosing another
+place returns to now.
+
+Some providers don't give an hourly forecast. Weather Underground with a
+weather-station key is one. While such a provider supplies the weather, the
+bar says so instead.
 
 ### Mini forecast in the sky
 
@@ -178,7 +230,12 @@ the last update failed, or it's showing a saved copy while offline.
 * **Drag** it to move it. Its position is remembered.
 * **Double-click** it to open WeatherDesk.
 * **Right-click** it for Refresh, Size (small, medium or large), Keep on top
-  of windows, and Hide widget.
+  of windows, Lock position, and Hide widget.
+* **Lock position** (right-click) stops the widget being dragged by accident.
+  It stays exactly where it is, even after a restart, and double-click and
+  right-click still work. Untick it to move the widget again. If its spot is
+  ever off-screen (for example, a monitor was unplugged), it still moves back
+  onto your screen.
 
 By default it sits underneath your windows like a desktop gadget. The
 widget keeps working while the main window is closed to the tray.
@@ -201,6 +258,16 @@ widget keeps working while the main window is closed to the tray.
   updates within a minute of waking. If an update fails (for example, no
   internet), it tries again after 5 minutes rather than waiting a whole
   interval.
+* **At startup every saved location updates**, not just the one on screen.
+  The one you're looking at updates first, then the others one at a time,
+  1½ seconds apart, so a small free allowance isn't used up in a burst. This
+  includes WeatherDesk starting at login. If the internet isn't ready yet, as
+  often happens straight after the computer boots, each location is tried
+  again after 30 seconds, then 1, 2 and 5 minutes; until then its last saved
+  forecast stays on screen. A location updated in the last 2 minutes (for
+  example, if you've just restarted WeatherDesk) is skipped. To update only
+  the location on screen at startup, untick **View → Auto refresh → Update
+  all locations at startup**.
 
 ## Units
 

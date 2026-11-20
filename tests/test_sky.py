@@ -136,6 +136,19 @@ class TestGlobeSkyAndZoom(TempEnvTestCase):
         self.v = self.w.globe_panel.view
         self.assertTrue(wait_until(lambda: self.v.image is not None, 20))
         self.assertTrue(wait_until(lambda: self.v.anim.state().name == "Stopped", 5))
+        # Let the layout settle before measuring: the status line above the globe can wrap
+        # onto a second line just after this point (its text, and so whether it wraps,
+        # depends on the date), shrinking the view by about 15 px. Measured 2026-11-21:
+        # 836x392 -> 836x377 within 0.1 s. Tests that compare sizes must start after that.
+        last, stable_since = None, time.monotonic()
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            size = (self.v.width(), self.v.height())
+            if size != last:
+                last, stable_since = size, time.monotonic()
+            elif time.monotonic() - stable_since >= 0.4:
+                break
+            QTest.qWait(25)
 
     def tearDown(self):
         self.w._quitting = True
@@ -285,22 +298,22 @@ class TestGlobeSkyAndZoom(TempEnvTestCase):
         self.assertEqual(img.width(), key[0])
         self.assertAlmostEqual(key[0], size * self.v.devicePixelRatioF(), delta=8)   # screen resolution
         self.assertGreaterEqual(size, rad * 0.32 * 2 * 0.99)      # 2x the 1.7.0 size (0.16 radii)
-        from weatherdesk import moon_render
-        calls = []
-        real = moon_render.render_moon
-
-        def spy(*a, **k):
-            calls.append(self.v.zooming())
-            return real(*a, **k)
-        with mock.patch.object(moon_render, "render_moon", side_effect=spy):
-            self.v.zoom_in()                     # while gliding: reuse, no re-render
-            while self.v.zooming():
-                self.v.repaint()
-                QTest.qWait(10)
-            QTest.qWait(100)
-            self.paint()                         # settled: one sharp re-render at the new size
-        self.assertNotIn(True, calls)
-        self.assertEqual(len(calls), 1)
+        # Watch the globe's own Moon picture. (Counting every render_moon call in the
+        # process, as before 2026-11-21, also counted the weather scene's Moon on the
+        # Forecast tab, which is drawn whenever the real Moon is up at the test location,
+        # so the test failed at some times of day.)
+        first = self.v._moon_cache[1]
+        during = []
+        self.v.zoom_in()                         # while gliding: reuse, no re-render
+        while self.v.zooming():
+            self.v.repaint()
+            during.append(self.v._moon_cache[1] is first)
+            QTest.qWait(10)
+        QTest.qWait(100)
+        self.paint()                             # settled: one sharp re-render at the new size
+        self.assertTrue(during)
+        self.assertNotIn(False, during)          # the same picture throughout the glide
+        self.assertIsNot(self.v._moon_cache[1], first)
         self.assertGreater(self.v._moon_cache[0][0], key[0])
 
     def test_zoomed_render_is_capped_and_memory_bounded(self):

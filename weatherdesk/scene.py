@@ -21,6 +21,7 @@ import math
 import random
 import time
 import weakref
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Optional
 
@@ -30,6 +31,55 @@ from PyQt6.QtGui import (QColor, QLinearGradient, QPainter, QPainterPath, QPen, 
 from PyQt6.QtWidgets import QSizePolicy, QWidget
 
 FPS = 24          # weather moves slowly; 24 fps looks smooth and saves ~20% CPU vs 30
+
+# ------------------------------------------------------------ wind and clouds (1.17)
+# How long the front cloud layer takes to cross the whole scene, by wind speed (km/h).
+# In scene widths rather than pixels, so the wide main window and the small desktop widget
+# show the same wind the same way. Calm air still drifts (150 s to cross); strong wind is
+# capped (19 s at 100 km/h and above) so a gale stays readable instead of a blur. Speeds in
+# between are interpolated, so every change in the forecast changes the drift a little.
+CLOUD_CROSSING_S = ((0.0, 150.0), (5.0, 100.0), (10.0, 70.0), (20.0, 50.0), (40.0, 32.0),
+                    (60.0, 25.0), (80.0, 21.0), (100.0, 19.0))
+# The scene is a side view, so only the east-west part of the wind can be shown as movement
+# across it (east = right, as on a weather map). A wind blowing mostly north or south still
+# drifts this much, towards whichever side it leans, rather than freezing the sky.
+MIN_EAST_WEST = 0.3
+# After a refresh, the drift eases to the new wind over a few seconds (time constant).
+WIND_EASE_S = 3.0
+# When the weather type changes (cloudy -> rain, say) the cloud layout is rebuilt; the old
+# clouds fade out while the new ones fade in over this long, instead of jumping (1.18).
+CLOUD_FADE_S = 0.8
+
+
+def cloud_speed(wind_kmh: Optional[float]) -> float:
+    """Front-layer cloud speed in scene widths per second for a wind speed in km/h.
+    Missing or negative speeds count as calm."""
+    v = wind_kmh if wind_kmh is not None and math.isfinite(wind_kmh) and wind_kmh > 0 else 0.0
+    pts = CLOUD_CROSSING_S
+    if v >= pts[-1][0]:
+        return 1.0 / pts[-1][1]
+    for (k0, t0), (k1, t1) in zip(pts, pts[1:]):
+        if v <= k1:
+            f = (v - k0) / (k1 - k0)
+            return (1.0 / t0) + ((1.0 / t1) - (1.0 / t0)) * f
+    return 1.0 / pts[-1][1]                                   # pragma: no cover
+
+
+def wind_drift(direction_from: Optional[float]) -> float:
+    """Which way, and how much, clouds drift across the scene: +1 right (towards east),
+    -1 left (towards west), for a meteorological wind direction in degrees - the direction
+    the wind blows FROM (0 north, 90 east, 180 south, 270 west). The wind blows TOWARDS the
+    opposite direction, whose east component is sin(from + 180) = -sin(from). A wind from
+    the west (270) blows east, so +1; from the east (90), -1; from the north-west (315),
+    +0.80. Mostly north/south winds keep at least MIN_EAST_WEST. Unknown direction: +1, as
+    before 1.17."""
+    if direction_from is None or not math.isfinite(direction_from):
+        return 1.0
+    east = -math.sin(math.radians(direction_from))
+    if abs(east) < 1e-9:
+        east = 0.0
+    side = 1.0 if east >= 0 else -1.0
+    return side * (MIN_EAST_WEST + (1.0 - MIN_EAST_WEST) * abs(east))
 
 # ----------------------------------------------------------------- classify
 CLEAR, PARTLY, OVERCAST, FOG, DRIZZLE, RAIN, SNOW, THUNDER = (
@@ -82,6 +132,8 @@ class Conditions:
     sun_progress: float = 0.5      # 0 at sunrise .. 1 at sunset
     wind_kmh: float = 10.0
     wind_sign: float = 1.0         # +1 drift right, -1 drift left
+    wind_east: Optional[float] = None   # signed drift, see wind_drift() (1.17); None: wind_sign
+    from_forecast: bool = False         # built from real forecast data (not the placeholder)
     cloud_cover: Optional[float] = None
     moon_age: float = 0.5
     southern: bool = False         # southern hemisphere: moon appears mirrored
@@ -97,6 +149,11 @@ class Conditions:
     sun_set_ts: Optional[float] = None
     moon_rise_ts: Optional[float] = None
     moon_set_ts: Optional[float] = None
+
+    def __post_init__(self):
+        # Conditions made with only the older left/right wind_sign drift fully that way.
+        if self.wind_east is None:
+            self.wind_east = 1.0 if self.wind_sign >= 0 else -1.0
 
     def sun_progress_at(self, now: float) -> float:
         if self.sun_rise_ts is not None and self.sun_set_ts is not None and self.sun_set_ts > self.sun_rise_ts:
@@ -166,26 +223,90 @@ def arc_point(progress: float, r: QRectF, rad: float) -> Optional[QPointF]:
     return QPointF(x, y)
 
 
-def conditions_from_forecast(fc, now: Optional[float] = None) -> Conditions:
-    """Build scene conditions from a Forecast, advancing the location's clock
-    by the time elapsed since download so the sun keeps moving."""
-    c = fc.current
-    kind, intensity = classify(c.weather_code)
-    cond = Conditions(kind=kind, intensity=intensity, wind_kmh=c.wind_speed or 0.0,
-                      cloud_cover=c.cloud_cover)
-    if c.wind_direction is not None:
-        s = -math.sin(math.radians(c.wind_direction))   # direction wind comes FROM
-        cond.wind_sign = 1.0 if s >= 0 else -1.0
-    now = time.time() if now is None else now
+PLAYBACK_MAX_S = 24 * 3600          # forecast playback looks up to 24 hours ahead (1.18)
 
-    local_now = None
+
+def local_time(fc, now: Optional[float] = None) -> Optional[dt.datetime]:
+    """The location's local time now (naive, as the forecast's times are): its current
+    observation time, moved on by the time since download (at most 6 hours)."""
+    now = time.time() if now is None else now
     try:
-        local_now = dt.datetime.fromisoformat(c.time)
-        if fc.fetched_at:
-            local_now += dt.timedelta(seconds=max(0.0, min(now - fc.fetched_at, 6 * 3600)))
-    except (ValueError, TypeError):
-        pass
-    today = fc.daily[0] if fc.daily else None
+        t = dt.datetime.fromisoformat(fc.current.time)
+    except (ValueError, TypeError, AttributeError):
+        return None
+    if fc.fetched_at:
+        t += dt.timedelta(seconds=max(0.0, min(now - fc.fetched_at, 6 * 3600)))
+    return t
+
+
+def hourly_at(fc, local_dt: Optional[dt.datetime]):
+    """The forecast hour that contains a local time (its HourlyPoint), or None."""
+    if local_dt is None:
+        return None
+    key = local_dt.strftime("%Y-%m-%dT%H")
+    for hp in fc.hourly:
+        if (hp.time or "")[:13] == key:
+            return hp
+    return None
+
+
+def playback_seconds(fc, now: Optional[float] = None) -> float:
+    """How far ahead forecast playback can go: to the end of the last forecast hour,
+    at most PLAYBACK_MAX_S. 0 when the forecast has no hourly data ahead."""
+    t = local_time(fc, now)
+    if t is None or not fc.hourly:
+        return 0.0
+    last = None
+    for hp in fc.hourly:
+        try:
+            ht = dt.datetime.fromisoformat(hp.time)
+        except (ValueError, TypeError):
+            continue
+        if hp.weather_code is not None and (last is None or ht > last):
+            last = ht
+    if last is None:
+        return 0.0
+    ahead = (last + dt.timedelta(hours=1) - t).total_seconds() - 1.0
+    return max(0.0, min(PLAYBACK_MAX_S, ahead))
+
+
+def _day_for(fc, date: Optional[dt.date]):
+    """The daily forecast for a local date (for its sunrise and sunset); today's if the
+    date isn't in the forecast."""
+    if date is not None:
+        iso = date.isoformat()
+        for d in fc.daily:
+            if d.date == iso:
+                return d
+    return fc.daily[0] if fc.daily else None
+
+
+def conditions_from_forecast(fc, now: Optional[float] = None, offset_s: float = 0.0) -> Conditions:
+    """Build scene conditions from a Forecast, advancing the location's clock
+    by the time elapsed since download so the sun keeps moving.
+
+    offset_s > 0 (forecast playback, 1.18): the sky offset_s seconds from now - that
+    hour's weather from the hourly forecast, the Sun for that day's sunrise and sunset,
+    and the Moon at that moment. The wind stays as now: the hourly forecast has none."""
+    c = fc.current
+    now = time.time() if now is None else now
+    at = now + offset_s                                  # the moment shown (epoch seconds)
+    local_now = local_time(fc, now)
+    if local_now is not None:
+        local_now += dt.timedelta(seconds=offset_s)
+    code, cover = c.weather_code, c.cloud_cover
+    if offset_s > 0:
+        hp = hourly_at(fc, local_now)
+        if hp is not None and hp.weather_code is not None:
+            code, cover = hp.weather_code, None          # no hourly cloud cover in the data
+    kind, intensity = classify(code)
+    cond = Conditions(kind=kind, intensity=intensity, wind_kmh=c.wind_speed or 0.0,
+                      cloud_cover=cover, from_forecast=True)
+    if c.wind_direction is not None:                    # degrees the wind comes FROM
+        cond.wind_east = wind_drift(c.wind_direction)    # -> the way it blows TO
+        cond.wind_sign = 1.0 if cond.wind_east >= 0 else -1.0
+
+    today = _day_for(fc, local_now.date() if local_now else None)
     try:
         rise = dt.datetime.fromisoformat(today.sunrise) if today and today.sunrise else None
         sset = dt.datetime.fromisoformat(today.sunset) if today and today.sunset else None
@@ -207,15 +328,17 @@ def conditions_from_forecast(fc, now: Optional[float] = None) -> Conditions:
             cond.daylight = max(0.0, min(1.0, 0.5 + (m - edge) / (2 * tw) * (1 if edge == r else -1)))
             cond.twilight = 1.0 - abs(m - edge) / tw
         cond.sun_progress = max(-0.2, min(1.2, (m - r) / max(1.0, s_ - r)))
-        cond.sun_rise_ts = now - (m - r) * 60.0
-        cond.sun_set_ts = now + (s_ - m) * 60.0
+        cond.sun_rise_ts = at - (m - r) * 60.0
+        cond.sun_set_ts = at + (s_ - m) * 60.0
     else:
         cond.daylight = 1.0 if c.is_day else 0.0
         cond.sun_progress = 0.35
-    cond.moon_age = moon_phase(dt.datetime.now(dt.timezone.utc))
+    # the Moon at the moment shown (before 1.18 always the real now, even when asked for
+    # another moment; the same for live use, where `at` is now)
+    now_utc = dt.datetime.fromtimestamp(at, dt.timezone.utc)
+    cond.moon_age = moon_phase(now_utc)
     try:
         from . import moon as _moon
-        now_utc = dt.datetime.now(dt.timezone.utc)
         ph = _moon.moon_phase(now_utc)
         cond.moon_phase_angle, cond.moon_limb = ph.phase_angle, ph.bright_limb
         loc = fc.location
@@ -421,6 +544,21 @@ class WeatherScene(_Animated):
         self._flash = 0.0
         self._bolt: Optional[list[QPointF]] = None
         self._next_strike = 3.0
+        # Wind as shown (1.17): eased towards the forecast's wind so a refresh never makes
+        # the sky jump. None until the first conditions arrive (they're taken as they are).
+        self.drift_east: Optional[float] = None     # signed, see wind_drift()
+        self.drift_speed: Optional[float] = None    # scene widths per second, see cloud_speed()
+        self._real_wind_shown = False               # a forecast's wind has been shown
+        # earlier layouts fading out (1.18): [clouds, darkness, opacity] - more than one when
+        # the weather changes again mid-fade (fast forecast playback); each fades from
+        # however visible it was, so nothing pops
+        self._fading: list[list] = []
+        self.cloud_fade = 1.0                       # the current layout's opacity, 0 -> 1
+        # ... and the rain, snow and fog of earlier weather, fading out while still moving,
+        # and the sky's colours at the change, so the sky blends to its new tint
+        self._old_weather: list[dict] = []
+        self._sky_from: Optional[tuple] = None
+        self._amount_from: Optional[float] = None   # cloud amount on screen at the change
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setMinimumSize(160, 110)
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, rounded <= 0)
@@ -470,13 +608,41 @@ class WeatherScene(_Animated):
     def set_conditions(self, cond: Conditions) -> None:
         changed = (cond.kind, round(cond.intensity, 2), round(cond.darkness, 2)) != \
                   (self.cond.kind, round(self.cond.intensity, 2), round(self.cond.darkness, 2))
+        old_dark, old_cond = self.cond.darkness, self.cond
+        fade = changed and self._size[0] > 1 and AnimationClock.instance().enabled
+        if fade:
+            self._sky_from = self.shown_sky_colors() # what's on screen now, blends included
+            self._amount_from = self.shown_cloud_amount()
         self.cond = cond
+        # The first real forecast is shown as it is: before it, the sky drifts with the
+        # placeholder conditions, and easing from those would show an invented wind for
+        # several seconds. After that, any change of wind eases in (see advance()).
+        if self.drift_east is None or (cond.from_forecast and not self._real_wind_shown):
+            self.drift_east, self.drift_speed = cond.wind_east, cloud_speed(cond.wind_kmh)
+        self._real_wind_shown = self._real_wind_shown or cond.from_forecast
+        # (a change of wind alone never rebuilds the clouds: they ease to it in advance())
+        if fade:
+            # cross-fade to the new weather: clouds, rain/snow/fog and the sky's tint
+            # (without animation the change stays instant, as the fade would never move on)
+            if self._clouds:
+                self._fading.append([self._clouds, old_dark, self.cloud_fade])
+                if len(self._fading) > 3:            # bound the work: drop the faintest
+                    self._fading.sort(key=lambda f: f[2])
+                    self._fading.pop(0)
+            if self._drops or self._flakes or self._fog:
+                self._old_weather.append(dict(cond=old_cond, _drops=self._drops, _splashes=self._splashes,
+                                              _flakes=self._flakes, _fog=self._fog, alpha=self.cloud_fade))
+                if len(self._old_weather) > 2:
+                    self._old_weather.sort(key=lambda o: o["alpha"])
+                    self._old_weather.pop(0)
+            self.cloud_fade = 0.0
         if changed or not self._clouds:
             self._rebuild()
         self.update()
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
+        self._end_fades()                                     # old positions don't fit the new size
         self._rebuild()
 
     def _rebuild(self) -> None:
@@ -536,21 +702,72 @@ class WeatherScene(_Animated):
                                   rng.uniform(0.25, 0.5)])
 
     # ---------------------------------------------------------- motion
+    def _ease_wind(self, dt_: float) -> None:
+        """Move the shown wind towards the forecast's, smoothly (exponential easing: about
+        63% of the way in WIND_EASE_S seconds, 95% in three times that). Speed and
+        direction ease separately, so a reversal slows, turns and speeds up again."""
+        c = self.cond
+        east, speed = c.wind_east, cloud_speed(c.wind_kmh)
+        if self.drift_east is None:
+            self.drift_east, self.drift_speed = east, speed
+            return
+        a = 1.0 - math.exp(-max(0.0, dt_) / WIND_EASE_S)
+        self.drift_east += (east - self.drift_east) * a
+        self.drift_speed += (speed - self.drift_speed) * a
+
+    def precip_direction(self) -> float:
+        """-1..+1 for rain slant, snow and fog: the side the shown wind blows to. It is
+        always exactly +1 or -1 except while the wind is turning, when it passes smoothly
+        through 0 instead of flipping (before 1.17 these used the forecast's sign as is)."""
+        d = self.drift_east if self.drift_east is not None else self.cond.wind_east
+        return max(-1.0, min(1.0, d / MIN_EAST_WEST))
+
     def advance(self, dt_: float) -> None:
         super().advance(dt_)
         w, h = self._size
         if w <= 1:
             return
         c = self.cond
-        wind = 8 + min(c.wind_kmh, 80) * 0.9          # px/s at front layer
-        sign = c.wind_sign
-        for cl in self._clouds:
-            cl["x"] += sign * wind * cl["speed"] * dt_
-            if sign > 0 and cl["x"] > w + 10:
+        self._ease_wind(dt_)
+        # clouds: the forecast's wind, in scene widths per second, back layers slower
+        vx = self.drift_east * self.drift_speed * w
+        if self.cloud_fade < 1.0 or self._fading or self._old_weather:
+            step = dt_ / CLOUD_FADE_S
+            self.cloud_fade = min(1.0, self.cloud_fade + step)
+            for f in self._fading:
+                f[2] -= step
+            self._fading = [f for f in self._fading if f[2] > 0.0]
+            for o in self._old_weather:
+                o["alpha"] -= step
+            self._old_weather = [o for o in self._old_weather if o["alpha"] > 0.0]
+            if self.cloud_fade >= 1.0:
+                self._sky_from = self._amount_from = None
+        for cl in self._clouds + [cl for f in self._fading for cl in f[0]]:
+            cl["x"] += vx * cl["speed"] * dt_
+            if cl["x"] > w + 10:
                 cl["x"] = -cl["w"] - 10
-            elif sign < 0 and cl["x"] < -cl["w"] - 10:
+            elif cl["x"] < -cl["w"] - 10:
                 cl["x"] = w + 10
 
+        self._advance_weather(dt_)
+        for old in self._old_weather:              # weather fading out keeps moving (1.18)
+            with self._weather_of(old):
+                self._advance_weather(dt_)
+
+        if c.kind == THUNDER:
+            self._flash = max(0.0, self._flash - dt_ * 2.6)
+            self._next_strike -= dt_
+            if self._next_strike <= 0:
+                self._strike()
+                self._next_strike = self._rng.uniform(2.5, 7.0) / (0.6 + 0.6 * c.intensity)
+
+    def _advance_weather(self, dt_: float) -> None:
+        """Rain, drizzle, snow and fog for one frame (moved here unchanged in 1.18, so the
+        same code also moves weather that is fading out)."""
+        w, h = self._size
+        c = self.cond
+        wind = 8 + min(c.wind_kmh, 80) * 0.9          # px/s: snowflake drift (unchanged)
+        sign = self.precip_direction()
         slant = sign * min(0.45, 0.06 + c.wind_kmh / 120)
         if self._drops:
             heavy = c.kind != DRIZZLE
@@ -591,12 +808,20 @@ class WeatherScene(_Animated):
             elif fg[0] < -w * 0.5:
                 fg[0] = w * 1.5
 
-        if c.kind == THUNDER:
-            self._flash = max(0.0, self._flash - dt_ * 2.6)
-            self._next_strike -= dt_
-            if self._next_strike <= 0:
-                self._strike()
-                self._next_strike = self._rng.uniform(2.5, 7.0) / (0.6 + 0.6 * c.intensity)
+    @contextmanager
+    def _weather_of(self, old: dict):
+        """Temporarily make a fading-out weather the scene's own, to move or paint it."""
+        keys = ("cond", "_drops", "_splashes", "_flakes", "_fog")
+        saved = {k: getattr(self, k) for k in keys}
+        for k in keys:
+            setattr(self, k, old[k])
+        try:
+            yield
+        finally:
+            for k in keys:
+                old[k] = getattr(self, k)
+            for k, v in saved.items():
+                setattr(self, k, v)
 
     def _strike(self) -> None:
         w, h = self._size
@@ -618,7 +843,86 @@ class WeatherScene(_Animated):
         finally:
             p.end()
 
+    def _paint_weather(self, p: QPainter, r: QRectF, opacity: float) -> None:
+        """Fog, rain, drizzle and snow (moved here unchanged in 1.18), drawn at `opacity`."""
+        if opacity <= 0.0:
+            return
+        c = self.cond
+        w, h = r.width(), r.height()
+        p.save()
+        p.setOpacity(opacity)
+        # fog bands
+        if self._fog:
+            p.setPen(Qt.PenStyle.NoPen)
+            fog_col = _mix(QColor(70, 78, 88), QColor(235, 238, 240), c.daylight)
+            for fx, fy, _sp, alpha in self._fog:
+                rg = QRadialGradient(QPointF(r.left() + fx, r.top() + fy), w * 0.55)
+                c0 = QColor(fog_col); c0.setAlpha(int(255 * alpha * c.intensity))
+                c1 = QColor(fog_col); c1.setAlpha(0)
+                rg.setColorAt(0, c0)
+                rg.setColorAt(1, c1)
+                p.setBrush(rg)
+                p.drawEllipse(QPointF(r.left() + fx, r.top() + fy), w * 0.55, h * 0.16)
+
+        # precipitation
+        if self._drops:
+            heavy = c.kind != DRIZZLE
+            slant = self.precip_direction() * min(0.45, 0.06 + c.wind_kmh / 120)
+            length = h * (0.075 if heavy else 0.035)
+            base = _mix(QColor(150, 170, 200), QColor(205, 222, 245), c.daylight)
+            for depth_band, alpha in ((0.85, 110), (1.0, 170)):
+                col = QColor(base)
+                col.setAlpha(alpha if heavy else int(alpha * 0.7))
+                p.setPen(QPen(col, 1.4 if depth_band == 1.0 else 1.0, Qt.PenStyle.SolidLine,
+                              Qt.PenCapStyle.RoundCap))
+                ox, oy = r.left(), r.top()
+                lines = [QLineF(ox + x, oy + y, ox + x - slant * length * spd, oy + y - length * spd)
+                         for x, y, spd, _ in self._drops if (spd > 0.88) == (depth_band == 1.0)]
+                if lines:
+                    # Fast-moving 1px streaks look identical without antialiasing,
+                    # and this halves the frame cost in heavy rain.
+                    p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+                    p.drawLines(lines)          # one batched call instead of one per drop
+                    p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            if self._splashes:
+                p.setBrush(Qt.BrushStyle.NoBrush)
+                for sx, sy, age in self._splashes:
+                    k = age / 0.25
+                    col = QColor(base); col.setAlpha(int(150 * (1 - k)))
+                    p.setPen(QPen(col, 1.0))
+                    rw = 2 + 7 * k
+                    p.drawArc(QRectF(r.left() + sx - rw, r.top() + sy - rw * 0.35, 2 * rw, rw * 0.7),
+                              0, 180 * 16)
+        if self._flakes:
+            p.setPen(Qt.PenStyle.NoPen)
+            for x, y, sz, _ph, _sp in self._flakes:
+                p.setBrush(QColor(255, 255, 255, int(150 + 30 * sz)))
+                p.drawEllipse(QPointF(r.left() + x, r.top() + y), sz, sz)
+        p.restore()
+
+    def _end_fades(self) -> None:
+        self._fading, self._old_weather, self.cloud_fade = [], [], 1.0
+        self._sky_from = self._amount_from = None
+
+    def shown_cloud_amount(self) -> float:
+        """How cloudy the sky looks (it veils the Sun, Moon and stars): the conditions'
+        cloud amount, blended from the one on screen while the weather changes (1.18)."""
+        amount = self.cond.cloud_amount
+        if self._amount_from is not None and self.cloud_fade < 1.0:
+            return self._amount_from + (amount - self._amount_from) * self.cloud_fade
+        return amount
+
+    def shown_sky_colors(self) -> tuple[QColor, QColor]:
+        """The sky colours on screen: sky_colors(), except while the weather changes, when
+        they blend from what was on screen at the change (1.18)."""
+        top, bot = self.sky_colors()
+        if self._sky_from is not None and self.cloud_fade < 1.0:
+            f = self.cloud_fade
+            return _mix(self._sky_from[0], top, f), _mix(self._sky_from[1], bot, f)
+        return top, bot
+
     def sky_colors(self) -> tuple[QColor, QColor]:
+        """The sky's top and bottom colours for the current conditions."""
         c = self.cond
         day_top, day_bot = QColor("#2f7fd6"), QColor("#9fd2f6")
         nit_top, nit_bot = QColor("#0a1430"), QColor("#24365c")
@@ -650,13 +954,13 @@ class WeatherScene(_Animated):
             clip.addRoundedRect(r, self.rounded, self.rounded)
             p.setClipPath(clip)
 
-        top, bot = self.sky_colors()
+        top, bot = self.shown_sky_colors()
         g = QLinearGradient(0, r.top(), 0, r.bottom())
         g.setColorAt(0, top)
         g.setColorAt(1, bot)
         p.fillRect(r, g)
 
-        amount = c.cloud_amount
+        amount = self.shown_cloud_amount()
         # stars
         if c.daylight < 0.6 and amount < 0.95:
             vis = (1 - c.daylight / 0.6) * (1 - amount * 0.8)
@@ -677,63 +981,27 @@ class WeatherScene(_Animated):
         else:
             self.sun_drawn = self.moon_drawn = None
 
-        # clouds back -> front, flash brightens them
-        for cl in sorted(self._clouds, key=lambda d: d["layer"]):
-            dk = c.darkness * (0.75 + 0.12 * cl["layer"])
-            if c.daylight < 0.5:
-                dk = min(1.0, dk + 0.5 * (1 - c.daylight * 2))
-            spr = cloud_sprite(cl["w"], cl["h"], dk, cl["seed"])
-            p.setOpacity(cl["opacity"] * (0.9 if c.daylight > 0.2 else 0.8))
-            p.drawPixmap(QPointF(r.left() + cl["x"], r.top() + cl["y"]), spr)
+        # clouds back -> front, flash brightens them; while the weather type changes, the
+        # old layout fades out under the new one fading in
+        if (self._fading or self.cloud_fade < 1.0) and not AnimationClock.instance().enabled:
+            self._end_fades()                                 # animation turned off mid-fade
+        layers = [(f[0], f[1], f[2]) for f in self._fading]
+        layers.append((self._clouds, c.darkness, self.cloud_fade))
+        for clouds, darkness, alpha in layers:
+            for cl in sorted(clouds, key=lambda d: d["layer"]):
+                dk = darkness * (0.75 + 0.12 * cl["layer"])
+                if c.daylight < 0.5:
+                    dk = min(1.0, dk + 0.5 * (1 - c.daylight * 2))
+                spr = cloud_sprite(cl["w"], cl["h"], dk, cl["seed"])
+                p.setOpacity(cl["opacity"] * (0.9 if c.daylight > 0.2 else 0.8) * alpha)
+                p.drawPixmap(QPointF(r.left() + cl["x"], r.top() + cl["y"]), spr)
         p.setOpacity(1.0)
 
-        # fog bands
-        if self._fog:
-            p.setPen(Qt.PenStyle.NoPen)
-            fog_col = _mix(QColor(70, 78, 88), QColor(235, 238, 240), c.daylight)
-            for fx, fy, _sp, alpha in self._fog:
-                rg = QRadialGradient(QPointF(r.left() + fx, r.top() + fy), w * 0.55)
-                c0 = QColor(fog_col); c0.setAlpha(int(255 * alpha * c.intensity))
-                c1 = QColor(fog_col); c1.setAlpha(0)
-                rg.setColorAt(0, c0)
-                rg.setColorAt(1, c1)
-                p.setBrush(rg)
-                p.drawEllipse(QPointF(r.left() + fx, r.top() + fy), w * 0.55, h * 0.16)
-
-        # precipitation
-        if self._drops:
-            heavy = c.kind != DRIZZLE
-            slant = c.wind_sign * min(0.45, 0.06 + c.wind_kmh / 120)
-            length = h * (0.075 if heavy else 0.035)
-            base = _mix(QColor(150, 170, 200), QColor(205, 222, 245), c.daylight)
-            for depth_band, alpha in ((0.85, 110), (1.0, 170)):
-                col = QColor(base)
-                col.setAlpha(alpha if heavy else int(alpha * 0.7))
-                p.setPen(QPen(col, 1.4 if depth_band == 1.0 else 1.0, Qt.PenStyle.SolidLine,
-                              Qt.PenCapStyle.RoundCap))
-                ox, oy = r.left(), r.top()
-                lines = [QLineF(ox + x, oy + y, ox + x - slant * length * spd, oy + y - length * spd)
-                         for x, y, spd, _ in self._drops if (spd > 0.88) == (depth_band == 1.0)]
-                if lines:
-                    # Fast-moving 1px streaks look identical without antialiasing,
-                    # and this halves the frame cost in heavy rain.
-                    p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
-                    p.drawLines(lines)          # one batched call instead of one per drop
-                    p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-            if self._splashes:
-                p.setBrush(Qt.BrushStyle.NoBrush)
-                for sx, sy, age in self._splashes:
-                    k = age / 0.25
-                    col = QColor(base); col.setAlpha(int(150 * (1 - k)))
-                    p.setPen(QPen(col, 1.0))
-                    rw = 2 + 7 * k
-                    p.drawArc(QRectF(r.left() + sx - rw, r.top() + sy - rw * 0.35, 2 * rw, rw * 0.7),
-                              0, 180 * 16)
-        if self._flakes:
-            p.setPen(Qt.PenStyle.NoPen)
-            for x, y, sz, _ph, _sp in self._flakes:
-                p.setBrush(QColor(255, 255, 255, int(150 + 30 * sz)))
-                p.drawEllipse(QPointF(r.left() + x, r.top() + y), sz, sz)
+        # weather fading out under the new weather fading in (1.18)
+        for old in self._old_weather:
+            with self._weather_of(old):
+                self._paint_weather(p, r, old["alpha"])
+        self._paint_weather(p, r, self.cloud_fade)
 
         # lightning
         if c.kind == THUNDER and self._flash > 0:
@@ -875,7 +1143,7 @@ class WeatherScene(_Animated):
             ell.addEllipse(QPointF(cx, cy), tw, rad)
             lit = half.united(ell) if illum >= 0.5 else half.subtracted(ell)
             # repaint the whole disc dim, then the lit part bright
-            p.setBrush(_mix(self.sky_colors()[0], QColor(70, 72, 80), 0.35))
+            p.setBrush(_mix(self.shown_sky_colors()[0], QColor(70, 72, 80), 0.35))
             p.drawEllipse(QPointF(cx, cy), rad * 1.01, rad * 1.01)
             p.setBrush(QColor(238, 238, 226))
             p.drawPath(lit)

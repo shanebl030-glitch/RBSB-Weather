@@ -2,6 +2,258 @@
 
 Created By Shane BlackbuRn
 
+## 1.18.0 – 2026-11-21 (on branch claude/weatherdesk-1.18.0; not released)
+
+Requested by Shane (idea 2 from the "what could no other app have" list):
+forecast playback in the animated sky. Built on 1.17.0, which isn't released
+yet either.
+
+### Added – forecast playback
+- **A bar under the sky:**
+  - **▶ Play** runs the next 24 hours, an hour a second (about 24 s).
+  - **The slider** picks any time in the next 24 hours, in 15-minute steps.
+  - **Now** goes back to the live weather.
+- **The sky for that time:**
+  - **Weather** from the hourly forecast: clear, cloudy, rain, showers,
+    drizzle, snow, fog or thunder.
+  - **Sun and Moon** where they'll be, with day, dusk and night at the right
+    times. Tomorrow's hours use tomorrow's sunrise and sunset.
+  - **Card text** for that hour: temperature, weather and chance of rain,
+    marked "▶ Forecast for …". The line is kept short so the mini forecast
+    keeps all its days.
+- **The rest stays live:** the details beside the sky, the 7-day list, the
+  tray and the desktop widget. Choosing another place returns to now. A
+  refresh, a unit change or the minute tick during playback keeps the chosen
+  hour, without a flicker of the live sky.
+- **The clouds keep the wind of now.** WeatherDesk's hourly forecast has no
+  wind, and inventing one would be wrong. The time's tooltip and the User
+  Guide say so.
+- **Providers without an hourly forecast** (Weather Underground with a PWS
+  key) show "… doesn't provide an hourly forecast" instead of the bar's
+  controls.
+
+### Changed – smooth weather changes (live too)
+- **A change of weather type now cross-fades over 0.8 s** instead of
+  jumping. That covers the clouds, rain, drizzle, snow and fog (which keep
+  moving while they fade out), the sky's tint, and how much the clouds veil
+  the Sun, Moon and stars. Before, the whole picture changed in one frame,
+  and an "overcast" Sun vanished at once.
+  - It matters most during playback, where the weather can change every
+    hour, but a refresh with new weather fades the same way.
+  - Changes faster than the fade (fast playback) never pop: each outgoing
+    weather fades from however visible it was, with at most 3 cloud
+    layouts and 2 rain/snow/fog sets at once.
+  - With animations turned off, a change is still instant, as before. A
+    window resize ends any fade.
+  - The rain, snow and fog code was moved into its own methods, unchanged,
+    so the same code also moves and paints the weather that's fading out.
+
+### Docs and demo
+- **README demo:** an animated GIF of forecast playback at the top of the
+  README (`docs/media/weatherdesk-playback.gif`, 25 frames a second, 7.1 MB,
+  28.7 s). It was recorded from the real main window, but with a sample day
+  of forecast data (the build machine can't reach any weather service), and
+  says so.
+  - The animation clock was stepped exactly 1/30 s per frame, so the motion
+    is even however long each frame took to draw. A first, real-time
+    capture managed only about 8 frames a second and looked jerky.
+  - Measured: none of the 720 playback frames repeats the one before.
+- **Play/pause button:** now uses the desktop theme's own play and pause
+  icons. While playing, the text "⏸" had shown as a tiny square in fonts
+  without that symbol (seen in the recording).
+
+### Fixed
+- **The Moon was always calculated for the real now,** even when the scene
+  was asked for another moment. Live use wasn't affected; playback needed
+  the fix.
+- **A cached forecast from yesterday** now takes sunrise and sunset from the
+  day that matches the location's date, not simply the first day in the
+  forecast.
+- **Two Earth Globe tests could fail depending on the time of day:**
+  - The Moon-image test counted every Moon drawing in the app, including the
+    weather sky's when the real Moon was up. It now checks the globe's own
+    Moon picture, with the same strictness.
+  - The zoom test measured before a status line above the globe had wrapped,
+    which made the globe 15 px shorter. The tests now wait for the layout to
+    settle first.
+
+  Both failed on the unchanged 1.17.0 code too. The cause was found and
+  measured, not guessed.
+
+### Tests
+- New `test_playback` (28 tests). Highlights:
+  - **The sky ahead:** each hour's weather matches the hourly data;
+    tomorrow uses tomorrow's sunrise; the Moon is calculated for that moment;
+    the wind stays as now; how far ahead playback can go.
+  - **Cross-fades,** measured in rendered pixels: at the change itself the
+    picture is identical, and the largest change in any one frame is
+    2.6–2.8, against 26.6–36.6 when the same changes jump.
+  - **The bar:** an hour a second (3 hours took 3.03 s), 15-minute steps,
+    Now, a disabled state, and clamping to a shorter forecast.
+  - **In the app:** card and sky versus the details, tray and widget;
+    changing location; no flicker on refresh or unit change; 12-hour clock;
+    a provider without hourly data.
+  - **Real play for 3 s:** 74 steps, median 0.8 ms each.
+- **Proving the tests work:** each of three deliberate mistakes made tests
+  fail. With the Moon at the real now, 2 failed; without the cross-fade, 6;
+  with a live-sky flicker on redraw, 1.
+- **CPU, idle and animating** (window and widget, 4 runs each): 1.17.0
+  averaged 30.1%, 1.18.0 31.2%. The runs within each version spread
+  further than that, so there's no measurable increase, at most about
+  1 point.
+- **Full suite:** 488 run, 486 passed, 0 failed, 2 skipped
+  (environment-only, as before).
+
+Created By Shane BlackbuRn
+
+## 1.17.0 – 2026-11-20 (on branch claude/weatherdesk-1.17.0; not released)
+
+Requested by Shane: clouds in the weather scene should move at a speed and in a
+direction that reflect the forecast's current wind. Built on 1.16.0, which isn't
+released yet either.
+
+### Changed – clouds follow the real wind
+- **Speed now follows the wind speed** in the forecast (km/h; every provider
+  is already converted to km/h).
+  - The front clouds cross the scene in 150 s in calm air, 70 s at 10 km/h,
+    50 s at 20, 32 s at 40, 25 s at 60 and 21 s at 80.
+  - Strong wind is capped at 19 s (100 km/h and above), so the clouds never
+    turn into a blur (at most about 1.4 px per frame in the main window).
+  - Speeds in between are interpolated, so any change in the wind shows.
+  - Before, clouds moved a fixed number of pixels per second (8 + 0.9 ×
+    km/h, capped at 80 km/h). That crossed the main window in about 7 s at
+    80 km/h.
+- **The same speed in the main window and the desktop widget.** Speed is now
+  measured in scene widths, so the clouds take the same time to cross both.
+  Before, the small widget's sky raced at about 3 times the main window's
+  pace for the same wind.
+- **Direction follows the wind direction, converted correctly.** The
+  forecast gives the direction the wind comes FROM, and the clouds move the
+  way it blows TO. With east to the right, as before and as on a weather map:
+  - a westerly (from 270°) moves the clouds right, and an easterly (90°) left;
+  - a north-westerly (315°) moves them right at 80% of full speed.
+
+  Before, only left or right was used, so a north-easterly and an easterly
+  looked the same.
+- **Mostly north or south winds** can't be shown head-on in a side view.
+  They still drift towards the side they lean, at 30% of full speed for a
+  wind from due north or south and more the further it leans east or west,
+  rather than freezing.
+- **No jumps after a refresh.** When the wind changes, speed and direction
+  ease to the new values with a 3-second time constant: 95% of the way in
+  9 s. A reversal slows, turns after about 2 s, and speeds up again. Before,
+  a change of direction flipped every cloud at once.
+  - A change of wind alone never rebuilds or moves the clouds. A change of
+    weather type still rebuilds them, as before.
+  - The first real forecast is shown at once. It doesn't ease in from the
+    placeholder wind the sky uses before any forecast has loaded.
+- **Rain slant, snowflake drift and fog** turn round smoothly with the
+  clouds. With a steady wind they're exactly as before.
+- **Unchanged:** the Sun and Moon, the mini forecast, the weather icons, the
+  desktop widget and the speed of rain and snow. A missing or unusable wind
+  speed counts as calm; a missing direction drifts right, as before.
+
+### Tests
+- New `test_wind_clouds` (24 tests). Highlights:
+  - **From/to conversion,** checked for all 360 whole degrees.
+  - **Measured on the real animated scene:** speed and direction for six
+    winds, each within 1% of the design.
+  - **Main window and widget sizes** match within 1%.
+  - **Calm air** visibly drifts; **strong wind** is capped.
+  - **Refresh from 10 km/h west to 60 km/h east:** no rebuild, every frame
+    matches the easing formula exactly, and the largest single step of any
+    cloud is 1.05 px.
+  - **Nothing else moves:** the Sun, Moon and mini forecast are identical
+    with any wind.
+  - **The real app:** a refresh with new wind reaches the main window and
+    the widget, and both ease together.
+- **Proving the tests work:** each of three deliberate mistakes made tests
+  fail. With from/to backwards, 11 failed; without easing, 4; with fixed
+  pixel speeds, 1.
+- **CPU:** the easing costs 0.0015 ms per frame. With the main window and
+  the widget animating, 1.16.0 and 1.17.0 measured 31.3% and 28.8% (average
+  of 3 runs each), which is the same within run-to-run variation.
+- Full suite: 460 run, 458 passed, 0 failed, 2 skipped (environment-only, as
+  before).
+
+Created By Shane BlackbuRn
+
+## 1.16.0 – 2026-11-20 (on branch claude/weatherdesk-1.16.0; not released)
+
+Requested by Shane: "On startup/boot update all saved locations" and "Add a
+lock position to the wedge" (the desktop widget).
+
+### Added
+- **Every saved location updates at startup**, including when WeatherDesk
+  starts at login. Before, only the selected location updated; the others
+  showed their last saved forecast until you clicked them.
+  - The selected location updates first, as before. The others follow one
+    at a time, 1.5 s apart, in the order they're saved, so services with
+    small allowances (Tomorrow.io: 25 an hour) aren't hit by a burst.
+  - **At boot the network often isn't up yet.** A location that fails is
+    tried again after 30 s, then 1, 2 and 5 minutes (the same steps as the
+    selected location), and then left until you select it or restart. Its
+    saved forecast stays on screen meanwhile.
+  - A location updated in the last 2 minutes (a quick restart) is skipped.
+  - A location removed before its turn isn't fetched. Closing WeatherDesk
+    stops the round.
+  - **View → Auto refresh → Update all locations at startup** turns it off
+    (it's on by default). Unticking it stops a round that's still running.
+    The setting is saved; older settings files get the default.
+
+- **Lock position for the desktop widget** (requested by Shane: "Add a lock
+  position to the wedge"). Right-click the widget → **Lock position**.
+  - While locked, dragging does nothing. Double-click (open WeatherDesk) and
+    right-click (Refresh, Size, Keep on top, Hide) still work, and the
+    tooltip says it's locked.
+  - Locking also saves the widget's current position. The lock is saved and
+    survives turning the widget off and on, and restarts.
+  - Locking during a drag ends the drag where it is.
+  - A locked position that's off-screen (monitor unplugged) is still brought
+    back onto the screen.
+
+### Changed
+- Closing the window now also stops the retry timer (as it already stopped
+  the other timers), so nothing fires on a closed window.
+
+### Tests
+- New `test_startup_all` (10 tests): every location updated once, selected
+  first, the rest in saved order and spaced (measured 1.47–1.59 s apart); a
+  quick restart skips just-updated places; the setting off; turning it off
+  mid-round; a location removed mid-round; closing mid-round; boot without
+  network (retried, then recovers when the network comes up); network never
+  up (each tried 5 times, then left, with the saved copy shown); setting
+  default and validation.
+- New `test_widget_lock` (8 tests), driven by real mouse press/move/release
+  events:
+  - unlocked drags as before, and locked doesn't move;
+  - unlocking lets it move again, and locking mid-drag stops the drag;
+  - the menu item, with double-click, size and on-top still working when
+    locked;
+  - the lock survives widget off/on and a restart;
+  - an off-screen locked position is recovered;
+  - setting default and validation.
+
+  A check with the lock deliberately removed from the code made 2 of these
+  tests fail, so they do catch it.
+- **Fixed a rare false failure in `test_net`'s socket-leak test**, seen about
+  2 times in 300 runs, and during a full suite run on 2026-11-20. It isn't
+  new: the test was last changed in 1.13.0, and 1.16.0 doesn't touch the code
+  it tests.
+  - **Investigated:** the extra open descriptor was a socket that closed
+    itself about 50 ms after the test's 2-second wait, while no WeatherDesk
+    code was running. WeatherDesk's connection code runs on one thread and
+    closes every socket it doesn't return before returning.
+  - **Cause:** the in-process fake server closing its own end of the last
+    connection late on a busy machine.
+  - **Fix:** the test now counts only WeatherDesk's side of the connections.
+    The wait wasn't lengthened, so a real leak still fails it.
+  - **Proof:** a new test leaks 5 connections on purpose and checks they're
+    counted. The leak test then passed 150 runs out of 150.
+- Full suite: see TEST_REPORT.md.
+
+Created By Shane BlackbuRn
+
 ## 1.15.0 – 2026-11-18 (stable release candidate; on branch claude/weatherdesk-1.12.0, not released)
 
 A full stability, security and production-readiness audit of 1.14.0. No

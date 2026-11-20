@@ -918,3 +918,244 @@ is against documented formats and recorded samples. It is not a live check.
 See TEST_REPORT.md → "Not tested".
 
 Created By Shane BlackbuRn
+
+## Session 1x – 2026-11-20 – v1.16.0 (update every location at startup)
+
+**Context:** Shane tested 1.15.0 on his Mint Cinnamon desktop and approved it.
+`main` was fast-forwarded to the tested commit `d9f8555`. The `v1.15.0` tag
+couldn't be pushed from the build machine (the git proxy returned 403), so
+Shane is publishing the release from the GitHub website. On 2026-11-19 he
+spotted that the Moon's lit side doesn't face the drawn Sun in the weather
+scene (diagnosed, not yet changed; waiting for his decision).
+
+**Request:** "On startup/boot update all saved locations".
+
+**Done on a new branch, `claude/weatherdesk-1.16.0`, from `d9f8555`**, so
+the approved 1.15.0 stays exactly as tested.
+- **Before:** only the selected location updated at startup.
+- **After:**
+  - All saved locations update: the selected one first, the rest spaced
+    1.5 s apart.
+  - Boot-time failures are retried on the usual 30 s / 1 / 2 / 5 min steps,
+    then left.
+  - Locations updated in the last 2 minutes are skipped.
+  - There's a menu option to turn it off.
+
+| Decision | Reason |
+|---|---|
+| Space the requests out instead of sending them all at once | Free plans have small hourly limits (Tomorrow.io allows 25 an hour), and some services rate-limit bursts |
+| Retry a few times, then stop | At boot the network often comes up after WeatherDesk starts. Retrying for ever, for places you aren't looking at, would waste quota. The selected location still has its normal retries |
+| Skip places updated in the last 2 minutes | Restarting twice shouldn't use the allowance twice |
+| On by default, with a menu option | It's what was asked; the option is there for anyone saving quota |
+
+**A test failure I investigated:** one new test saw 4 tries where 5 were
+expected. Tracing it showed a race in the test itself, not the feature: it
+checked "round finished" before the round had started. The test now waits
+for the round to begin. It then passed 3 runs out of 3, and the full suite
+passed.
+
+**Needs your desktop:** a real boot with WeatherDesk starting at login, and
+especially a slow network at boot (Wi-Fi joining late).
+
+Created By Shane BlackbuRn
+
+### Same session: lock position for the desktop widget
+
+**Request:** "Add a lock position to the wedge" ("wedge" is the desktop
+widget).
+
+- **Done:** a "Lock position" tick in the widget's right-click menu. While
+  locked, dragging is ignored; double-click and right-click still work.
+  Locking saves the current position, and the lock is saved too.
+- **Decision:** the off-screen safety move still applies when locked, so a
+  widget on an unplugged monitor isn't lost.
+- **A test failure I investigated:** the first unlocked-drag test moved the
+  widget 3 times too far. The cause was the test's simulated mouse, which
+  followed the widget as it moved. A real pointer stays fixed on the screen.
+  The helper now uses fixed screen positions.
+- **Proving the tests work:** with the lock deliberately removed from the
+  code, 2 tests failed; with it restored, all passed (3 runs out of 3).
+- **Not testable here:** Cinnamon lets you move any window with Alt + drag.
+  That goes through the window manager, which WeatherDesk can't block. A
+  locked widget moved that way isn't saved there, so it returns to its locked
+  spot at the next start. Check this on your desktop.
+
+**A failure in a test I didn't change:** the full suite then failed one
+existing test, `test_net`'s socket-leak check (14 descriptors against 13).
+It also failed once when run completely on its own, so it wasn't caused by
+today's changes.
+
+- **Evidence:** I recorded each extra descriptor over many runs. It happened
+  twice in about 300, and both times it was a socket that closed by itself
+  about 50 ms after the 2-second wait. No WeatherDesk code was running, and
+  WeatherDesk's connection function closes everything except the socket it
+  returns, on one thread.
+- **Conclusion:** it's the fake server, which runs in the same process,
+  closing its own end late.
+- **Fix:** count only WeatherDesk's side, not a longer wait, plus a test that
+  a deliberate leak is still caught.
+- **My own mistake, caught by measuring:** my first version waited 10
+  seconds on every run, because the fake server normally holds 2 sockets, not
+  the 1 I'd assumed. That's corrected.
+- **Result:** 150 runs out of 150 passed.
+
+Created By Shane BlackbuRn
+
+## Session 1y – 2026-11-20 – v1.17.0 (clouds follow the real wind)
+
+**Request:** make the clouds move at the speed, and in the direction, of the
+forecast's current wind:
+- convert "from" to "to" correctly;
+- no jumps after a refresh;
+- calm air still drifts, and strong wind stays readable;
+- the same in the main window and the desktop widget;
+- efficient, and nothing else broken.
+
+Work was on a separate branch, `claude/weatherdesk-1.17.0`, built on 1.16.0.
+Nothing is merged or released.
+
+### What I found first
+| Before | Problem |
+|---|---|
+| Speed of 8 + 0.9 × km/h pixels per second, capped at 80 km/h | Small scenes raced (the widget at about 3 times the main window's pace); at 80 km/h the main window was crossed in about 7 s |
+| Direction as a left/right sign of -sin(from) | The from-to conversion was already right, but only the sign was used: a north-easterly looked like an easterly |
+| The new wind applied at once | A refresh with a new direction flipped every cloud instantly; rain, snow and fog too |
+| Wind data | Real: the forecast's current speed (km/h) and direction (degrees FROM) from all seven providers, so nothing to invent |
+
+### Decisions (with reasons)
+| Decision | Reason |
+|---|---|
+| Speed in scene widths per second, from a table of crossing times (150 s calm to 19 s at 100 km/h and above) | The same wind looks the same at any size; a table is easy to read, test and tune; the cap keeps a gale under 1.5 px per frame |
+| East to the right, as on a weather map | It's how the scene already worked, so existing behaviour is kept |
+| The east-west part of the wind, with a 30% floor | A side view can't show north/south; the floor keeps the sky moving |
+| Easing with a 3-second time constant, speed and direction separately | Smooth: 95% in 9 s, and a reversal slows, turns and speeds up |
+| The first real forecast is shown at once | Easing from the placeholder would show an invented wind for about 10 s |
+| Rain, snow and fog use the eased direction | They turn with the clouds; with a steady wind they're exactly as before |
+| An unusable speed counts as calm; a missing direction drifts right | Never invent a wind; the direction default is unchanged from before |
+
+### Problems found while testing
+1. **A real bug.** The app test showed the main window and the widget
+   disagreeing for about 10 s after start. The main window had eased from
+   the placeholder wind (10 km/h) to the real one, while the widget started
+   with the real one. Fixed: the first real forecast replaces the
+   placeholder at once. A regression test was added.
+2. **A compatibility gap.** An existing rain test built conditions with only
+   the old left/right flag, and the new field ignored it. Fixed in the code:
+   the new field now defaults to that flag.
+3. **Three mistakes in my own tests:**
+   - a wrong direction expectation for 350°;
+   - an "infinite speed = capped" expectation, now treated as bad data;
+   - wrong easing arithmetic: 15 s is 5 time constants, which leaves 1.8%
+     of a full reversal still to go.
+
+   The easing test now checks every frame against the exact formula.
+4. **CPU.** The soak reading looked higher (17.7%). A direct comparison of
+   1.16.0 and 1.17.0 (3 runs each) showed no increase, so it was run-to-run
+   variation.
+
+### Still needs your desktop
+- How the speeds feel on your screen: the table is easy to tune.
+- Watching a real refresh where the wind changes.
+
+Created By Shane BlackbuRn
+
+## Session 1z – 2026-11-21 – v1.18.0 (forecast playback)
+
+**Context:** Shane asked whether The Weather Channel could be added. Its
+forecasts come from The Weather Company, which WeatherDesk's Weather
+Underground provider already uses with his PWS key. The full service is
+enterprise-only, with a 30-day trial. I recommended not adding it unless he
+gets a key. He then asked what WeatherDesk could have that other apps
+probably don't, and chose idea 2: **forecast playback in the animated sky.**
+
+Work was on a separate branch, `claude/weatherdesk-1.18.0`, built on 1.17.0.
+Nothing is merged or released.
+
+### What I checked first
+- **Hourly data:** time, temperature, chance of rain, rain amount and
+  weather code. No wind, no cloud cover.
+- **The Sun** was placed from a clock plus today's sunrise and sunset.
+- **The Moon was always calculated for the real "now"** (a bug for any other
+  moment).
+- **A change of weather type rebuilt the clouds:** a visible jump.
+
+### Decisions (with reasons)
+| Decision | Reason |
+|---|---|
+| A bar under the sky: ▶/⏸, a 24-hour slider in 15-minute steps, and Now | Simple; plays the day in about 24 s at an hour a second |
+| The sky and the card's text follow the hour; details, 7-day list, tray and desktop widget stay live | Clear what's a forecast; the widget is a glance at now |
+| The wind stays as now during playback, said in the tooltip and the guide | The hourly data has none, and inventing one would mislead |
+| Cross-fade every weather change over 0.8 s (clouds, rain/snow/fog, sky tint, the veil over Sun, Moon and stars); live too | Playback changes the weather every hour; a refresh benefits the same way |
+| Several outgoing layers, each fading from its own visibility (bounded at 3 cloud layouts and 2 particle sets) | Fast playback changes the weather mid-fade; this never pops |
+| Rain, snow and fog code moved into methods unchanged, not rewritten | The outgoing weather keeps moving while it fades, with the same physics; less risk |
+| No fade with animations off | The fade would never move on, and the new clouds would never appear |
+| The status line kept short ("▶ Forecast for Sun 13:15") | A longer line pushed the mini forecast from 6 days to 4 (seen in the first screenshot) |
+
+### Problems found while building and testing
+1. **The Moon bug,** fixed and covered by a regression test.
+2. **Things that still switched instantly.** Pixel tests showed that the
+   sky's tint, rain/snow/fog and the Sun/Moon/stars veil all jumped. A
+   clear-to-cloudy change also skipped the fade. All of these now fade too.
+3. **A behaviour change I nearly made.** `sky_colors()` briefly returned
+   the mid-fade colours. An existing test showed that callers expect the
+   colours for the conditions, so the fade got its own method instead.
+4. **A flicker risk.** A redraw during playback would set the live sky and
+   then the hour's sky. It now goes straight to the hour (covered by a
+   test).
+5. **Two Earth Globe tests failed on unchanged 1.17.0 code at today's time:**
+   - one counted the weather sky's Moon drawings (the real Moon was up);
+   - the other measured before a status line wrapped, 15 px shorter
+     (measured).
+
+   Both tests are fixed without weakening them. I also confirmed the Moon
+   test still fails when the globe really re-renders.
+6. **My own test bugs:**
+   - comparing images as huge lists made a failing check look like a
+     hang;
+   - a resize test used a hidden widget, which gets its resize later;
+   - one test wrongly treated lightning as a pop.
+
+   All are corrected.
+7. **CPU, compared directly:** 1.17.0 averaged 30.1%, 1.18.0 31.2%
+   (4 runs each). The spread within each version is larger than that, so
+   there's no measurable increase, at most about 1 point.
+
+### Still needs your desktop
+- How playback looks and feels on your screen.
+- The emoji drop before the rain chance: the build machine lacks the colour
+  emoji font.
+- Whether an hour a second is a good speed.
+
+Created By Shane BlackbuRn
+
+### Same session: demo recording
+
+**Request:** "lets do it": record forecast playback for the README and for
+forum posts.
+
+- **Recording:** made from the real main window via the normal data path,
+  with a believable sample day for Auckland (the build machine can't reach
+  any weather service, so no real forecast). Captured at about 8 frames a
+  second and encoded at real speed: a GIF for the README (760 px, 3.2 MB)
+  and an MP4 for posts (920 px, 0.6 MB). The README caption says it's
+  sample data.
+- **Found in the recording:** the pause button's "⏸" text showed as a tiny
+  square, because not every font has that symbol. The button now uses the
+  desktop theme's play and pause icons; the two tests that read its text
+  check the tooltip and icon instead.
+- **To do on your desktop:** for an advert with real weather, record your
+  own screen while playback runs (Cinnamon: Ctrl+Shift+Alt+R starts and
+  stops a screen recording).
+
+- **"could be a lot smoother":** the first recording grabbed the window in
+  real time and only managed about 8 frames a second. It was re-recorded by
+  taking over the animation clock: exactly 1/30 s of animation per frame,
+  with every frame captured.
+  - Measured: none of the 720 playback frames repeats the one before; the
+    median change between frames is 0.45 (mean pixel) and the largest 5.0.
+  - Encoded as an MP4 at 30 frames a second (0.95 MB), and a GIF at 25
+    (exact GIF timing, 7.1 MB, 760 px).
+  - The bar shows the pause icon throughout (the first re-take showed ▶,
+    because the script drove the slider itself).
+
+Created By Shane BlackbuRn
