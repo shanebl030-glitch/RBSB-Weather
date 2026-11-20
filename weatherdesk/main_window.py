@@ -39,6 +39,12 @@ OLD_DATA_WARN_S = 3 * 60 * 60    # status bar warns if shown data is older than 
 RETRY_AFTER_FAIL_S = 5 * 60      # longest wait before retrying a failed update (not a full interval)
 RETRY_STEPS_S = (30, 60, 120, RETRY_AFTER_FAIL_S)   # waits after the 1st, 2nd, 3rd, later failures in a row
 SEARCH_DEBOUNCE_MS = 450
+# At startup every saved location is updated, not just the selected one (1.16). The others
+# go one at a time so a small free allowance isn't hit by a burst; a location updated in the
+# last couple of minutes (a quick restart) is skipped; and at boot, when the network often
+# isn't up yet, a failed one is retried on the usual steps (30 s, 1, 2, 5 min) then left.
+STARTUP_STAGGER_MS = 1500
+STARTUP_FRESH_S = 2 * 60
 DAYS_SHOWN = 7
 
 
@@ -139,6 +145,11 @@ class MainWindow(QMainWindow):
         self.search_timer.timeout.connect(self._run_search)
 
         self._last_attempt: dict[str, float] = {}
+        self._startup_due: dict[str, float] = {}     # location key -> when to try (startup round)
+        self._startup_tries: dict[str, int] = {}     # location key -> attempts so far
+        self.startup_timer = QTimer(self)
+        self.startup_timer.setSingleShot(True)
+        self.startup_timer.timeout.connect(self._startup_step)
         self._fail_count: dict[str, int] = {}      # failed updates in a row, per location
         # a failed update is retried soon (30 s, 1, 2, then every 5 min) rather than
         # waiting for the next scheduled refresh
@@ -180,6 +191,7 @@ class MainWindow(QMainWindow):
         if self.store.last_error:
             QTimer.singleShot(0, lambda: self.statusBar().showMessage(self.store.last_error, 15000))
         QTimer.singleShot(0, self.refresh_selected)
+        QTimer.singleShot(0, self.start_startup_round)
 
     # ================================================================ UI
     def _build_ui(self) -> None:
@@ -407,6 +419,11 @@ class MainWindow(QMainWindow):
             grp.addAction(a)
             sub.addAction(a)
             self.refresh_actions[mins] = a
+        sub.addSeparator()
+        self.act_startup_all = QAction("Update all locations at &startup", self, checkable=True,
+                                       checked=self.settings.startup_update_all,
+                                       triggered=self.set_startup_update_all)
+        sub.addAction(self.act_startup_all)
         v.addSeparator()
         self.act_tray = QAction("Show &tray icon", self, checkable=True,
                                 checked=self.settings.show_tray, triggered=self.set_show_tray)
@@ -619,24 +636,94 @@ class MainWindow(QMainWindow):
         loc = self.settings.selected_location()
         if loc is None:
             return
+        self._fetch(loc)
+
+    def _fetch(self, loc: Location) -> bool:
+        """Ask for one location's forecast. False if it's already being fetched."""
         if loc.key in self._pending and time.time() - self._pending_since.get(loc.key, 0) < 60:
-            return      # already in flight; a duplicate request adds nothing (even if forced)
+            return False  # already in flight; a duplicate request adds nothing (even if forced)
         # (after 60 s a request is treated as lost and superseded - a safety net only)
         self._token += 1
         self._pending[loc.key] = self._token
         self._pending_since[loc.key] = time.time()
         self._last_attempt[loc.key] = time.time()
         self.worker.fetch_forecast(self._token, loc)
-        if loc.key not in self.forecasts:
+        sel = self.settings.selected_location()
+        if sel is not None and sel.key == loc.key and loc.key not in self.forecasts:
             self.render()          # show "Loading weather…" instead of "No data"
         else:
             self._update_status()
+        return True
+
+    # ----------------------------------------------------- startup round
+    def start_startup_round(self) -> None:
+        """Queue every saved location except the selected one (which updates straight
+        away) for one update each, unless the setting is off."""
+        self._startup_due.clear()
+        self._startup_tries.clear()
+        if not self.settings.startup_update_all or getattr(self, "_quitting", False):
+            return
+        sel = self.settings.selected_location()
+        now = time.time()
+        for loc in self.settings.locations:
+            if sel is not None and loc.key == sel.key:
+                continue
+            fc = self.forecasts.get(loc.key)
+            if fc is not None and fc.fetched_at and now - fc.fetched_at < STARTUP_FRESH_S:
+                continue                           # updated moments ago (a quick restart)
+            self._startup_due[loc.key] = now
+            self._startup_tries[loc.key] = 0
+        if self._startup_due:
+            log.info("startup: updating %d other saved location(s)", len(self._startup_due))
+            self.startup_timer.start(STARTUP_STAGGER_MS)
+
+    def _startup_step(self) -> None:
+        """Startup timer: fetch the next location that's due, then wait again."""
+        if getattr(self, "_closed", False):
+            self._startup_due.clear()
+            return
+        keys = [l.key for l in self.settings.locations]
+        for k in list(self._startup_due):
+            if k not in keys:                      # removed meanwhile
+                self._startup_due.pop(k)
+                self._startup_tries.pop(k, None)
+        now = time.time()
+        due = [k for k in keys if self._startup_due.get(k, float("inf")) <= now and k not in self._pending]
+        if due:
+            k = due[0]
+            loc = next(l for l in self.settings.locations if l.key == k)
+            del self._startup_due[k]
+            self._startup_tries[k] = self._startup_tries.get(k, 0) + 1
+            self._fetch(loc)
+        self._schedule_startup_step()
+
+    def _schedule_startup_step(self) -> None:
+        if not self._startup_due:
+            return
+        wait = (min(self._startup_due.values()) - time.time()) * 1000
+        self.startup_timer.start(int(max(STARTUP_STAGGER_MS, wait)))
+
+    def _startup_result(self, key: str, ok: bool) -> None:
+        """Note how a startup-round fetch went; a failure is retried a few times."""
+        if key not in self._startup_tries or key in self._startup_due:
+            return
+        if ok:
+            self._startup_tries.pop(key, None)
+            return
+        n = self._startup_tries[key]
+        if n <= len(RETRY_STEPS_S):
+            self._startup_due[key] = time.time() + RETRY_STEPS_S[n - 1]
+            self._schedule_startup_step()
+        else:
+            self._startup_tries.pop(key, None)
+            log.info("startup: gave up on %s after %d tries", key, n)
 
     def _on_forecast_ok(self, token: int, fc: Forecast) -> None:
         key = fc.location.key
         if self._pending.get(key) != token:
             return                          # stale or location removed
         del self._pending[key]
+        self._startup_result(key, True)
         # The user may have renamed/changed metadata; keep the saved Location object.
         saved = next((l for l in self.settings.locations if l.key == key), None)
         if saved is None:
@@ -660,6 +747,7 @@ class MainWindow(QMainWindow):
         if self._pending.get(key) != token:
             return
         del self._pending[key]
+        self._startup_result(key, False)
         self.errors[key] = msg
         self._fail_count[key] = self._fail_count.get(key, 0) + 1
         if self._providers_dialog is not None:
@@ -1093,6 +1181,15 @@ class MainWindow(QMainWindow):
         self.save_settings()
         self._apply_refresh_interval()
 
+    def set_startup_update_all(self, on: bool) -> None:
+        self.settings.startup_update_all = bool(on)
+        self.act_startup_all.setChecked(self.settings.startup_update_all)
+        self.save_settings()
+        if not on:                                 # stop a round that's still going
+            self._startup_due.clear()
+            self._startup_tries.clear()
+            self.startup_timer.stop()
+
     def _check_refresh_due(self) -> None:
         """Runs every minute. Updates the weather when it's older than the refresh interval,
         going by the wall clock - so after the computer sleeps, or the window has been
@@ -1361,6 +1458,9 @@ class MainWindow(QMainWindow):
         self.refresh_timer.stop()
         self.age_timer.stop()
         self.search_timer.stop()
+        self.startup_timer.stop()
+        self.retry_timer.stop()
+        self._startup_due.clear()
         if self.tray is not None:
             self.tray.hide()
         e.accept()

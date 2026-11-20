@@ -201,6 +201,16 @@ widget keeps working while the main window is closed to the tray.
   updates within a minute of waking. If an update fails (for example, no
   internet), it tries again after 5 minutes rather than waiting a whole
   interval.
+* **At startup every saved location updates**, not just the one on screen.
+  The one you're looking at updates first, then the others one at a time,
+  1½ seconds apart, so a small free allowance isn't used up in a burst. This
+  includes WeatherDesk starting at login. If the internet isn't ready yet, as
+  often happens straight after the computer boots, each location is tried
+  again after 30 seconds, then 1, 2 and 5 minutes; until then its last saved
+  forecast stays on screen. A location updated in the last 2 minutes (for
+  example, if you've just restarted WeatherDesk) is skipped. To update only
+  the location on screen at startup, untick **View → Auto refresh → Update
+  all locations at startup**.
 
 ## Units
 

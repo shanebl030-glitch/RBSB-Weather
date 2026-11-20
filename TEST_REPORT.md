@@ -4,15 +4,15 @@ Created By Shane BlackbuRn
 
 | Item | Result |
 |---|---|
-| Version | 1.15.0 (stability audit release candidate) |
-| Date | 2026-11-18 |
+| Version | 1.16.0 (update every location at startup; built on the approved 1.15.0) |
+| Date | 2026-11-20 |
 | Environment | Ubuntu 24.04.5 (Linux Mint 22 base), Python 3.12, PyQt6 6.6.1 / Qt 6.4.2, headless (offscreen), 2 CPUs, `python3-keyring` installed (no D-Bus, so keys use the private file) |
-| Suites | `test_core`, `test_net`, `test_tls`, `test_metno`, `test_providers`, `test_scene`, `test_moon`, `test_earth`, `test_globe`, `test_clouds`, `test_sky`, `test_refresh`, `test_timefmt`, `test_arc`, `test_forecast_strip`, `test_instance`, `test_gui`, `test_stress`, **`test_robustness`**, **`test_audit`**, **`test_packaging`**, **`test_soak`** (bold = new in 1.15.0) |
-| Tests run | 417 |
-| Passed | 415 |
+| Suites | `test_core`, `test_net`, `test_tls`, `test_metno`, `test_providers`, `test_scene`, `test_moon`, `test_earth`, `test_globe`, `test_clouds`, `test_sky`, `test_refresh`, `test_timefmt`, `test_arc`, `test_forecast_strip`, `test_instance`, `test_gui`, `test_stress`, **`test_robustness`**, **`test_audit`**, **`test_packaging`**, **`test_soak`** (new in 1.15.0), **`test_startup_all`** (new in 1.16.0) |
+| Tests run | 427 |
+| Passed | 425 |
 | Failed / errors | 0 / 0 |
 | Skipped | 2: `test_readonly_dir_raises_oserror` (root ignores directory permissions; it passed as the `nobody` user in 1.11), and the NASA-converter test (needs build-time numpy + tifffile). Neither is a WeatherDesk fault |
-| Run time | about 420 s (2 CPUs), including the 60 s soak |
+| Run time | about 446 s (2 CPUs), including the 60 s soak |
 | Command | `PYTHON=/usr/bin/python3.12 ./run_tests.sh` (full log in `test-results.log`) |
 | Baseline before the audit (1.14.0) | 2 errors, both `ModuleNotFoundError: keyring`: the package wasn't installed on this new build machine. Fixed by installing it; the two tests now skip with a reason if it's missing |
 
@@ -21,6 +21,19 @@ server sending replies in each service's documented format. That proves
 WeatherDesk handles those formats, failures and recoveries. It does **not**
 prove the live services still send them. None of the weather services could
 be reached from the build machine (all blocked, HTTP 403 from its proxy).
+
+## 1.16.0: every location updates at startup
+
+| Check | Result |
+|---|---|
+| Restart with 4 saved locations | All 4 updated once. The selected one came first; the others followed in saved order, 1.47–1.59 s apart (3 runs). The whole round took about 4.6 s |
+| Restart within 2 minutes | Only the selected location updated (the others were already fresh) |
+| Setting off | Only the selected location updated. The menu tick and the saved setting agree |
+| Turned off mid-round / location removed mid-round / window closed mid-round | Round stops / that location is not fetched / no further requests and no crash |
+| Boot without network (server failing), then the network comes up | Each other location retried; all updated once the network was back; no errors left |
+| Network never comes up | Each other location tried 5 times (first try + 4 retries), then left with its saved forecast on screen |
+| Test failure during development | One test saw 4 tries instead of 5. The cause was a race in the test (it checked "finished" before the round had started), not in the feature. Fixed in the test; the test then passed 3 runs out of 3 and the full suite passed |
+| Needs your desktop | A real boot with "Start at login" on, especially with Wi-Fi joining late |
 
 ## 1.15.0 audit results
 

@@ -2,6 +2,45 @@
 
 Created By Shane BlackbuRn
 
+## 1.16.0 – 2026-11-20 (on branch claude/weatherdesk-1.16.0; not released)
+
+Requested by Shane: "On startup/boot update all saved locations".
+
+### Added
+- **Every saved location updates at startup**, including when WeatherDesk
+  starts at login. Before, only the selected location updated; the others
+  showed their last saved forecast until you clicked them.
+  - The selected location updates first, as before. The others follow one
+    at a time, 1.5 s apart, in the order they're saved, so services with
+    small allowances (Tomorrow.io: 25 an hour) aren't hit by a burst.
+  - **At boot the network often isn't up yet.** A location that fails is
+    tried again after 30 s, then 1, 2 and 5 minutes (the same steps as the
+    selected location), and then left until you select it or restart. Its
+    saved forecast stays on screen meanwhile.
+  - A location updated in the last 2 minutes (a quick restart) is skipped.
+  - A location removed before its turn isn't fetched. Closing WeatherDesk
+    stops the round.
+  - **View → Auto refresh → Update all locations at startup** turns it off
+    (it's on by default). Unticking it stops a round that's still running.
+    The setting is saved; older settings files get the default.
+
+### Changed
+- Closing the window now also stops the retry timer (as it already stopped
+  the other timers), so nothing fires on a closed window.
+
+### Tests
+- New `test_startup_all` (10 tests): every location updated once, selected
+  first, the rest in saved order and spaced (measured 1.47–1.59 s apart); a
+  quick restart skips just-updated places; the setting off; turning it off
+  mid-round; a location removed mid-round; closing mid-round; boot without
+  network (retried, then recovers when the network comes up); network never
+  up (each tried 5 times, then left, with the saved copy shown); setting
+  default and validation.
+- Full suite: 427 tests, 0 failures, 2 skips (the same environment-only
+  skips as 1.15.0).
+
+Created By Shane BlackbuRn
+
 ## 1.15.0 – 2026-11-18 (stable release candidate; on branch claude/weatherdesk-1.12.0, not released)
 
 A full stability, security and production-readiness audit of 1.14.0. No

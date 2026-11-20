@@ -1,4 +1,4 @@
-# WeatherDesk 1.15.0
+# WeatherDesk 1.16.0
 
 A desktop weather app for Linux Mint (and other Ubuntu 24.04-based systems).
 It shows current conditions, a 24-hour chart, a 7-day forecast, and the
@@ -46,6 +46,8 @@ design; Claude (Anthropic's AI) wrote the code and the tests to his spec.
 * °C/°F, km/h · m/s · mph · knots, mm/inches, and a 12- or 24-hour clock.
   Switching is instant.
 * Auto-refresh every 10–120 minutes, or turned off.
+* Every saved location updates when WeatherDesk starts (including at login),
+  one at a time, with retries if the network isn't up yet after a boot.
 * A tray icon showing the live temperature, with optional close-to-tray and
   start at login.
 * Offline fallback: the last forecast for each location is saved and shown,
@@ -56,7 +58,7 @@ design; Claude (Anthropic's AI) wrote the code and the tests to his spec.
 ## Install
 
 ```bash
-sudo apt install ./weatherdesk_1.15.0_all.deb
+sudo apt install ./weatherdesk_1.16.0_all.deb
 ```
 
 `apt` pulls in `python3-pyqt6` automatically. Launch **WeatherDesk** from the

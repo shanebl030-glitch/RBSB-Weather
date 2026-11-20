@@ -918,3 +918,43 @@ is against documented formats and recorded samples. It is not a live check.
 See TEST_REPORT.md → "Not tested".
 
 Created By Shane BlackbuRn
+
+## Session 1x – 2026-11-20 – v1.16.0 (update every location at startup)
+
+**Context:** Shane tested 1.15.0 on his Mint Cinnamon desktop and approved it.
+`main` was fast-forwarded to the tested commit `d9f8555`. The `v1.15.0` tag
+couldn't be pushed from the build machine (the git proxy returned 403), so
+Shane is publishing the release from the GitHub website. On 2026-11-19 he
+spotted that the Moon's lit side doesn't face the drawn Sun in the weather
+scene (diagnosed, not yet changed; waiting for his decision).
+
+**Request:** "On startup/boot update all saved locations".
+
+**Done on a new branch, `claude/weatherdesk-1.16.0`, from `d9f8555`**, so
+the approved 1.15.0 stays exactly as tested.
+- **Before:** only the selected location updated at startup.
+- **After:**
+  - All saved locations update: the selected one first, the rest spaced
+    1.5 s apart.
+  - Boot-time failures are retried on the usual 30 s / 1 / 2 / 5 min steps,
+    then left.
+  - Locations updated in the last 2 minutes are skipped.
+  - There's a menu option to turn it off.
+
+| Decision | Reason |
+|---|---|
+| Space the requests out instead of sending them all at once | Free plans have small hourly limits (Tomorrow.io allows 25 an hour), and some services rate-limit bursts |
+| Retry a few times, then stop | At boot the network often comes up after WeatherDesk starts. Retrying for ever, for places you aren't looking at, would waste quota. The selected location still has its normal retries |
+| Skip places updated in the last 2 minutes | Restarting twice shouldn't use the allowance twice |
+| On by default, with a menu option | It's what was asked; the option is there for anyone saving quota |
+
+**A test failure I investigated:** one new test saw 4 tries where 5 were
+expected. Tracing it showed a race in the test itself, not the feature: it
+checked "round finished" before the round had started. The test now waits
+for the round to begin. It then passed 3 runs out of 3, and the full suite
+passed.
+
+**Needs your desktop:** a real boot with WeatherDesk starting at login, and
+especially a slow network at boot (Wi-Fi joining late).
+
+Created By Shane BlackbuRn
