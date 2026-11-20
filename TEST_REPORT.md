@@ -4,15 +4,15 @@ Created By Shane BlackbuRn
 
 | Item | Result |
 |---|---|
-| Version | 1.17.0 (clouds follow the real wind; built on 1.16.0, which adds startup updates for every location and the widget lock, on top of the approved 1.15.0) |
+| Version | 1.18.0 (forecast playback in the sky; built on 1.17.0 (clouds follow the wind) and 1.16.0 (startup updates, widget lock), on top of the approved 1.15.0) |
 | Date | 2026-11-20 |
 | Environment | Ubuntu 24.04.5 (Linux Mint 22 base), Python 3.12, PyQt6 6.6.1 / Qt 6.4.2, headless (offscreen), 2 CPUs, `python3-keyring` installed (no D-Bus, so keys use the private file) |
-| Suites | `test_core`, `test_net`, `test_tls`, `test_metno`, `test_providers`, `test_scene`, `test_moon`, `test_earth`, `test_globe`, `test_clouds`, `test_sky`, `test_refresh`, `test_timefmt`, `test_arc`, `test_forecast_strip`, `test_instance`, `test_gui`, `test_stress`, **`test_robustness`**, **`test_audit`**, **`test_packaging`**, **`test_soak`** (new in 1.15.0), **`test_startup_all`** and **`test_widget_lock`** (new in 1.16.0), **`test_wind_clouds`** (new in 1.17.0) |
-| Tests run | 460 |
-| Passed | 458 |
+| Suites | `test_core`, `test_net`, `test_tls`, `test_metno`, `test_providers`, `test_scene`, `test_moon`, `test_earth`, `test_globe`, `test_clouds`, `test_sky`, `test_refresh`, `test_timefmt`, `test_arc`, `test_forecast_strip`, `test_instance`, `test_gui`, `test_stress`, **`test_robustness`**, **`test_audit`**, **`test_packaging`**, **`test_soak`** (new in 1.15.0), **`test_startup_all`** and **`test_widget_lock`** (new in 1.16.0), **`test_wind_clouds`** (new in 1.17.0), **`test_playback`** (new in 1.18.0) |
+| Tests run | 488 |
+| Passed | 486 |
 | Failed / errors | 0 / 0 |
 | Skipped | 2: `test_readonly_dir_raises_oserror` (root ignores directory permissions; it passed as the `nobody` user in 1.11), and the NASA-converter test (needs build-time numpy + tifffile). Neither is a WeatherDesk fault |
-| Run time | about 468 s (2 CPUs), including the 60 s soak |
+| Run time | about 506 s (2 CPUs), including the 60 s soak |
 | Command | `PYTHON=/usr/bin/python3.12 ./run_tests.sh` (full log in `test-results.log`) |
 | Baseline before the audit (1.14.0) | 2 errors, both `ModuleNotFoundError: keyring`: the package wasn't installed on this new build machine. Fixed by installing it; the two tests now skip with a reason if it's missing |
 
@@ -21,6 +21,30 @@ server sending replies in each service's documented format. That proves
 WeatherDesk handles those formats, failures and recoveries. It does **not**
 prove the live services still send them. None of the weather services could
 be reached from the build machine (all blocked, HTTP 403 from its proxy).
+
+## 1.18.0: forecast playback
+
+| Check | Result |
+|---|---|
+| The sky ahead (test data starts at 10:15) | Each hour's weather is that hour's forecast (checked at 7 offsets): +0 h day, +9 h day, +10 h dusk, +13 h night, +19.75 h dawn, +23 h day |
+| Tomorrow's hours | Use tomorrow's sunrise (06:01, not today's 06:00) |
+| The Moon at the chosen moment | Every Moon value equals the live calculation at that moment (3 offsets). Regression: a past moment is no longer the real now |
+| Wind during playback | Stays as now (the hourly data has none); said in the tooltip and the guide |
+| How far ahead | 24 h; a shorter forecast ends at its last hour; nothing ahead, or no codes: 0 (bar disabled) |
+| Cross-fade at the moment of change | Picture identical to the frame before |
+| Cross-fade, partly → overcast | Largest change in one frame 2.64 (mean pixel), against 26.55 if it jumped; done in 0.8 s |
+| 8 weather types 0.2 s apart (rain, snow, fog, clear…) | Largest change in one frame 2.83, against 36.59 when jumping; at most 2 cloud layouts fading |
+| Rain/snow/fog fading out | Keep falling and drifting while they fade |
+| Animations off / turned off mid-fade / resize mid-fade | Instant / finishes at the next paint / starts clean |
+| Thunder | Fades in, still flashes |
+| Bar | 3 forecast hours took 3.03 s (76 steps of 144 s); 15-minute slider steps; Now; quiet reset; disabled without hourly data; clamps to a shorter forecast |
+| In the app | Card and sky show the hour; details, desktop widget sky and text, and tray stay live; Now restores everything; a new place starts at now; refresh, °F and the minute tick keep the hour with no live-sky flicker; 12-hour clock ("3:15 pm"); a provider without hourly data |
+| Real play for 3 s in the app | 74 steps, 3 weather types, median 0.8 ms per step (worst 1.7 ms) |
+| Deliberate mistakes in the code | Moon at the real now: 2 tests failed · no cross-fade: 6 · live-sky flicker on redraw: 1 |
+| CPU (window and widget animating, 4 runs each) | 1.17.0 averaged 30.1%, 1.18.0 31.2%; the spread within each version is larger, so no measurable increase, at most about 1 point |
+| Earth Globe tests made reliable | Both failed on unchanged 1.17.0 at today's time. The Moon test counted the weather sky's Moon (the real Moon was up); it now checks the globe's own picture, and still fails if the globe re-renders. The zoom test measured before a status line wrapped (836×392 → 836×377 within 0.1 s); it now waits for the layout to settle. 3 runs out of 3 pass |
+| Screenshots | Real main window at now, +3, +6, +9 and +13 h, checked by eye |
+| Needs your desktop | How it looks and feels; the emoji drop with your colour emoji font; whether an hour a second is right |
 
 ## 1.17.0: clouds follow the real wind
 

@@ -1058,3 +1058,72 @@ Nothing is merged or released.
 - Watching a real refresh where the wind changes.
 
 Created By Shane BlackbuRn
+
+## Session 1z – 2026-11-21 – v1.18.0 (forecast playback)
+
+**Context:** Shane asked whether The Weather Channel could be added. Its
+forecasts come from The Weather Company, which WeatherDesk's Weather
+Underground provider already uses with his PWS key. The full service is
+enterprise-only, with a 30-day trial. I recommended not adding it unless he
+gets a key. He then asked what WeatherDesk could have that other apps
+probably don't, and chose idea 2: **forecast playback in the animated sky.**
+
+Work was on a separate branch, `claude/weatherdesk-1.18.0`, built on 1.17.0.
+Nothing is merged or released.
+
+### What I checked first
+- **Hourly data:** time, temperature, chance of rain, rain amount and
+  weather code. No wind, no cloud cover.
+- **The Sun** was placed from a clock plus today's sunrise and sunset.
+- **The Moon was always calculated for the real "now"** (a bug for any other
+  moment).
+- **A change of weather type rebuilt the clouds:** a visible jump.
+
+### Decisions (with reasons)
+| Decision | Reason |
+|---|---|
+| A bar under the sky: ▶/⏸, a 24-hour slider in 15-minute steps, and Now | Simple; plays the day in about 24 s at an hour a second |
+| The sky and the card's text follow the hour; details, 7-day list, tray and desktop widget stay live | Clear what's a forecast; the widget is a glance at now |
+| The wind stays as now during playback, said in the tooltip and the guide | The hourly data has none, and inventing one would mislead |
+| Cross-fade every weather change over 0.8 s (clouds, rain/snow/fog, sky tint, the veil over Sun, Moon and stars); live too | Playback changes the weather every hour; a refresh benefits the same way |
+| Several outgoing layers, each fading from its own visibility (bounded at 3 cloud layouts and 2 particle sets) | Fast playback changes the weather mid-fade; this never pops |
+| Rain, snow and fog code moved into methods unchanged, not rewritten | The outgoing weather keeps moving while it fades, with the same physics; less risk |
+| No fade with animations off | The fade would never move on, and the new clouds would never appear |
+| The status line kept short ("▶ Forecast for Sun 13:15") | A longer line pushed the mini forecast from 6 days to 4 (seen in the first screenshot) |
+
+### Problems found while building and testing
+1. **The Moon bug,** fixed and covered by a regression test.
+2. **Things that still switched instantly.** Pixel tests showed that the
+   sky's tint, rain/snow/fog and the Sun/Moon/stars veil all jumped. A
+   clear-to-cloudy change also skipped the fade. All of these now fade too.
+3. **A behaviour change I nearly made.** `sky_colors()` briefly returned
+   the mid-fade colours. An existing test showed that callers expect the
+   colours for the conditions, so the fade got its own method instead.
+4. **A flicker risk.** A redraw during playback would set the live sky and
+   then the hour's sky. It now goes straight to the hour (covered by a
+   test).
+5. **Two Earth Globe tests failed on unchanged 1.17.0 code at today's time:**
+   - one counted the weather sky's Moon drawings (the real Moon was up);
+   - the other measured before a status line wrapped, 15 px shorter
+     (measured).
+
+   Both tests are fixed without weakening them. I also confirmed the Moon
+   test still fails when the globe really re-renders.
+6. **My own test bugs:**
+   - comparing images as huge lists made a failing check look like a
+     hang;
+   - a resize test used a hidden widget, which gets its resize later;
+   - one test wrongly treated lightning as a pop.
+
+   All are corrected.
+7. **CPU, compared directly:** 1.17.0 averaged 30.1%, 1.18.0 31.2%
+   (4 runs each). The spread within each version is larger than that, so
+   there's no measurable increase, at most about 1 point.
+
+### Still needs your desktop
+- How playback looks and feels on your screen.
+- The emoji drop before the rain chance: the build machine lacks the colour
+  emoji font.
+- Whether an hour a second is a good speed.
+
+Created By Shane BlackbuRn

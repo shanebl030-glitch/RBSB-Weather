@@ -65,6 +65,39 @@ The top card shows a live sky for the selected place:
   and **thunderstorms** flash with lightning. Rain, snow and fog turn round
   smoothly with the clouds when the wind changes direction.
 
+### Forecast playback: the next 24 hours in the sky
+
+The bar under the sky lets you see the coming hours as weather you can watch,
+not just numbers:
+
+* **▶ Play** runs the next 24 hours in the sky, an hour a second (about 24
+  seconds in all). Press **⏸** to pause.
+* **Drag the slider** to any time in the next 24 hours, in 15-minute steps.
+* **Now** goes back to the weather now.
+
+For the time shown, the sky has:
+* **that hour's weather** from the hourly forecast: clear, cloudy, rain,
+  showers, snow, fog or thunderstorms;
+* **the Sun and Moon where they'll be,** with day, dusk and night at the
+  right times (tomorrow's hours use tomorrow's sunrise and sunset);
+* **the card text for that hour:** its temperature, its weather and its
+  chance of rain, marked "▶ Forecast for …".
+
+When the weather changes from hour to hour, the clouds, rain and sky colour
+blend smoothly into the next. They do the same when a refresh brings new
+weather.
+
+**The clouds keep the wind of now,** because the hourly forecast doesn't
+include wind. Hover over the time to see this note.
+
+**The rest stays live:** the details beside the sky, the 7-day list, the tray
+icon and the desktop widget keep showing the weather now. Choosing another
+place returns to now.
+
+Some providers don't give an hourly forecast. Weather Underground with a
+weather-station key is one. While such a provider supplies the weather, the
+bar says so instead.
+
 ### Mini forecast in the sky
 
 The bottom-right corner of the top card (and of the desktop widget) shows a

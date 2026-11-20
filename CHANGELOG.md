@@ -2,6 +2,96 @@
 
 Created By Shane BlackbuRn
 
+## 1.18.0 – 2026-11-21 (on branch claude/weatherdesk-1.18.0; not released)
+
+Requested by Shane (idea 2 from the "what could no other app have" list):
+forecast playback in the animated sky. Built on 1.17.0, which isn't released
+yet either.
+
+### Added – forecast playback
+- **A bar under the sky:**
+  - **▶ Play** runs the next 24 hours, an hour a second (about 24 s).
+  - **The slider** picks any time in the next 24 hours, in 15-minute steps.
+  - **Now** goes back to the live weather.
+- **The sky for that time:**
+  - **Weather** from the hourly forecast: clear, cloudy, rain, showers,
+    drizzle, snow, fog or thunder.
+  - **Sun and Moon** where they'll be, with day, dusk and night at the right
+    times. Tomorrow's hours use tomorrow's sunrise and sunset.
+  - **Card text** for that hour: temperature, weather and chance of rain,
+    marked "▶ Forecast for …". The line is kept short so the mini forecast
+    keeps all its days.
+- **The rest stays live:** the details beside the sky, the 7-day list, the
+  tray and the desktop widget. Choosing another place returns to now. A
+  refresh, a unit change or the minute tick during playback keeps the chosen
+  hour, without a flicker of the live sky.
+- **The clouds keep the wind of now.** WeatherDesk's hourly forecast has no
+  wind, and inventing one would be wrong. The time's tooltip and the User
+  Guide say so.
+- **Providers without an hourly forecast** (Weather Underground with a PWS
+  key) show "… doesn't provide an hourly forecast" instead of the bar's
+  controls.
+
+### Changed – smooth weather changes (live too)
+- **A change of weather type now cross-fades over 0.8 s** instead of
+  jumping. That covers the clouds, rain, drizzle, snow and fog (which keep
+  moving while they fade out), the sky's tint, and how much the clouds veil
+  the Sun, Moon and stars. Before, the whole picture changed in one frame,
+  and an "overcast" Sun vanished at once.
+  - It matters most during playback, where the weather can change every
+    hour, but a refresh with new weather fades the same way.
+  - Changes faster than the fade (fast playback) never pop: each outgoing
+    weather fades from however visible it was, with at most 3 cloud
+    layouts and 2 rain/snow/fog sets at once.
+  - With animations turned off, a change is still instant, as before. A
+    window resize ends any fade.
+  - The rain, snow and fog code was moved into its own methods, unchanged,
+    so the same code also moves and paints the weather that's fading out.
+
+### Fixed
+- **The Moon was always calculated for the real now,** even when the scene
+  was asked for another moment. Live use wasn't affected; playback needed
+  the fix.
+- **A cached forecast from yesterday** now takes sunrise and sunset from the
+  day that matches the location's date, not simply the first day in the
+  forecast.
+- **Two Earth Globe tests could fail depending on the time of day:**
+  - The Moon-image test counted every Moon drawing in the app, including the
+    weather sky's when the real Moon was up. It now checks the globe's own
+    Moon picture, with the same strictness.
+  - The zoom test measured before a status line above the globe had wrapped,
+    which made the globe 15 px shorter. The tests now wait for the layout to
+    settle first.
+
+  Both failed on the unchanged 1.17.0 code too. The cause was found and
+  measured, not guessed.
+
+### Tests
+- New `test_playback` (28 tests). Highlights:
+  - **The sky ahead:** each hour's weather matches the hourly data;
+    tomorrow uses tomorrow's sunrise; the Moon is calculated for that moment;
+    the wind stays as now; how far ahead playback can go.
+  - **Cross-fades,** measured in rendered pixels: at the change itself the
+    picture is identical, and the largest change in any one frame is
+    2.6–2.8, against 26.6–36.6 when the same changes jump.
+  - **The bar:** an hour a second (3 hours took 3.03 s), 15-minute steps,
+    Now, a disabled state, and clamping to a shorter forecast.
+  - **In the app:** card and sky versus the details, tray and widget;
+    changing location; no flicker on refresh or unit change; 12-hour clock;
+    a provider without hourly data.
+  - **Real play for 3 s:** 74 steps, median 0.8 ms each.
+- **Proving the tests work:** each of three deliberate mistakes made tests
+  fail. With the Moon at the real now, 2 failed; without the cross-fade, 6;
+  with a live-sky flicker on redraw, 1.
+- **CPU, idle and animating** (window and widget, 4 runs each): 1.17.0
+  averaged 30.1%, 1.18.0 31.2%. The runs within each version spread
+  further than that, so there's no measurable increase, at most about
+  1 point.
+- **Full suite:** 488 run, 486 passed, 0 failed, 2 skipped
+  (environment-only, as before).
+
+Created By Shane BlackbuRn
+
 ## 1.17.0 – 2026-11-20 (on branch claude/weatherdesk-1.17.0; not released)
 
 Requested by Shane: clouds in the weather scene should move at a speed and in a

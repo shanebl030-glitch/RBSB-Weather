@@ -23,7 +23,9 @@ from . import providers
 from .providers.manager import ProviderManager
 from .models import Forecast, Location
 from .storage import REFRESH_CHOICES, ForecastCache, Settings, SettingsStore
-from .scene import AnimationClock, Conditions, WeatherIcon, WeatherScene, conditions_from_forecast
+from .scene import (AnimationClock, Conditions, WeatherIcon, WeatherScene, conditions_from_forecast,
+                    hourly_at, local_time, playback_seconds)
+from .playback import PlaybackBar
 from .desktop_widget import DesktopWidget
 from .moon_panel import MoonPanel, MoonReport
 from .earth_panel import EarthPanel, Marker
@@ -308,6 +310,10 @@ class MainWindow(QMainWindow):
             self.detail[key] = v
         cl.addLayout(grid, 2)
         ml.addWidget(card)
+        # forecast playback (1.18): play or scrub the next 24 hours in the sky above
+        self.playback = PlaybackBar()
+        self.playback.offset_changed.connect(self._on_playback)
+        ml.addWidget(self.playback)
 
         # ---- tabs: Forecast | Moon
         self.tabs = QTabWidget()
@@ -517,6 +523,7 @@ class MainWindow(QMainWindow):
             return
         self.settings.selected = key
         self.save_settings()
+        self.playback.reset()                      # a new place starts at now
         self.render()
         fc = self.forecasts.get(key)
         if fc is None or fc.from_cache or time.time() - fc.fetched_at > STALE_AFTER_S:
@@ -777,6 +784,7 @@ class MainWindow(QMainWindow):
             self._clear_details()
             self.scene.set_conditions(Conditions())
             self.scene.set_forecast([], None, s.temp_unit)
+            self._stop_playback()
             self._update_tray(None)
             self._update_widget(None)
             self._update_status()
@@ -793,6 +801,7 @@ class MainWindow(QMainWindow):
             self._clear_details()
             self.scene.set_conditions(Conditions())
             self.scene.set_forecast([], None, s.temp_unit)
+            self._stop_playback()
             self._update_tray(None)
             self._update_widget(None)
             self._update_status()
@@ -818,7 +827,8 @@ class MainWindow(QMainWindow):
             "color: #ffd2c8; background: transparent; font-weight: bold;" if err and old else
             "color: #ffe9e3; background: transparent;" if err else
             "color: white; background: transparent;")
-        self.scene.set_conditions(conditions_from_forecast(fc))
+        if self.playback.offset <= 0:              # (during playback the sky shows that hour)
+            self.scene.set_conditions(conditions_from_forecast(fc))
 
         today = fc.daily[0] if fc.daily else None
         d = self.detail
@@ -868,9 +878,58 @@ class MainWindow(QMainWindow):
                 for lbl in labels:
                     lbl.setText("")
                 self.day_icons[r].set_code(None)
+        self.scene.clock = time.time
+        self._apply_playback(fc)                   # a refresh mid-playback stays on that hour
         self._update_tray(fc)
         self._update_widget(fc)
         self._update_status()
+
+    # ------------------------------------------------- forecast playback (1.18)
+    def _stop_playback(self) -> None:
+        self.playback.reset()
+        self.playback.set_range(0.0, "")
+        self.scene.clock = time.time
+
+    def _on_playback(self, offset: float) -> None:
+        loc = self.settings.selected_location()
+        fc = self.forecasts.get(loc.key) if loc else None
+        if fc is None:
+            return
+        if offset <= 0:
+            self.render()                          # back to the live weather, all of it
+        else:
+            self._apply_playback(fc)               # just the sky and the card's text
+
+    def _apply_playback(self, fc: Forecast) -> None:
+        """Show the forecast `self.playback.offset` seconds ahead in the sky and the card
+        (offset 0: leave the live view render() drew). The rest of the window, the tray and
+        the desktop widget stay on the weather now."""
+        if not fc.hourly:
+            unavailable = f"{fc.source} doesn't provide an hourly forecast"
+        else:
+            unavailable = "No hourly forecast ahead"
+        self.playback.set_range(playback_seconds(fc), unavailable)
+        off = self.playback.offset
+        if off <= 0:
+            self.playback.set_time_text("Now")
+            return
+        s = self.settings
+        when = local_time(fc)
+        when = when + dt.timedelta(seconds=off) if when else None
+        hp = hourly_at(fc, when)
+        self.scene.clock = lambda o=off: time.time() + o
+        self.scene.set_conditions(conditions_from_forecast(fc, offset_s=off))
+        stamp = units.fmt_clock(when, day=True) if when else "–"
+        self.playback.set_time_text(stamp)
+        if hp is None:
+            return
+        self.temp_label.setText(units.fmt_temp(hp.temperature, s.temp_unit))
+        rain = hp.precipitation_probability
+        self.desc_label.setText(weather_codes.describe(hp.weather_code) +
+                                (f"  ·  💧 {rain:.0f}%" if rain is not None else ""))
+        # kept short: a longer line here would push the mini forecast down to fewer days
+        self.message_label.setText(f"▶ Forecast for {stamp}")
+        self.message_label.setStyleSheet("color: white; background: transparent;")
 
     def _clear_details(self) -> None:
         for icon in self.day_icons:
@@ -1041,7 +1100,10 @@ class MainWindow(QMainWindow):
         fc = self.forecasts.get(loc.key) if loc else None
         if fc is not None:
             cond = conditions_from_forecast(fc)
-            self.scene.set_conditions(cond)
+            if self.playback.offset > 0:           # the main sky is showing a forecast hour
+                self.scene.set_conditions(conditions_from_forecast(fc, offset_s=self.playback.offset))
+            else:
+                self.scene.set_conditions(cond)
             if self.desktop_widget is not None:
                 self.desktop_widget.scene.set_conditions(cond)
 
