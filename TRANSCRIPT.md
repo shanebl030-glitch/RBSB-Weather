@@ -958,3 +958,45 @@ passed.
 especially a slow network at boot (Wi-Fi joining late).
 
 Created By Shane BlackbuRn
+
+### Same session: lock position for the desktop widget
+
+**Request:** "Add a lock position to the wedge" ("wedge" is the desktop
+widget).
+
+- **Done:** a "Lock position" tick in the widget's right-click menu. While
+  locked, dragging is ignored; double-click and right-click still work.
+  Locking saves the current position, and the lock is saved too.
+- **Decision:** the off-screen safety move still applies when locked, so a
+  widget on an unplugged monitor isn't lost.
+- **A test failure I investigated:** the first unlocked-drag test moved the
+  widget 3 times too far. The cause was the test's simulated mouse, which
+  followed the widget as it moved. A real pointer stays fixed on the screen.
+  The helper now uses fixed screen positions.
+- **Proving the tests work:** with the lock deliberately removed from the
+  code, 2 tests failed; with it restored, all passed (3 runs out of 3).
+- **Not testable here:** Cinnamon lets you move any window with Alt + drag.
+  That goes through the window manager, which WeatherDesk can't block. A
+  locked widget moved that way isn't saved there, so it returns to its locked
+  spot at the next start. Check this on your desktop.
+
+**A failure in a test I didn't change:** the full suite then failed one
+existing test, `test_net`'s socket-leak check (14 descriptors against 13).
+It also failed once when run completely on its own, so it wasn't caused by
+today's changes.
+
+- **Evidence:** I recorded each extra descriptor over many runs. It happened
+  twice in about 300, and both times it was a socket that closed by itself
+  about 50 ms after the 2-second wait. No WeatherDesk code was running, and
+  WeatherDesk's connection function closes everything except the socket it
+  returns, on one thread.
+- **Conclusion:** it's the fake server, which runs in the same process,
+  closing its own end late.
+- **Fix:** count only WeatherDesk's side, not a longer wait, plus a test that
+  a deliberate leak is still caught.
+- **My own mistake, caught by measuring:** my first version waited 10
+  seconds on every run, because the fake server normally holds 2 sockets, not
+  the 1 I'd assumed. That's corrected.
+- **Result:** 150 runs out of 150 passed.
+
+Created By Shane BlackbuRn

@@ -58,6 +58,36 @@ def fd_count():
     return len(os.listdir("/proc/self/fd"))
 
 
+def client_fd_count(server_port: int) -> int:
+    """Open descriptors, leaving out the in-process fake server's own side of its
+    connections (and its listener): those are TCP sockets whose LOCAL port is the
+    server's port. The fake server closes them from its own thread a moment after the
+    client hangs up, which on a busy machine can take over 2 s. That was seen 2 times
+    in about 300 runs, and each time the socket closed by itself about 50 ms later,
+    with no WeatherDesk code running. WeatherDesk's sockets (client side, a random
+    local port) are all still counted, so a real leak still fails the test."""
+    server_inodes = set()
+    for table in ("/proc/net/tcp", "/proc/net/tcp6"):
+        try:
+            rows = open(table).read().splitlines()[1:]
+        except OSError:
+            continue
+        for row in rows:
+            f = row.split()
+            if int(f[1].rsplit(":", 1)[1], 16) == server_port:
+                server_inodes.add(f[9])
+    n = 0
+    for fd in os.listdir("/proc/self/fd"):
+        try:
+            target = os.readlink(f"/proc/self/fd/{fd}")
+        except OSError:
+            continue                                # closed while we looked
+        if target.startswith("socket:[") and target[8:-1] in server_inodes:
+            continue
+        n += 1
+    return n
+
+
 class NetCase(TempEnvTestCase):
     def setUp(self):
         super().setUp()
@@ -138,16 +168,33 @@ class TestFastConnect(NetCase):
         self.addrs = [_ai(self.bh.port), _ai(self.server.port)]
         net.fast_create_connection(("weather.test", 1), 5).close()
         time.sleep(0.3)
-        before = fd_count()
+        port = self.server.port
+        before = client_fd_count(port)
+        server_before = fd_count() - before          # the fake server's own sockets
         for _ in range(30):
             net.fast_create_connection(("weather.test", 1), 5, stagger=0.02).close()
-        # The in-process fake server may briefly hold its side of the last
-        # connection; it must still return exactly to the baseline (a real
-        # leak would leave up to 30 extra descriptors here).
+        # Only WeatherDesk's side is counted (see client_fd_count); it must return
+        # exactly to the baseline. A real leak would leave up to 30 extra here.
         deadline = time.monotonic() + 2
-        while fd_count() > before and time.monotonic() < deadline:
+        while client_fd_count(port) > before and time.monotonic() < deadline:
             time.sleep(0.05)
-        self.assertLessEqual(fd_count(), before)
+        self.assertLessEqual(client_fd_count(port), before)
+        # let the fake server finish closing its side too, so later tests start clean
+        deadline = time.monotonic() + 10
+        while fd_count() - client_fd_count(port) > server_before and time.monotonic() < deadline:
+            time.sleep(0.05)
+
+    def test_leak_check_catches_a_real_leak(self):
+        """The check above must still fail for a leak on WeatherDesk's side."""
+        self.addrs = [_ai(self.server.port)]
+        port = self.server.port
+        before = client_fd_count(port)
+        kept = [net.fast_create_connection(("weather.test", 1), 5) for _ in range(5)]   # "leaked"
+        try:
+            self.assertEqual(client_fd_count(port), before + 5)
+        finally:
+            for s in kept:
+                s.close()
 
     def test_interleave(self):
         A, B = socket.AF_INET6, socket.AF_INET

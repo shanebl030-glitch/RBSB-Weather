@@ -1,7 +1,8 @@
 """Floating desktop weather widget: an animated scene with the temperature.
 
 Frameless and draggable. By default it sits below normal windows like a
-desktop gadget ("Keep on top" is optional). Right-click for options,
+desktop gadget ("Keep on top" is optional). "Lock position" stops it being
+dragged by accident (1.16). Right-click for options,
 double-click to open the main window. Its position is remembered; if the
 saved spot is no longer on any screen (e.g. a monitor was unplugged), it
 moves back onto the primary screen.
@@ -28,20 +29,21 @@ class DesktopWidget(QWidget):
     hide_requested = pyqtSignal()
     size_changed = pyqtSignal(str)
     on_top_changed = pyqtSignal(bool)
+    locked_changed = pyqtSignal(bool)
     moved = pyqtSignal(int, int)
 
-    def __init__(self, size: str = "medium", on_top: bool = False):
+    def __init__(self, size: str = "medium", on_top: bool = False, locked: bool = False):
         super().__init__(None)
         self.size_name = size if size in WIDGET_SIZES else "medium"
         self.on_top = on_top
+        self.locked = bool(locked)
         self._drag_from: Optional[QPoint] = None
         self._drag_moved = False
         self.setWindowTitle(f"{APP_NAME} widget")
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self._apply_flags()
-        self.setToolTip(f"{APP_NAME} – drag to move, right-click for options, "
-                        f"double-click to open.\n{AUTHOR_CREDIT}")
+        self._apply_tooltip()
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -138,6 +140,21 @@ class DesktopWidget(QWidget):
             self.show()
         self.on_top_changed.emit(self.on_top)
 
+    def set_locked(self, on: bool) -> None:
+        """Lock (or unlock) the widget where it is: no dragging while locked."""
+        if bool(on) == self.locked:
+            return
+        self.locked = bool(on)
+        self._drag_from = None                 # a drag in progress ends here
+        self._apply_tooltip()
+        self.locked_changed.emit(self.locked)
+
+    def _apply_tooltip(self) -> None:
+        how = ("position locked (right-click → Lock position to move it)" if self.locked
+               else "drag to move")
+        self.setToolTip(f"{APP_NAME} – {how}, right-click for options, "
+                        f"double-click to open.\n{AUTHOR_CREDIT}")
+
     def place_at(self, x: Optional[int], y: Optional[int]) -> None:
         """Move to a saved position, or a sensible default if it's off-screen."""
         if x is not None and y is not None:
@@ -154,7 +171,7 @@ class DesktopWidget(QWidget):
 
     # ---------------------------------------------------------------- mouse
     def mousePressEvent(self, e):
-        if e.button() == Qt.MouseButton.LeftButton:
+        if e.button() == Qt.MouseButton.LeftButton and not self.locked:
             self._drag_from = e.globalPosition().toPoint() - self.frameGeometry().topLeft()
             self._drag_moved = False
             e.accept()
@@ -190,6 +207,9 @@ class DesktopWidget(QWidget):
         top = QAction("Keep on top of windows", m, checkable=True, checked=self.on_top)
         top.triggered.connect(self.set_on_top)
         m.addAction(top)
+        lock = QAction("Lock position", m, checkable=True, checked=self.locked)
+        lock.triggered.connect(self.set_locked)
+        m.addAction(lock)
         m.addSeparator()
         m.addAction("Hide widget", self.hide_requested.emit)
         return m

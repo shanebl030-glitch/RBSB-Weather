@@ -1104,12 +1104,14 @@ class MainWindow(QMainWindow):
         self.act_widget.setChecked(self.settings.desktop_widget)
         if on:
             if self.desktop_widget is None:
-                dw = DesktopWidget(self.settings.widget_size, self.settings.widget_on_top)
+                dw = DesktopWidget(self.settings.widget_size, self.settings.widget_on_top,
+                                   self.settings.widget_locked)
                 dw.open_requested.connect(self.show_normal)
                 dw.refresh_requested.connect(lambda: self.refresh_selected(force=True))
                 dw.hide_requested.connect(lambda: self.set_desktop_widget(False))
                 dw.size_changed.connect(self._on_widget_size)
                 dw.on_top_changed.connect(self._on_widget_on_top)
+                dw.locked_changed.connect(self._on_widget_locked)
                 dw.moved.connect(self._on_widget_moved)
                 self.desktop_widget = dw
                 loc = self.settings.selected_location()
@@ -1139,6 +1141,11 @@ class MainWindow(QMainWindow):
 
     def _on_widget_on_top(self, on: bool) -> None:
         self.settings.widget_on_top = on
+        self.save_settings()
+
+    def _on_widget_locked(self, on: bool) -> None:
+        self.settings.widget_locked = on
+        self._remember_widget_pos()            # locked where it stands now
         self.save_settings()
 
     # ======================================================= Settings

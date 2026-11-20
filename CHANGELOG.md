@@ -4,7 +4,8 @@ Created By Shane BlackbuRn
 
 ## 1.16.0 – 2026-11-20 (on branch claude/weatherdesk-1.16.0; not released)
 
-Requested by Shane: "On startup/boot update all saved locations".
+Requested by Shane: "On startup/boot update all saved locations" and "Add a
+lock position to the wedge" (the desktop widget).
 
 ### Added
 - **Every saved location updates at startup**, including when WeatherDesk
@@ -24,6 +25,17 @@ Requested by Shane: "On startup/boot update all saved locations".
     (it's on by default). Unticking it stops a round that's still running.
     The setting is saved; older settings files get the default.
 
+- **Lock position for the desktop widget** (requested by Shane: "Add a lock
+  position to the wedge"). Right-click the widget → **Lock position**.
+  - While locked, dragging does nothing. Double-click (open WeatherDesk) and
+    right-click (Refresh, Size, Keep on top, Hide) still work, and the
+    tooltip says it's locked.
+  - Locking also saves the widget's current position. The lock is saved and
+    survives turning the widget off and on, and restarts.
+  - Locking during a drag ends the drag where it is.
+  - A locked position that's off-screen (monitor unplugged) is still brought
+    back onto the screen.
+
 ### Changed
 - Closing the window now also stops the retry timer (as it already stopped
   the other timers), so nothing fires on a closed window.
@@ -36,8 +48,33 @@ Requested by Shane: "On startup/boot update all saved locations".
   network (retried, then recovers when the network comes up); network never
   up (each tried 5 times, then left, with the saved copy shown); setting
   default and validation.
-- Full suite: 427 tests, 0 failures, 2 skips (the same environment-only
-  skips as 1.15.0).
+- New `test_widget_lock` (8 tests), driven by real mouse press/move/release
+  events:
+  - unlocked drags as before, and locked doesn't move;
+  - unlocking lets it move again, and locking mid-drag stops the drag;
+  - the menu item, with double-click, size and on-top still working when
+    locked;
+  - the lock survives widget off/on and a restart;
+  - an off-screen locked position is recovered;
+  - setting default and validation.
+
+  A check with the lock deliberately removed from the code made 2 of these
+  tests fail, so they do catch it.
+- **Fixed a rare false failure in `test_net`'s socket-leak test**, seen about
+  2 times in 300 runs, and during a full suite run on 2026-11-20. It isn't
+  new: the test was last changed in 1.13.0, and 1.16.0 doesn't touch the code
+  it tests.
+  - **Investigated:** the extra open descriptor was a socket that closed
+    itself about 50 ms after the test's 2-second wait, while no WeatherDesk
+    code was running. WeatherDesk's connection code runs on one thread and
+    closes every socket it doesn't return before returning.
+  - **Cause:** the in-process fake server closing its own end of the last
+    connection late on a busy machine.
+  - **Fix:** the test now counts only WeatherDesk's side of the connections.
+    The wait wasn't lengthened, so a real leak still fails it.
+  - **Proof:** a new test leaks 5 connections on purpose and checks they're
+    counted. The leak test then passed 150 runs out of 150.
+- Full suite: see TEST_REPORT.md.
 
 Created By Shane BlackbuRn
 

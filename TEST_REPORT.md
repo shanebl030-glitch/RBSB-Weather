@@ -4,15 +4,15 @@ Created By Shane BlackbuRn
 
 | Item | Result |
 |---|---|
-| Version | 1.16.0 (update every location at startup; built on the approved 1.15.0) |
+| Version | 1.16.0 (update every location at startup, and lock the desktop widget's position; built on the approved 1.15.0) |
 | Date | 2026-11-20 |
 | Environment | Ubuntu 24.04.5 (Linux Mint 22 base), Python 3.12, PyQt6 6.6.1 / Qt 6.4.2, headless (offscreen), 2 CPUs, `python3-keyring` installed (no D-Bus, so keys use the private file) |
-| Suites | `test_core`, `test_net`, `test_tls`, `test_metno`, `test_providers`, `test_scene`, `test_moon`, `test_earth`, `test_globe`, `test_clouds`, `test_sky`, `test_refresh`, `test_timefmt`, `test_arc`, `test_forecast_strip`, `test_instance`, `test_gui`, `test_stress`, **`test_robustness`**, **`test_audit`**, **`test_packaging`**, **`test_soak`** (new in 1.15.0), **`test_startup_all`** (new in 1.16.0) |
-| Tests run | 427 |
-| Passed | 425 |
+| Suites | `test_core`, `test_net`, `test_tls`, `test_metno`, `test_providers`, `test_scene`, `test_moon`, `test_earth`, `test_globe`, `test_clouds`, `test_sky`, `test_refresh`, `test_timefmt`, `test_arc`, `test_forecast_strip`, `test_instance`, `test_gui`, `test_stress`, **`test_robustness`**, **`test_audit`**, **`test_packaging`**, **`test_soak`** (new in 1.15.0), **`test_startup_all`** and **`test_widget_lock`** (new in 1.16.0) |
+| Tests run | 436 |
+| Passed | 434 |
 | Failed / errors | 0 / 0 |
 | Skipped | 2: `test_readonly_dir_raises_oserror` (root ignores directory permissions; it passed as the `nobody` user in 1.11), and the NASA-converter test (needs build-time numpy + tifffile). Neither is a WeatherDesk fault |
-| Run time | about 446 s (2 CPUs), including the 60 s soak |
+| Run time | about 466 s (2 CPUs), including the 60 s soak |
 | Command | `PYTHON=/usr/bin/python3.12 ./run_tests.sh` (full log in `test-results.log`) |
 | Baseline before the audit (1.14.0) | 2 errors, both `ModuleNotFoundError: keyring`: the package wasn't installed on this new build machine. Fixed by installing it; the two tests now skip with a reason if it's missing |
 
@@ -21,6 +21,35 @@ server sending replies in each service's documented format. That proves
 WeatherDesk handles those formats, failures and recoveries. It does **not**
 prove the live services still send them. None of the weather services could
 be reached from the build machine (all blocked, HTTP 403 from its proxy).
+
+## 1.16.0: lock position for the desktop widget
+
+All widget checks use real mouse press, move and release events.
+
+| Check | Result |
+|---|---|
+| Unlocked widget dragged 80 × 40 px | Moved exactly 80 × 40; new position saved |
+| Locked widget dragged 120 × 60 px | Didn't move; the lock and its position were saved; the tooltip says it's locked |
+| Unlock, then drag | Moves again |
+| Lock during a drag | The drag stops where it is |
+| Locked: double-click, Size, Keep on top | All still work |
+| Widget off and on / restart | Still locked, at the same spot; dragging still ignored |
+| Locked at an off-screen position | Brought back onto the screen, still locked |
+| Lock removed from the code on purpose | 2 tests failed, so the tests do catch it |
+| Needs your desktop | Cinnamon's Alt + drag moves windows through the window manager, which WeatherDesk can't block. A locked widget moved that way isn't saved, so it returns to its spot at the next start |
+
+## Test fix: `test_net` socket-leak check
+
+This test was last changed in 1.13.0, and the code it covers is unchanged.
+
+| Check | Result |
+|---|---|
+| What failed | Once in a full suite run: 14 open descriptors against a baseline of 13. Also 1 time in 5 when run on its own, and about 2 times in 300 in a recording loop |
+| What the extra descriptor was | A socket that closed by itself about 50 ms after the 2-second wait, with no WeatherDesk code running |
+| Why it isn't a WeatherDesk leak | The connection function runs on one thread and closes every socket except the one it returns, before returning |
+| Cause | The test's fake server, in the same process, closing its own end late |
+| Fix | Count only WeatherDesk's side of the connections; the wait wasn't lengthened |
+| Proof | A new test leaks 5 connections on purpose and checks they're counted; the leak test then passed 150 runs out of 150 |
 
 ## 1.16.0: every location updates at startup
 

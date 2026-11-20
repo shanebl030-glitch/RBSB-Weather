@@ -88,6 +88,7 @@ class Settings:
     widget_y: Optional[int] = None
     widget_size: str = "medium"               # small | medium | large
     widget_on_top: bool = False
+    widget_locked: bool = False               # desktop widget can't be dragged (1.16)
     earth_clouds: bool = True                 # live clouds on the Earth tabs
     startup_update_all: bool = True           # update every saved location at startup (1.16)
     weather_source: str = "open-meteo"        # 1.12 setting; kept in step with provider_chain[0]
@@ -160,6 +161,7 @@ class Settings:
             "widget_y": self.widget_y,
             "widget_size": self.widget_size,
             "widget_on_top": self.widget_on_top,
+            "widget_locked": self.widget_locked,
             "earth_clouds": self.earth_clouds,
             "startup_update_all": self.startup_update_all,
             "weather_source": self.weather_source,
@@ -197,7 +199,7 @@ class Settings:
             s.time_format = d["time_format"]
         if d.get("refresh_minutes") in REFRESH_CHOICES and not isinstance(d.get("refresh_minutes"), bool):
             s.refresh_minutes = d["refresh_minutes"]
-        for k in ("show_tray", "close_to_tray", "animations", "desktop_widget", "widget_on_top", "earth_clouds",
+        for k in ("show_tray", "close_to_tray", "animations", "desktop_widget", "widget_on_top", "widget_locked", "earth_clouds",
                   "startup_update_all"):
             if isinstance(d.get(k), bool):
                 setattr(s, k, d[k])

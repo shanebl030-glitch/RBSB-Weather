@@ -178,7 +178,12 @@ the last update failed, or it's showing a saved copy while offline.
 * **Drag** it to move it. Its position is remembered.
 * **Double-click** it to open WeatherDesk.
 * **Right-click** it for Refresh, Size (small, medium or large), Keep on top
-  of windows, and Hide widget.
+  of windows, Lock position, and Hide widget.
+* **Lock position** (right-click) stops the widget being dragged by accident.
+  It stays exactly where it is, even after a restart, and double-click and
+  right-click still work. Untick it to move the widget again. If its spot is
+  ever off-screen (for example, a monitor was unplugged), it still moves back
+  onto your screen.
 
 By default it sits underneath your windows like a desktop gadget. The
 widget keeps working while the main window is closed to the tray.
