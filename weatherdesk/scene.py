@@ -31,6 +31,52 @@ from PyQt6.QtWidgets import QSizePolicy, QWidget
 
 FPS = 24          # weather moves slowly; 24 fps looks smooth and saves ~20% CPU vs 30
 
+# ------------------------------------------------------------ wind and clouds (1.17)
+# How long the front cloud layer takes to cross the whole scene, by wind speed (km/h).
+# In scene widths rather than pixels, so the wide main window and the small desktop widget
+# show the same wind the same way. Calm air still drifts (150 s to cross); strong wind is
+# capped (19 s at 100 km/h and above) so a gale stays readable instead of a blur. Speeds in
+# between are interpolated, so every change in the forecast changes the drift a little.
+CLOUD_CROSSING_S = ((0.0, 150.0), (5.0, 100.0), (10.0, 70.0), (20.0, 50.0), (40.0, 32.0),
+                    (60.0, 25.0), (80.0, 21.0), (100.0, 19.0))
+# The scene is a side view, so only the east-west part of the wind can be shown as movement
+# across it (east = right, as on a weather map). A wind blowing mostly north or south still
+# drifts this much, towards whichever side it leans, rather than freezing the sky.
+MIN_EAST_WEST = 0.3
+# After a refresh, the drift eases to the new wind over a few seconds (time constant).
+WIND_EASE_S = 3.0
+
+
+def cloud_speed(wind_kmh: Optional[float]) -> float:
+    """Front-layer cloud speed in scene widths per second for a wind speed in km/h.
+    Missing or negative speeds count as calm."""
+    v = wind_kmh if wind_kmh is not None and math.isfinite(wind_kmh) and wind_kmh > 0 else 0.0
+    pts = CLOUD_CROSSING_S
+    if v >= pts[-1][0]:
+        return 1.0 / pts[-1][1]
+    for (k0, t0), (k1, t1) in zip(pts, pts[1:]):
+        if v <= k1:
+            f = (v - k0) / (k1 - k0)
+            return (1.0 / t0) + ((1.0 / t1) - (1.0 / t0)) * f
+    return 1.0 / pts[-1][1]                                   # pragma: no cover
+
+
+def wind_drift(direction_from: Optional[float]) -> float:
+    """Which way, and how much, clouds drift across the scene: +1 right (towards east),
+    -1 left (towards west), for a meteorological wind direction in degrees - the direction
+    the wind blows FROM (0 north, 90 east, 180 south, 270 west). The wind blows TOWARDS the
+    opposite direction, whose east component is sin(from + 180) = -sin(from). A wind from
+    the west (270) blows east, so +1; from the east (90), -1; from the north-west (315),
+    +0.80. Mostly north/south winds keep at least MIN_EAST_WEST. Unknown direction: +1, as
+    before 1.17."""
+    if direction_from is None or not math.isfinite(direction_from):
+        return 1.0
+    east = -math.sin(math.radians(direction_from))
+    if abs(east) < 1e-9:
+        east = 0.0
+    side = 1.0 if east >= 0 else -1.0
+    return side * (MIN_EAST_WEST + (1.0 - MIN_EAST_WEST) * abs(east))
+
 # ----------------------------------------------------------------- classify
 CLEAR, PARTLY, OVERCAST, FOG, DRIZZLE, RAIN, SNOW, THUNDER = (
     "clear", "partly", "overcast", "fog", "drizzle", "rain", "snow", "thunder")
@@ -82,6 +128,8 @@ class Conditions:
     sun_progress: float = 0.5      # 0 at sunrise .. 1 at sunset
     wind_kmh: float = 10.0
     wind_sign: float = 1.0         # +1 drift right, -1 drift left
+    wind_east: Optional[float] = None   # signed drift, see wind_drift() (1.17); None: wind_sign
+    from_forecast: bool = False         # built from real forecast data (not the placeholder)
     cloud_cover: Optional[float] = None
     moon_age: float = 0.5
     southern: bool = False         # southern hemisphere: moon appears mirrored
@@ -97,6 +145,11 @@ class Conditions:
     sun_set_ts: Optional[float] = None
     moon_rise_ts: Optional[float] = None
     moon_set_ts: Optional[float] = None
+
+    def __post_init__(self):
+        # Conditions made with only the older left/right wind_sign drift fully that way.
+        if self.wind_east is None:
+            self.wind_east = 1.0 if self.wind_sign >= 0 else -1.0
 
     def sun_progress_at(self, now: float) -> float:
         if self.sun_rise_ts is not None and self.sun_set_ts is not None and self.sun_set_ts > self.sun_rise_ts:
@@ -172,10 +225,10 @@ def conditions_from_forecast(fc, now: Optional[float] = None) -> Conditions:
     c = fc.current
     kind, intensity = classify(c.weather_code)
     cond = Conditions(kind=kind, intensity=intensity, wind_kmh=c.wind_speed or 0.0,
-                      cloud_cover=c.cloud_cover)
-    if c.wind_direction is not None:
-        s = -math.sin(math.radians(c.wind_direction))   # direction wind comes FROM
-        cond.wind_sign = 1.0 if s >= 0 else -1.0
+                      cloud_cover=c.cloud_cover, from_forecast=True)
+    if c.wind_direction is not None:                    # degrees the wind comes FROM
+        cond.wind_east = wind_drift(c.wind_direction)    # -> the way it blows TO
+        cond.wind_sign = 1.0 if cond.wind_east >= 0 else -1.0
     now = time.time() if now is None else now
 
     local_now = None
@@ -421,6 +474,11 @@ class WeatherScene(_Animated):
         self._flash = 0.0
         self._bolt: Optional[list[QPointF]] = None
         self._next_strike = 3.0
+        # Wind as shown (1.17): eased towards the forecast's wind so a refresh never makes
+        # the sky jump. None until the first conditions arrive (they're taken as they are).
+        self.drift_east: Optional[float] = None     # signed, see wind_drift()
+        self.drift_speed: Optional[float] = None    # scene widths per second, see cloud_speed()
+        self._real_wind_shown = False               # a forecast's wind has been shown
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setMinimumSize(160, 110)
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, rounded <= 0)
@@ -471,6 +529,13 @@ class WeatherScene(_Animated):
         changed = (cond.kind, round(cond.intensity, 2), round(cond.darkness, 2)) != \
                   (self.cond.kind, round(self.cond.intensity, 2), round(self.cond.darkness, 2))
         self.cond = cond
+        # The first real forecast is shown as it is: before it, the sky drifts with the
+        # placeholder conditions, and easing from those would show an invented wind for
+        # several seconds. After that, any change of wind eases in (see advance()).
+        if self.drift_east is None or (cond.from_forecast and not self._real_wind_shown):
+            self.drift_east, self.drift_speed = cond.wind_east, cloud_speed(cond.wind_kmh)
+        self._real_wind_shown = self._real_wind_shown or cond.from_forecast
+        # (a change of wind alone never rebuilds the clouds: they ease to it in advance())
         if changed or not self._clouds:
             self._rebuild()
         self.update()
@@ -536,21 +601,44 @@ class WeatherScene(_Animated):
                                   rng.uniform(0.25, 0.5)])
 
     # ---------------------------------------------------------- motion
+    def _ease_wind(self, dt_: float) -> None:
+        """Move the shown wind towards the forecast's, smoothly (exponential easing: about
+        63% of the way in WIND_EASE_S seconds, 95% in three times that). Speed and
+        direction ease separately, so a reversal slows, turns and speeds up again."""
+        c = self.cond
+        east, speed = c.wind_east, cloud_speed(c.wind_kmh)
+        if self.drift_east is None:
+            self.drift_east, self.drift_speed = east, speed
+            return
+        a = 1.0 - math.exp(-max(0.0, dt_) / WIND_EASE_S)
+        self.drift_east += (east - self.drift_east) * a
+        self.drift_speed += (speed - self.drift_speed) * a
+
+    def precip_direction(self) -> float:
+        """-1..+1 for rain slant, snow and fog: the side the shown wind blows to. It is
+        always exactly +1 or -1 except while the wind is turning, when it passes smoothly
+        through 0 instead of flipping (before 1.17 these used the forecast's sign as is)."""
+        d = self.drift_east if self.drift_east is not None else self.cond.wind_east
+        return max(-1.0, min(1.0, d / MIN_EAST_WEST))
+
     def advance(self, dt_: float) -> None:
         super().advance(dt_)
         w, h = self._size
         if w <= 1:
             return
         c = self.cond
-        wind = 8 + min(c.wind_kmh, 80) * 0.9          # px/s at front layer
-        sign = c.wind_sign
+        self._ease_wind(dt_)
+        # clouds: the forecast's wind, in scene widths per second, back layers slower
+        vx = self.drift_east * self.drift_speed * w
         for cl in self._clouds:
-            cl["x"] += sign * wind * cl["speed"] * dt_
-            if sign > 0 and cl["x"] > w + 10:
+            cl["x"] += vx * cl["speed"] * dt_
+            if cl["x"] > w + 10:
                 cl["x"] = -cl["w"] - 10
-            elif sign < 0 and cl["x"] < -cl["w"] - 10:
+            elif cl["x"] < -cl["w"] - 10:
                 cl["x"] = w + 10
 
+        wind = 8 + min(c.wind_kmh, 80) * 0.9          # px/s: snowflake drift (unchanged)
+        sign = self.precip_direction()
         slant = sign * min(0.45, 0.06 + c.wind_kmh / 120)
         if self._drops:
             heavy = c.kind != DRIZZLE
@@ -703,7 +791,7 @@ class WeatherScene(_Animated):
         # precipitation
         if self._drops:
             heavy = c.kind != DRIZZLE
-            slant = c.wind_sign * min(0.45, 0.06 + c.wind_kmh / 120)
+            slant = self.precip_direction() * min(0.45, 0.06 + c.wind_kmh / 120)
             length = h * (0.075 if heavy else 0.035)
             base = _mix(QColor(150, 170, 200), QColor(205, 222, 245), c.daylight)
             for depth_band, alpha in ((0.85, 110), (1.0, 170)):

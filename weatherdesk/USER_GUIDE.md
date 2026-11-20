@@ -42,9 +42,28 @@ The top card shows a live sky for the selected place:
   together. By day it's pale, like the real daytime moon. When it's below
   the horizon it isn't shown. **Stars** come out at night. Everything
   glides smoothly, minute by minute.
-* **Clouds** drift with the wind speed and direction. Rain is slanted by the
-  wind, snow drifts down, fog rolls past, and thunderstorms flash with
-  lightning.
+* **Clouds** drift with the current wind from the forecast:
+  - **Speed:** the stronger the wind, the faster they move. In calm air
+    they still drift gently, taking about 2½ minutes to cross the sky. At
+    10 km/h it's about 70 seconds, at 40 km/h about 30 seconds, and from
+    100 km/h it's capped at about 19 seconds, so a gale stays easy to watch.
+    Distant clouds move more slowly than near ones.
+  - **Direction:** they move the way the wind is blowing *towards*. Forecasts
+    give the direction the wind comes *from*: a westerly blows from the west
+    towards the east.
+  - **East is to the right,** as on a weather map, so a westerly moves the
+    clouds right and an easterly moves them left. The picture is a side view,
+    so a wind blowing mostly north or south can't be shown head-on. Those
+    clouds drift slowly towards whichever side the wind leans.
+  - **When the forecast updates** with a different wind, the clouds ease
+    into the new speed and direction over a few seconds instead of jumping.
+    A change of direction slows them, turns them round, and speeds them up
+    again.
+  - **Main window and desktop widget:** the clouds take the same time to
+    cross both, whatever their size.
+* **Rain** is slanted by the wind, **snow** drifts down, **fog** rolls past,
+  and **thunderstorms** flash with lightning. Rain, snow and fog turn round
+  smoothly with the clouds when the wind changes direction.
 
 ### Mini forecast in the sky
 

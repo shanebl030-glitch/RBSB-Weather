@@ -1000,3 +1000,61 @@ today's changes.
 - **Result:** 150 runs out of 150 passed.
 
 Created By Shane BlackbuRn
+
+## Session 1y – 2026-11-20 – v1.17.0 (clouds follow the real wind)
+
+**Request:** make the clouds move at the speed, and in the direction, of the
+forecast's current wind:
+- convert "from" to "to" correctly;
+- no jumps after a refresh;
+- calm air still drifts, and strong wind stays readable;
+- the same in the main window and the desktop widget;
+- efficient, and nothing else broken.
+
+Work was on a separate branch, `claude/weatherdesk-1.17.0`, built on 1.16.0.
+Nothing is merged or released.
+
+### What I found first
+| Before | Problem |
+|---|---|
+| Speed of 8 + 0.9 × km/h pixels per second, capped at 80 km/h | Small scenes raced (the widget at about 3 times the main window's pace); at 80 km/h the main window was crossed in about 7 s |
+| Direction as a left/right sign of -sin(from) | The from-to conversion was already right, but only the sign was used: a north-easterly looked like an easterly |
+| The new wind applied at once | A refresh with a new direction flipped every cloud instantly; rain, snow and fog too |
+| Wind data | Real: the forecast's current speed (km/h) and direction (degrees FROM) from all seven providers, so nothing to invent |
+
+### Decisions (with reasons)
+| Decision | Reason |
+|---|---|
+| Speed in scene widths per second, from a table of crossing times (150 s calm to 19 s at 100 km/h and above) | The same wind looks the same at any size; a table is easy to read, test and tune; the cap keeps a gale under 1.5 px per frame |
+| East to the right, as on a weather map | It's how the scene already worked, so existing behaviour is kept |
+| The east-west part of the wind, with a 30% floor | A side view can't show north/south; the floor keeps the sky moving |
+| Easing with a 3-second time constant, speed and direction separately | Smooth: 95% in 9 s, and a reversal slows, turns and speeds up |
+| The first real forecast is shown at once | Easing from the placeholder would show an invented wind for about 10 s |
+| Rain, snow and fog use the eased direction | They turn with the clouds; with a steady wind they're exactly as before |
+| An unusable speed counts as calm; a missing direction drifts right | Never invent a wind; the direction default is unchanged from before |
+
+### Problems found while testing
+1. **A real bug.** The app test showed the main window and the widget
+   disagreeing for about 10 s after start. The main window had eased from
+   the placeholder wind (10 km/h) to the real one, while the widget started
+   with the real one. Fixed: the first real forecast replaces the
+   placeholder at once. A regression test was added.
+2. **A compatibility gap.** An existing rain test built conditions with only
+   the old left/right flag, and the new field ignored it. Fixed in the code:
+   the new field now defaults to that flag.
+3. **Three mistakes in my own tests:**
+   - a wrong direction expectation for 350°;
+   - an "infinite speed = capped" expectation, now treated as bad data;
+   - wrong easing arithmetic: 15 s is 5 time constants, which leaves 1.8%
+     of a full reversal still to go.
+
+   The easing test now checks every frame against the exact formula.
+4. **CPU.** The soak reading looked higher (17.7%). A direct comparison of
+   1.16.0 and 1.17.0 (3 runs each) showed no increase, so it was run-to-run
+   variation.
+
+### Still needs your desktop
+- How the speeds feel on your screen: the table is easy to tune.
+- Watching a real refresh where the wind changes.
+
+Created By Shane BlackbuRn

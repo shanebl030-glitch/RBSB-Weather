@@ -2,6 +2,78 @@
 
 Created By Shane BlackbuRn
 
+## 1.17.0 – 2026-11-20 (on branch claude/weatherdesk-1.17.0; not released)
+
+Requested by Shane: clouds in the weather scene should move at a speed and in a
+direction that reflect the forecast's current wind. Built on 1.16.0, which isn't
+released yet either.
+
+### Changed – clouds follow the real wind
+- **Speed now follows the wind speed** in the forecast (km/h; every provider
+  is already converted to km/h).
+  - The front clouds cross the scene in 150 s in calm air, 70 s at 10 km/h,
+    50 s at 20, 32 s at 40, 25 s at 60 and 21 s at 80.
+  - Strong wind is capped at 19 s (100 km/h and above), so the clouds never
+    turn into a blur (at most about 1.4 px per frame in the main window).
+  - Speeds in between are interpolated, so any change in the wind shows.
+  - Before, clouds moved a fixed number of pixels per second (8 + 0.9 ×
+    km/h, capped at 80 km/h). That crossed the main window in about 7 s at
+    80 km/h.
+- **The same speed in the main window and the desktop widget.** Speed is now
+  measured in scene widths, so the clouds take the same time to cross both.
+  Before, the small widget's sky raced at about 3 times the main window's
+  pace for the same wind.
+- **Direction follows the wind direction, converted correctly.** The
+  forecast gives the direction the wind comes FROM, and the clouds move the
+  way it blows TO. With east to the right, as before and as on a weather map:
+  - a westerly (from 270°) moves the clouds right, and an easterly (90°) left;
+  - a north-westerly (315°) moves them right at 80% of full speed.
+
+  Before, only left or right was used, so a north-easterly and an easterly
+  looked the same.
+- **Mostly north or south winds** can't be shown head-on in a side view.
+  They still drift towards the side they lean, at 30% of full speed for a
+  wind from due north or south and more the further it leans east or west,
+  rather than freezing.
+- **No jumps after a refresh.** When the wind changes, speed and direction
+  ease to the new values with a 3-second time constant: 95% of the way in
+  9 s. A reversal slows, turns after about 2 s, and speeds up again. Before,
+  a change of direction flipped every cloud at once.
+  - A change of wind alone never rebuilds or moves the clouds. A change of
+    weather type still rebuilds them, as before.
+  - The first real forecast is shown at once. It doesn't ease in from the
+    placeholder wind the sky uses before any forecast has loaded.
+- **Rain slant, snowflake drift and fog** turn round smoothly with the
+  clouds. With a steady wind they're exactly as before.
+- **Unchanged:** the Sun and Moon, the mini forecast, the weather icons, the
+  desktop widget and the speed of rain and snow. A missing or unusable wind
+  speed counts as calm; a missing direction drifts right, as before.
+
+### Tests
+- New `test_wind_clouds` (24 tests). Highlights:
+  - **From/to conversion,** checked for all 360 whole degrees.
+  - **Measured on the real animated scene:** speed and direction for six
+    winds, each within 1% of the design.
+  - **Main window and widget sizes** match within 1%.
+  - **Calm air** visibly drifts; **strong wind** is capped.
+  - **Refresh from 10 km/h west to 60 km/h east:** no rebuild, every frame
+    matches the easing formula exactly, and the largest single step of any
+    cloud is 1.05 px.
+  - **Nothing else moves:** the Sun, Moon and mini forecast are identical
+    with any wind.
+  - **The real app:** a refresh with new wind reaches the main window and
+    the widget, and both ease together.
+- **Proving the tests work:** each of three deliberate mistakes made tests
+  fail. With from/to backwards, 11 failed; without easing, 4; with fixed
+  pixel speeds, 1.
+- **CPU:** the easing costs 0.0015 ms per frame. With the main window and
+  the widget animating, 1.16.0 and 1.17.0 measured 31.3% and 28.8% (average
+  of 3 runs each), which is the same within run-to-run variation.
+- Full suite: 460 run, 458 passed, 0 failed, 2 skipped (environment-only, as
+  before).
+
+Created By Shane BlackbuRn
+
 ## 1.16.0 – 2026-11-20 (on branch claude/weatherdesk-1.16.0; not released)
 
 Requested by Shane: "On startup/boot update all saved locations" and "Add a

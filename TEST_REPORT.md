@@ -4,15 +4,15 @@ Created By Shane BlackbuRn
 
 | Item | Result |
 |---|---|
-| Version | 1.16.0 (update every location at startup, and lock the desktop widget's position; built on the approved 1.15.0) |
+| Version | 1.17.0 (clouds follow the real wind; built on 1.16.0, which adds startup updates for every location and the widget lock, on top of the approved 1.15.0) |
 | Date | 2026-11-20 |
 | Environment | Ubuntu 24.04.5 (Linux Mint 22 base), Python 3.12, PyQt6 6.6.1 / Qt 6.4.2, headless (offscreen), 2 CPUs, `python3-keyring` installed (no D-Bus, so keys use the private file) |
-| Suites | `test_core`, `test_net`, `test_tls`, `test_metno`, `test_providers`, `test_scene`, `test_moon`, `test_earth`, `test_globe`, `test_clouds`, `test_sky`, `test_refresh`, `test_timefmt`, `test_arc`, `test_forecast_strip`, `test_instance`, `test_gui`, `test_stress`, **`test_robustness`**, **`test_audit`**, **`test_packaging`**, **`test_soak`** (new in 1.15.0), **`test_startup_all`** and **`test_widget_lock`** (new in 1.16.0) |
-| Tests run | 436 |
-| Passed | 434 |
+| Suites | `test_core`, `test_net`, `test_tls`, `test_metno`, `test_providers`, `test_scene`, `test_moon`, `test_earth`, `test_globe`, `test_clouds`, `test_sky`, `test_refresh`, `test_timefmt`, `test_arc`, `test_forecast_strip`, `test_instance`, `test_gui`, `test_stress`, **`test_robustness`**, **`test_audit`**, **`test_packaging`**, **`test_soak`** (new in 1.15.0), **`test_startup_all`** and **`test_widget_lock`** (new in 1.16.0), **`test_wind_clouds`** (new in 1.17.0) |
+| Tests run | 460 |
+| Passed | 458 |
 | Failed / errors | 0 / 0 |
 | Skipped | 2: `test_readonly_dir_raises_oserror` (root ignores directory permissions; it passed as the `nobody` user in 1.11), and the NASA-converter test (needs build-time numpy + tifffile). Neither is a WeatherDesk fault |
-| Run time | about 466 s (2 CPUs), including the 60 s soak |
+| Run time | about 468 s (2 CPUs), including the 60 s soak |
 | Command | `PYTHON=/usr/bin/python3.12 ./run_tests.sh` (full log in `test-results.log`) |
 | Baseline before the audit (1.14.0) | 2 errors, both `ModuleNotFoundError: keyring`: the package wasn't installed on this new build machine. Fixed by installing it; the two tests now skip with a reason if it's missing |
 
@@ -21,6 +21,27 @@ server sending replies in each service's documented format. That proves
 WeatherDesk handles those formats, failures and recoveries. It does **not**
 prove the live services still send them. None of the weather services could
 be reached from the build machine (all blocked, HTTP 403 from its proxy).
+
+## 1.17.0: clouds follow the real wind
+
+Measured on the real animated scene by advancing its clock in 1/24 s frames.
+
+| Check | Result |
+|---|---|
+| Measured speed and direction (front clouds) | 0 km/h from W: right, crosses in 150 s · 10 km/h from W: right, 70 s · 20 km/h from E: left, 50 s · 40 km/h from NW: right, 40 s (80% of full) · 80 km/h from W: right, 21 s · 150 km/h from E: left, 19 s (capped). Each within 1% of the design |
+| From/to conversion | Checked for every whole degree from 0 to 359; Open-Meteo (from 225 → right) and MET Norway (from 90 → left, m/s → km/h) taken through to the scene |
+| Main window (640 px) vs widget (300 and 220 px) | Same crossing time, within 1% |
+| Calm and north/south winds | Still drifting (visible movement in 5 s) |
+| Strong wind | Capped at 19 s per crossing, 1.4 px per frame |
+| Refresh: 10 km/h W → 60 km/h E | No rebuild and no movement at the moment of the refresh; every frame matched the easing formula; largest single cloud step 1.05 px; turned round after 2.0 s; 95% of the new direction and speed after 9 s |
+| Rain, snow and fog when the wind reverses | Turn smoothly (largest change per frame under 0.1); with a steady wind, exactly as before |
+| Sun, Moon and mini forecast | Identical with 0 km/h from W and 90 km/h from E |
+| Real app (fake server) | The forecast's 18.7 km/h from 225° reaches both the main window and the widget; a refresh to 55 km/h from 80° eases in on both together |
+| Bug found and fixed | The first real forecast eased in from the placeholder wind for about 10 s (the window and the widget disagreed); now shown at once, with a regression test |
+| Deliberate mistakes in the code | From/to backwards: 11 tests failed · no easing: 4 · fixed pixel speeds: 1 |
+| CPU | Easing 0.0015 ms per frame. Window and widget animating: 1.16.0 31.3%, 1.17.0 28.8% (average of 3 runs each), the same within run-to-run variation |
+| Rendered frames | Checked by eye: slow drift right at 5 km/h from W, faster movement left at 60 km/h from E; Sun and Moon unchanged |
+| Needs your desktop | How the speeds feel on your screen, and a real refresh where the wind changes |
 
 ## 1.16.0: lock position for the desktop widget
 
