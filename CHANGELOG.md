@@ -48,6 +48,15 @@ yet either.
   - The rain, snow and fog code was moved into its own methods, unchanged,
     so the same code also moves and paints the weather that's fading out.
 
+### Docs and demo
+- **README demo:** an animated GIF of forecast playback at the top of the
+  README (`docs/media/weatherdesk-playback.gif`, 3.2 MB, 28.7 s). It was
+  recorded from the real main window, but with a sample day of forecast
+  data (the build machine can't reach any weather service), and says so.
+- **Play/pause button:** now uses the desktop theme's own play and pause
+  icons. While playing, the text "⏸" had shown as a tiny square in fonts
+  without that symbol (seen in the recording).
+
 ### Fixed
 - **The Moon was always calculated for the real now,** even when the scene
   was asked for another moment. Live use wasn't affected; playback needed

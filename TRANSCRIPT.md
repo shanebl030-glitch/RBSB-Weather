@@ -1127,3 +1127,24 @@ Nothing is merged or released.
 - Whether an hour a second is a good speed.
 
 Created By Shane BlackbuRn
+
+### Same session: demo recording
+
+**Request:** "lets do it": record forecast playback for the README and for
+forum posts.
+
+- **Recording:** made from the real main window via the normal data path,
+  with a believable sample day for Auckland (the build machine can't reach
+  any weather service, so no real forecast). Captured at about 8 frames a
+  second and encoded at real speed: a GIF for the README (760 px, 3.2 MB)
+  and an MP4 for posts (920 px, 0.6 MB). The README caption says it's
+  sample data.
+- **Found in the recording:** the pause button's "⏸" text showed as a tiny
+  square, because not every font has that symbol. The button now uses the
+  desktop theme's play and pause icons; the two tests that read its text
+  check the tooltip and icon instead.
+- **To do on your desktop:** for an advert with real weather, record your
+  own screen while playback runs (Cinnamon: Ctrl+Shift+Alt+R starts and
+  stops a screen recording).
+
+Created By Shane BlackbuRn

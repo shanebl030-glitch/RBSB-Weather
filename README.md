@@ -14,6 +14,13 @@ or as backups.
 *Shane's design and Claude's coding.* Every feature started as Shane's idea and
 design; Claude (Anthropic's AI) wrote the code and the tests to his spec.
 
+![Forecast playback: the next 24 hours of weather played in WeatherDesk's animated sky](docs/media/weatherdesk-playback.gif)
+
+*Forecast playback: press play and the next 24 hours run in the animated sky
+(afternoon showers and a thunderstorm, a clear night with stars and the Moon,
+dawn fog, then sunshine). Recorded from WeatherDesk itself with sample forecast
+data.*
+
 ## Features
 
 * Search for any city or town worldwide; save up to 50 locations and reorder them.

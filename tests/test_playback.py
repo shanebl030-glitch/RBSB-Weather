@@ -317,13 +317,15 @@ class TestPlaybackBar(unittest.TestCase):
         self.assertEqual(b.offset, 0.0)
         self.assertEqual(b.slider.maximum(), 24 * 60 // STEP_MIN)
         self.assertFalse(b.now_btn.isEnabled())
-        self.assertEqual(b.play_btn.text(), "▶")
+        self.assertTrue(b.play_btn.toolTip().startswith("Play"))
+        self.assertFalse(b.play_btn.icon().isNull())
 
     def test_play_is_an_hour_a_second_and_stops_at_the_end(self):
         b = self.bar(3 * 3600)
         b.toggle_play()
         self.assertTrue(b.playing)
-        self.assertEqual(b.play_btn.text(), "⏸")
+        self.assertEqual(b.play_btn.toolTip(), "Pause")
+        self.assertFalse(b.play_btn.icon().isNull())
         t0 = time.monotonic()
         self.assertTrue(wait_until(lambda: not b.playing, 10))
         took = time.monotonic() - t0

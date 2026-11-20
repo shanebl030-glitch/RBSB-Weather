@@ -11,7 +11,7 @@ Created By Shane BlackbuRn
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QSlider, QToolButton, QWidget
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QSlider, QStyle, QToolButton, QWidget
 
 PLAY_RATE = 3600.0          # forecast seconds per real second while playing: an hour a second
 TICK_MS = 40                # 25 updates a second while playing
@@ -138,7 +138,10 @@ class PlaybackBar(QWidget):
             self.offset_changed.emit(offset)
 
     def _refresh_buttons(self) -> None:
-        self.play_btn.setText("⏸" if self.playing else "▶")
+        # the desktop theme's own play/pause icons: a text "⏸" isn't in every font
+        icon = (QStyle.StandardPixmap.SP_MediaPause if self.playing
+                else QStyle.StandardPixmap.SP_MediaPlay)
+        self.play_btn.setIcon(self.style().standardIcon(icon))
         self.play_btn.setToolTip("Pause" if self.playing else
                                  "Play the coming hours in the sky (an hour a second)")
         self.now_btn.setEnabled(self.offset > 0 or self.playing)
