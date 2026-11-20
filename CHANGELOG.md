@@ -50,9 +50,14 @@ yet either.
 
 ### Docs and demo
 - **README demo:** an animated GIF of forecast playback at the top of the
-  README (`docs/media/weatherdesk-playback.gif`, 3.2 MB, 28.7 s). It was
-  recorded from the real main window, but with a sample day of forecast
-  data (the build machine can't reach any weather service), and says so.
+  README (`docs/media/weatherdesk-playback.gif`, 25 frames a second, 7.1 MB,
+  28.7 s). It was recorded from the real main window, but with a sample day
+  of forecast data (the build machine can't reach any weather service), and
+  says so.
+  - The animation clock was stepped exactly 1/30 s per frame, so the motion
+    is even however long each frame took to draw. A first, real-time
+    capture managed only about 8 frames a second and looked jerky.
+  - Measured: none of the 720 playback frames repeats the one before.
 - **Play/pause button:** now uses the desktop theme's own play and pause
   icons. While playing, the text "⏸" had shown as a tiny square in fonts
   without that symbol (seen in the recording).

@@ -1147,4 +1147,15 @@ forum posts.
   own screen while playback runs (Cinnamon: Ctrl+Shift+Alt+R starts and
   stops a screen recording).
 
+- **"could be a lot smoother":** the first recording grabbed the window in
+  real time and only managed about 8 frames a second. It was re-recorded by
+  taking over the animation clock: exactly 1/30 s of animation per frame,
+  with every frame captured.
+  - Measured: none of the 720 playback frames repeats the one before; the
+    median change between frames is 0.45 (mean pixel) and the largest 5.0.
+  - Encoded as an MP4 at 30 frames a second (0.95 MB), and a GIF at 25
+    (exact GIF timing, 7.1 MB, 760 px).
+  - The bar shows the pause icon throughout (the first re-take showed ▶,
+    because the script drove the slider itself).
+
 Created By Shane BlackbuRn
