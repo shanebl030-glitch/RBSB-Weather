@@ -1355,3 +1355,55 @@ to confirm; it's easy to move if he meant somewhere else.
 - Full suite: 549 run, 547 passed, 2 skipped (environment-only), 0 failed.
 
 Created By Shane BlackbuRn
+
+## Session 2e – 2026-11-21 – v2.2.0 (the Wind tab)
+
+**Request:** "I'd like to add new tab for wind etc... as attached as a globe".
+The screenshot showed a world wind map: colours by speed, streaks following
+the wind, and coastlines.
+
+**Questions asked first** (an expensive job with real choices):
+- **Data source:** NOAA GFS (recommended: 1°, free, no key, Windy-like
+  detail) or an Open-Meteo grid (coarser, and it would use ~1,000–2,500 of
+  his free daily requests per refresh). He chose **NOAA GFS**.
+- **Layers:** wind only (recommended) or more. He chose **wind only**.
+
+### Decisions (with reasons)
+| Decision | Reason |
+|---|---|
+| Write a small GRIB2 reader rather than add a dependency | Mint has no ecCodes/pygrib package by default; the .deb stays dependency-free |
+| Check it against ecCodes on real NOAA data and keep ecCodes' answers in the tests | ecCodes is the reference; the answers make the tests work on any machine |
+| NOMADS first, AWS byte ranges as the fallback | Two independent NOAA sources; both fetch only ~200 KB |
+| Download only when the tab is opened, every 3 hours while it's open | No network or CPU for people who never use the tab |
+| Reuse the Earth Globe's view, without the Sun, Moon or place card | Same dragging and zooming; less clutter over the wind |
+| Coastlines traced from the Earth map's even ocean colour | No new data file needed; the land was hard to see without them |
+| Streaks stop when the tab is hidden, the checkbox is off, or Animations is off | No CPU wasted |
+
+### Problems found while building and testing
+1. **ecCodes wrote flat test fields at first.** It packs complex fields with
+   0 bits unless told the bit count. Found because the files were
+   suspiciously small; regenerated and checked.
+2. **The first comparison script had two blind spots.**
+   - ecCodes reads only the first field of a multi-field message unless
+     asked, which made the counts 307 vs 343.
+   - Missing points compared as "no difference".
+
+   Both were fixed. The real file has 45 fields with missing points, and they
+   match.
+3. **My own test mistakes** (the row-order test; expecting the map to be drawn
+   before the next repaint) were corrected without weakening the tests.
+4. **Visual tuning from screenshots:** the streaks were short, dense dashes
+   (now longer, softer trails) and the land couldn't be seen (now dimmer
+   colours and coastlines).
+
+### Tested
+- See TEST_REPORT. The new tests passed 3 runs in a row; full suite below.
+
+### Still needs your Mint
+- **The live download from NOAA.** The build machine can't reach it.
+- **Whether today's 1° GFS files decode.** The sample is an older 2.5° file;
+  if NOAA used a packing the reader doesn't know, the tab says "Unsupported
+  GRIB2 packing" instead of crashing.
+- How it looks and how smooth it is on your screen, and CPU on your machine.
+
+Created By Shane BlackbuRn

@@ -4,15 +4,15 @@ Created By Shane BlackbuRn
 
 | Item | Result |
 |---|---|
-| Version | 2.1.2 (provider name on the desktop widget; built on 2.1.1) |
+| Version | 2.2.0 (the Wind tab: world wind on a globe from NOAA GFS; built on 2.1.2) |
 | Date | 2026-11-21 |
 | Environment | Ubuntu 24.04.5 (Linux Mint 22 base), Python 3.12, PyQt6 6.6.1 / Qt 6.4.2, headless (offscreen), 2 CPUs, `python3-keyring` installed (no D-Bus, so keys use the private file) |
-| Suites | as 1.18.0, plus **`test_migrate`** (new in 2.0.0) **`test_updates`** (new in 2.1.0) **`test_support`** (new in 2.1.1) and **`test_widget_source`** (new in 2.1.2) |
-| Tests run | 549 |
-| Passed | 547 |
+| Suites | as 1.18.0, plus **`test_migrate`** (new in 2.0.0) **`test_updates`** (new in 2.1.0) **`test_support`** (new in 2.1.1) **`test_widget_source`** (new in 2.1.2), **`test_grib2`** and **`test_wind`** (new in 2.2.0) |
+| Tests run | 588 |
+| Passed | 586 |
 | Failed / errors | 0 / 0 |
-| Skipped | 2: `test_readonly_dir_raises_oserror` (root ignores directory permissions; it passed as the `nobody` user in 1.11), and the NASA-converter test (needs build-time numpy + tifffile). Neither is an app fault |
-| Run time | about 522 s (2 CPUs), including the 60 s soak |
+| Skipped | 2: `test_readonly_dir_raises_oserror` (root ignores directory permissions; it passed as the `nobody` user in 1.11), and the NASA-converter test (needs build-time numpy + tifffile). Neither is an app fault. On a machine without the ecCodes Python package (normal on Mint), `test_grib2`'s ecCodes cross-check also skips |
+| Run time | about 544 s (2 CPUs), including the 60 s soak |
 | Command | `PYTHON=/usr/bin/python3.12 ./run_tests.sh` (full log in `test-results.log`) |
 
 **Mocks and simulations.** Every provider test runs against a local fake
@@ -20,6 +20,24 @@ server sending replies in each service's documented format. That proves
 WeatherDesk handles those formats, failures and recoveries. It does **not**
 prove the live services still send them. None of the weather services could
 be reached from the build machine (all blocked, HTTP 403 from its proxy).
+
+## 2.2.0: the Wind tab
+
+| Check | Result |
+|---|---|
+| GRIB2 reader vs ecCodes, real NOAA GFS file | All 343 fields identical (45 with missing points), numpy and pure Python |
+| GRIB2 reader, shipped test files | Real GFS 10 m U/V and synthetic files of every supported packing match ecCodes' values (checksums of every value) in both modes; damaged, cut-short, GRIB1 and absurd-size files refused cleanly |
+| Runs, hours and URLs | Newest published run and the closest 3-hourly forecast; local time converted; NOMADS and AWS addresses as NOAA documents them; .idx byte ranges, including shared-message entries |
+| Wind maths | Direction "from" convention; interpolation within neighbours; date-line wrap; poles clamped; numpy and pure-Python agree |
+| Download | NOMADS; the newest run missing → older run, same time; NOMADS down → AWS byte ranges give exactly the two fields; nothing reachable → clear error |
+| Cache | Saved and reused without the network; refreshed 3 hours on; failure keeps the saved map and waits 20 min; a damaged download never replaces it; a damaged saved file is ignored |
+| Tab | Nothing downloaded until opened; frames only while shown and on (0 frames otherwise); hover readout in knots; streaks cleared on turning; offline with nothing saved shows the reason; a saved map shows at once offline |
+| Performance (build machine, 2 CPUs) | ~31 frames/s, ~9.5 ms CPU per frame with 2,200 streaks; whole app ~34% of one core with streaks, 9% without |
+| Visual | Screenshots with the real NOAA wind: swirls, streaks, coastlines, colour key, saved place |
+
+**Not tested here:** the live NOAA download (the build machine can't reach NOAA),
+and today's 1° files (the real sample is an older 2.5° file with the same
+packing). Both need Shane's Mint.
 
 ## 2.1.2: provider name on the desktop widget
 

@@ -219,6 +219,37 @@ Both tabs share the same day/night picture, so the globe adds no extra
 background work. Without python3-numpy the globe is a little less sharp,
 and Rotate slowly is unavailable.
 
+## Wind
+
+The **🌬 Wind** tab shows the wind over the whole world on a globe, 10 m above
+the ground:
+
+* **Colours** show the wind speed, from calm blue through green and yellow to
+  red and purple for storm-force winds. The key under the globe is in your
+  wind unit (View → Units).
+* **Moving streaks** follow the wind, so you can see where the air is going
+  and spot the swirls of lows and highs. Untick **Moving streaks** to stop
+  them (they also stop when View → Animations is off, or when another tab is
+  showing).
+* **Hover** anywhere on the globe to see the wind there: its speed and the
+  direction it's coming **from**, as weather forecasts give it. Hovering over
+  one of your saved places shows the wind at that place.
+* **Drag** to turn the globe, use the **mouse wheel** or **+ / −** to zoom,
+  and click **Centre on selected** to turn to your selected place.
+* Coastlines are drawn so you can see where the land is.
+
+The wind comes from NOAA's Global Forecast System (GFS), the US weather
+service's free worldwide forecast. It has a value every 1° of latitude and
+longitude (about 110 km apart), so small local effects like sea breezes and
+gusts around hills don't show. The line above the globe says which time the
+map is for. It's always the forecast closest to now (GFS has one every 3
+hours), from the newest run that's been published.
+
+The wind is only downloaded when you open the tab (about 200 KB), then again
+every 3 hours while you use it. It's saved, so the tab works offline with the
+last map. If NOAA can't be reached, the saved map stays up and the line above
+the globe says so.
+
 ## Desktop widget
 
 Tick **View → Desktop widget** to put a small animated weather card on your
@@ -467,6 +498,7 @@ antivirus that inspects HTTPS are the usual suspects.
 * Provider status (last success, last error, usage; never keys): `~/.cache/rbsb-weather/providers.json`
 * Saved forecasts, the cloud map and log: `~/.cache/rbsb-weather/`
 * When updates were last checked: `~/.cache/rbsb-weather/updates.json`
+* The world wind map (Wind tab): `~/.cache/rbsb-weather/wind/`
 
 Installing a newer RBSB-Weather never touches these files, so your locations,
 settings and API keys carry over. Removing the package leaves them too.
@@ -516,7 +548,8 @@ The status bar always credits the service supplying the weather on screen.
 
 Earth maps by [Solar System Scope](https://www.solarsystemscope.com/textures/)
 (CC BY 4.0), based on NASA imagery. Moon imagery from NASA's Scientific
-Visualization Studio (CGI Moon Kit). Live clouds by
+Visualization Studio (CGI Moon Kit). World wind from NOAA's Global Forecast
+System (GFS), public domain. Live clouds by
 [Live Cloud Maps](https://github.com/matteason/live-cloud-maps) (Matt Eason,
 CC0); contains modified EUMETSAT data.
 
