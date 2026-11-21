@@ -103,3 +103,6 @@ class Forecast:
     # (e.g. "sunrise/sunset", "feels like"); shown in the provider's details
     calculated: list[str] = field(default_factory=list)
     from_cache: bool = False
+    # strongest gust each day (km/h), matching `daily` (2.4: for "my own limits" alerts).
+    # Kept outside DailyPoint so a cache written by 2.4 still loads in older versions.
+    daily_gusts: list = field(default_factory=list)

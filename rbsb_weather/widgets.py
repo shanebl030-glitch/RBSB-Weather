@@ -22,6 +22,7 @@ class HourlyChart(QWidget):
         super().__init__(parent)
         self._points: list[HourlyPoint] = []
         self._unit = "C"
+        self._alert_span: Optional[tuple] = None    # (first index, last index, colour, label) (2.4)
         self.setMinimumHeight(190)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
@@ -36,6 +37,14 @@ class HourlyChart(QWidget):
 
     def point_count(self) -> int:
         return len(self._points)
+
+    def set_alert_span(self, span: Optional[tuple]) -> None:
+        """Shade the hours a warning is in force: (first, last point index, colour, label) or None."""
+        self._alert_span = span
+        self.update()
+
+    def alert_span(self) -> Optional[tuple]:
+        return self._alert_span
 
     def paintEvent(self, _event):
         p = QPainter(self)
@@ -78,6 +87,34 @@ class HourlyChart(QWidget):
             return top + h * 0.15 + (h * 0.6) * (1 - (t - lo) / (hi - lo))
 
         base_y = top + h
+
+        # hours a warning is in force (2.4): a tinted band with a dashed end, and its name
+        if self._alert_span is not None:
+            a, b, colour, label = self._alert_span
+            a, b = max(0, a), min(n - 1, b)
+            if a <= b:
+                c = QColor(colour)
+                band = QColor(c)
+                band.setAlpha(40)
+                x0, x1 = left + a * step, left + (b + 1) * step
+                p.setPen(Qt.PenStyle.NoPen)
+                p.setBrush(band)
+                p.drawRect(QRectF(x0, top - 20, x1 - x0, base_y - top + 20))
+                p.setPen(QPen(c.darker(115), 1.5, Qt.PenStyle.DashLine))
+                if b < n - 1:
+                    p.drawLine(QPointF(x1, top - 20), QPointF(x1, base_y))
+                if a > 0:
+                    p.drawLine(QPointF(x0, top - 20), QPointF(x0, base_y))
+                f = QFont(self.font())
+                f.setPointSizeF(max(7.0, f.pointSizeF() * 0.8))
+                f.setBold(True)
+                p.setFont(f)
+                lab = QColor(colour).darker(170) if QColor(colour).lightness() > 120 else QColor(colour)
+                p.setPen(lab)
+                p.drawText(QRectF(x0 + 4, top - 20, max(10.0, x1 - x0 - 8), 16),
+                           Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                           p.fontMetrics().elidedText(label, Qt.TextElideMode.ElideRight, int(max(10.0, x1 - x0 - 8))))
+                p.setFont(self.font())
 
         # precipitation probability bars
         p.setPen(Qt.PenStyle.NoPen)
@@ -138,7 +175,7 @@ class HourlyChart(QWidget):
 
 
 def render_tray_icon(temp_c: Optional[float], unit: str, code: Optional[int] = None,
-                     size: int = 64) -> QIcon:
+                     size: int = 64, alert_colour: Optional[str] = None) -> QIcon:
     """Draw the current temperature as an icon (works on any panel theme)."""
     pix = QPixmap(size, size)
     pix.fill(Qt.GlobalColor.transparent)
@@ -161,6 +198,11 @@ def render_tray_icon(temp_c: Optional[float], unit: str, code: Optional[int] = N
         p.setFont(font)
         p.setPen(QColor("white"))
         p.drawText(QRectF(0, 0, size, size), Qt.AlignmentFlag.AlignCenter, txt)
+        if alert_colour:                    # a warning is in force (2.4): a dot in the corner
+            r = size * 0.17
+            p.setPen(QPen(QColor("#20242b"), size * 0.05))
+            p.setBrush(QColor(alert_colour))
+            p.drawEllipse(QPointF(size - r - 1.5, r + 1.5), r, r)
     finally:
         p.end()
     return QIcon(pix)

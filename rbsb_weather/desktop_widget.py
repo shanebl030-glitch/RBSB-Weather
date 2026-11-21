@@ -31,6 +31,7 @@ class DesktopWidget(QWidget):
     on_top_changed = pyqtSignal(bool)
     locked_changed = pyqtSignal(bool)
     moved = pyqtSignal(int, int)
+    alerts_requested = pyqtSignal()            # the warning line was clicked (2.4)
 
     def __init__(self, size: str = "medium", on_top: bool = False, locked: bool = False):
         super().__init__(None)
@@ -72,6 +73,11 @@ class DesktopWidget(QWidget):
         lay.addWidget(self.temp)
         lay.addWidget(self.cond)
         lay.addWidget(self.hilo)
+        self.alert = QLabel()                   # "⚠ Orange Heavy Rain Warning" under the provider (2.4);
+        self.alert.setVisible(False)            # top left, clear of the mini forecast (bottom right)
+        left.addSpacing(3)
+        left.addWidget(self.alert, 0, Qt.AlignmentFlag.AlignLeft)
+        self.alert.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         for lbl in (self.place, self.temp, self.cond, self.hilo, self.updated, self.source):
             if lbl is self.source:
                 lbl.setStyleSheet("color: rgba(255,255,255,200); background: transparent;")
@@ -80,7 +86,8 @@ class DesktopWidget(QWidget):
             lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.scene.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         # the mini forecast (bottom right) keeps clear of this text
-        self.scene.avoid_widgets = [self.place, self.source, self.temp, self.cond, self.hilo, self.updated]
+        self.scene.avoid_widgets = [self.place, self.source, self.temp, self.cond, self.hilo, self.updated,
+                                    self.alert]
         self._apply_size()
         self.set_empty()
 
@@ -101,7 +108,20 @@ class DesktopWidget(QWidget):
         self.source.setToolTip(tooltip)
         self.source.setVisible(bool(text))
 
+    def set_alert(self, text: str, bg: str = "", fg: str = "", tooltip: str = "") -> None:
+        """The warning line ("" hides it). Click it to open the Warnings tab."""
+        self.alert.setText(text)
+        self.alert.setToolTip(tooltip)
+        self.alert.setStyleSheet(f"background: {bg or '#f28c28'}; color: {fg or '#1f1300'}; "
+                                 "border-radius: 6px; padding: 1px 7px; font-weight: bold;")
+        self.alert.setVisible(bool(text))
+        self.alert.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def alert_text(self) -> str:
+        return "" if self.alert.isHidden() else self.alert.text()
+
     def set_empty(self) -> None:
+        self.set_alert("")
         self.set_updated("")
         self.set_source("")
         self.scene.set_forecast([], None, "C")
@@ -130,10 +150,11 @@ class DesktopWidget(QWidget):
         base = h / 170.0
         for lbl, pts, bold in ((self.place, 10.5, True), (self.temp, 30, True),
                                (self.cond, 11, False), (self.hilo, 9.5, False),
-                               (self.updated, 8.5, False), (self.source, 7.5, False)):
+                               (self.updated, 8.5, False), (self.source, 7.5, False),
+                               (self.alert, 7.5, True)):
             f = QFont(self.font())
-            f.setPointSizeF(max(7.0 if lbl is self.source else 7.5, pts * base)
-                            if lbl in (self.updated, self.source) else pts * base)
+            f.setPointSizeF(max(7.0 if lbl in (self.source, self.alert) else 7.5, pts * base)
+                            if lbl in (self.updated, self.source, self.alert) else pts * base)
             f.setBold(bold)
             lbl.setFont(f)
 
@@ -185,7 +206,17 @@ class DesktopWidget(QWidget):
         self.move(g.right() - self.width() - 30, g.top() + 50)
 
     # ---------------------------------------------------------------- mouse
+    def _on_alert(self, pos) -> bool:
+        if self.alert.isHidden() or not self.alert.text():
+            return False
+        tl = self.alert.mapTo(self, QPoint(0, 0))
+        return tl.x() <= pos.x() <= tl.x() + self.alert.width() and tl.y() <= pos.y() <= tl.y() + self.alert.height()
+
     def mousePressEvent(self, e):
+        if e.button() == Qt.MouseButton.LeftButton and self._on_alert(e.position().toPoint()):
+            self.alerts_requested.emit()
+            e.accept()
+            return
         if e.button() == Qt.MouseButton.LeftButton and not self.locked:
             self._drag_from = e.globalPosition().toPoint() - self.frameGeometry().topLeft()
             self._drag_moved = False

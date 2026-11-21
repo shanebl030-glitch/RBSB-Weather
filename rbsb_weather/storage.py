@@ -110,6 +110,18 @@ class Settings:
     update_check: bool = True                 # check GitHub for a newer version once a day (2.1)
     update_skip: str = ""                     # a version the user chose to skip ("" = none)
     wind_layer: str = "wind"                  # Wind tab layer: wind | temp | rain (2.3)
+    # Weather alerts (2.4, see alerts.py)
+    alerts_official: bool = True              # official warnings for saved places
+    alerts_min_level: str = "watch"           # all | watch | orange | red
+    alerts_interval: int = 15                 # minutes between checks
+    alerts_own: bool = True                   # "my own limits" from the forecast
+    alerts_limits: dict = field(default_factory=dict)   # {rule: {"on": bool, "value": float}} (base units)
+    alerts_banner: bool = True                # banner in the sky + badges in Saved locations
+    alerts_notify: bool = True                # desktop notification when a warning is issued/changes
+    alerts_tray_dot: bool = True              # dot on the tray temperature
+    alerts_beep_red: bool = False             # beep for Red warnings
+    alerts_selected_only: bool = False        # notify only for the selected place
+    alerts_muted: list = field(default_factory=list)    # alert ids the user muted
     weather_source: str = "open-meteo"        # 1.12 setting; kept in step with provider_chain[0]
     # Weather Providers (1.13): primary first, then backups in order; and when to go back
     # to the primary after it failed (see providers/manager.py RECOVERY)
@@ -186,6 +198,17 @@ class Settings:
             "update_check": self.update_check,
             "update_skip": self.update_skip,
             "wind_layer": self.wind_layer,
+            "alerts_official": self.alerts_official,
+            "alerts_min_level": self.alerts_min_level,
+            "alerts_interval": self.alerts_interval,
+            "alerts_own": self.alerts_own,
+            "alerts_limits": {k: dict(v) for k, v in self.alerts_limits.items()},
+            "alerts_banner": self.alerts_banner,
+            "alerts_notify": self.alerts_notify,
+            "alerts_tray_dot": self.alerts_tray_dot,
+            "alerts_beep_red": self.alerts_beep_red,
+            "alerts_selected_only": self.alerts_selected_only,
+            "alerts_muted": list(self.alerts_muted),
             "weather_source": self.weather_source,
             "provider_chain": list(self.provider_chain),
             "provider_recovery": self.provider_recovery,
@@ -222,7 +245,8 @@ class Settings:
         if d.get("refresh_minutes") in REFRESH_CHOICES and not isinstance(d.get("refresh_minutes"), bool):
             s.refresh_minutes = d["refresh_minutes"]
         for k in ("show_tray", "close_to_tray", "animations", "desktop_widget", "widget_on_top", "widget_locked", "earth_clouds",
-                  "startup_update_all", "update_check"):
+                  "startup_update_all", "update_check", "alerts_official", "alerts_own", "alerts_banner",
+                  "alerts_notify", "alerts_tray_dot", "alerts_beep_red", "alerts_selected_only"):
             if isinstance(d.get(k), bool):
                 setattr(s, k, d[k])
         for k in ("widget_x", "widget_y"):
@@ -251,6 +275,15 @@ class Settings:
         skip = d.get("update_skip")
         if isinstance(skip, str) and re.fullmatch(r"\d{1,4}(\.\d{1,4}){0,3}", skip):
             s.update_skip = skip
+        if d.get("alerts_min_level") in ("all", "watch", "orange", "red"):
+            s.alerts_min_level = d["alerts_min_level"]
+        if d.get("alerts_interval") in (15, 30, 60) and not isinstance(d.get("alerts_interval"), bool):
+            s.alerts_interval = d["alerts_interval"]
+        if isinstance(d.get("alerts_limits"), dict) and d["alerts_limits"]:      # {} = the defaults
+            from .alerts import limits_from_dict, limits_to_dict
+            s.alerts_limits = limits_to_dict(limits_from_dict(d["alerts_limits"]))
+        if isinstance(d.get("alerts_muted"), list):
+            s.alerts_muted = [str(x)[:300] for x in d["alerts_muted"] if isinstance(x, str)][-200:]
         if d.get("wind_layer") in ("wind", "temp", "rain"):
             s.wind_layer = d["wind_layer"]
         if d.get("widget_size") in WIDGET_SIZES:

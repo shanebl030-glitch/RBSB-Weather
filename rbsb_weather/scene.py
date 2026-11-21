@@ -581,8 +581,8 @@ class WeatherScene(_Animated):
                 g = QRectF(wdg.geometry())
                 if wdg.parentWidget() is not self:
                     g.moveTopLeft(QPointF(wdg.mapTo(self, wdg.rect().topLeft())))
-                if wdg.alignment() & Qt.AlignmentFlag.AlignRight:
-                    out.append(g)
+                if not hasattr(wdg, "wordWrap") or wdg.alignment() & Qt.AlignmentFlag.AlignRight:
+                    out.append(g)               # a button (the warning banner, 2.4) or right-aligned text
                     continue
                 fm = QFontMetricsF(wdg.font())
                 flags = int(Qt.TextFlag.TextWordWrap.value) if wdg.wordWrap() else 0

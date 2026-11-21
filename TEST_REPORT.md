@@ -4,15 +4,15 @@ Created By Shane BlackbuRn
 
 | Item | Result |
 |---|---|
-| Version | 2.3.1 (offers a restart when a newer version is installed underneath) |
+| Version | 2.4.0 (weather warnings: official warnings and your own limits) |
 | Date | 2026-11-22 |
 | Environment | Ubuntu 24.04.5 (Linux Mint 22 base), Python 3.12, PyQt6 6.6.1 / Qt 6.4.2, headless (offscreen), 2 CPUs, `python3-keyring` installed (no D-Bus, so keys use the private file) |
-| Suites | as 1.18.0, plus **`test_migrate`** (new in 2.0.0) **`test_updates`** (new in 2.1.0) **`test_support`** (new in 2.1.1) **`test_widget_source`** (new in 2.1.2), **`test_grib2`** and **`test_wind`** (new in 2.2.0), **`test_restart`** (new in 2.3.1) |
-| Tests run | 603 |
-| Passed | 601 |
+| Suites | as 1.18.0, plus **`test_migrate`** (new in 2.0.0) **`test_updates`** (new in 2.1.0) **`test_support`** (new in 2.1.1) **`test_widget_source`** (new in 2.1.2), **`test_grib2`** and **`test_wind`** (new in 2.2.0), **`test_restart`** (new in 2.3.1), **`test_screenshots`** (README pictures), **`test_alerts`** and **`test_alerts_gui`** (new in 2.4.0) |
+| Tests run | 655 |
+| Passed | 653 |
 | Failed / errors | 0 / 0 |
 | Skipped | 2: `test_readonly_dir_raises_oserror` (root ignores directory permissions; it passed as the `nobody` user in 1.11), and the NASA-converter test (needs build-time numpy + tifffile). Neither is an app fault. On a machine without the ecCodes Python package (normal on Mint), `test_grib2`'s ecCodes cross-check also skips |
-| Run time | about 522 s (2 CPUs), including the 60 s soak |
+| Run time | about 550 s (2 CPUs), including the 60 s soak |
 | Command | `PYTHON=/usr/bin/python3.12 ./run_tests.sh` (full log in `test-results.log`) |
 
 **Mocks and simulations.** Every provider test runs against a local fake
@@ -20,6 +20,57 @@ server sending replies in each service's documented format. That proves
 WeatherDesk handles those formats, failures and recoveries. It does **not**
 prove the live services still send them. None of the weather services could
 be reached from the build machine (all blocked, HTTP 403 from its proxy).
+
+## 2.4.0: weather warnings
+
+**What the tests use.** The warning fixtures in `tests/data/alerts` were
+written to each service's documented format:
+
+* MetService: CAP 1.2 with its ColourCode parameter;
+* MeteoAlarm: an Atom feed with the CAP fields inline;
+* US National Weather Service: GeoJSON;
+* MET Norway: MetAlerts GeoJSON.
+
+They were **not** captured from the live services, which can't be reached from
+the build machine. The live check is the first real test.
+
+| Check | Result |
+|---|---|
+| Parsing | MetService CAP (Orange from ColourCode, though its CAP severity says Moderate), NWS GeoJSON, MET Norway GeoJSON, MeteoAlarm inline CAP |
+| Ignored | Test messages, cancellations, expired warnings, Troms warnings for Oslo, Christchurch outside the Auckland and Wellington areas |
+| Matching | Polygons (including holes and the antimeridian), circles, point queries; each place gets only its own warnings |
+| Levels | Red, Orange, Yellow, Watch, Advisory; filter at each level; own limits always shown |
+| Failures | One service failing (HTTP 500, garbage, no feed for the country) leaves the others and keeps the last warnings |
+| Hostile input | DOCTYPE and entity declarations refused; non-web links dropped; damaged `alerts.json` loads as empty |
+| Requests | NWS and MET Norway get an identifying User-Agent; a CAP document is fetched once and reused while the feed is unchanged |
+| Banner | Shows level colour, title, end time and issuer; clicking opens the Warnings tab |
+| Badges | ORANGE for Auckland, WATCH for Wellington, none for Tokyo |
+| Warnings tab | Full text, area, valid times, what to do, issuer, the forecast's rain over the same hours, Open on metservice.com, Show on Earth map, Mute / Unmute |
+| Chart and 7-day | Warning hours shaded; Today and Tomorrow tagged ORANGE WARNING |
+| Widget and tray | The widget's warning line; an orange tray dot |
+| Notifications | One grouped notification; none on the next check or after a restart; a new one (and a beep, when on) when Orange is upgraded to Red; selected-place-only and off both work |
+| Settings | Saved, validated and clamped; limits shown and saved in your units (90 km/h shows as 56 mph); the check interval is applied |
+| Own limits | Gusts, rain, heat, frost, snow, thunder; later days listed; today's current gust used when daily gusts are missing |
+| Rollback | The new gust data is saved outside the daily forecast, so older versions still read 2.4's saved forecasts |
+| Mutation checks | Matching every warning to every place fails 2 tests; notifying every time fails 1 |
+
+**Real package.** `rbsb-weather_2.4.0_all.deb` was installed over 2.3.2 here
+with `apt`, then started as `/usr/bin/rbsb-weather` with the warning services
+pointed at the fake server. It ran without errors and saved Auckland's
+Orange Heavy Rain Warning and New York's Winter Storm Watch, with 2
+notifications recorded. It sent the identifying User-Agent and exited
+cleanly (exit 0).
+
+**Screenshots.** 15–18, taken by `tools/make_screenshots.py` with sample
+warnings, were checked by eye. That review led to one fix: the widget's warning
+line pushed its mini forecast down to one day, so it moved under the provider
+name, and the widget shows four days again.
+
+**Still needs your Mint:**
+* the live services: MetService (when a warning is out), and the NWS,
+  MET Norway and MeteoAlarm if you add a place there;
+* a real desktop notification and tray dot on Cinnamon;
+* the beep.
 
 ## 2.3.1: restart into a newly installed version
 
