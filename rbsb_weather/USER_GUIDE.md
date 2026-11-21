@@ -264,6 +264,81 @@ every 3 hours while you use it. It's saved, so the tab works offline with the
 last map. If NOAA can't be reached, the saved map stays up and the line above
 the globe says so.
 
+## Weather warnings
+
+RBSB-Weather shows official severe weather warnings for your saved places, and
+can also alert you when the forecast goes past limits you choose.
+
+**Where official warnings come from.** Each warning comes straight from the
+national weather service that issued it, matched to your places by the
+warning's own area:
+
+| Places in | Warnings from |
+|---|---|
+| New Zealand | MetService (its public warning feed) |
+| United States | US National Weather Service |
+| Norway | MET Norway |
+| Most of Europe (UK, Ireland, France, Germany, Spain, Italy and others) | MeteoAlarm, which collects each country's national warnings |
+
+Anywhere else there's no official source in RBSB-Weather yet, and the Warnings
+tab says so. Your own limits still work everywhere. MeteoAlarm warnings that
+only name a region code, with no map area, can't be matched to a place, so
+they're left out.
+
+**Where warnings show:**
+
+* **A banner across the top of the sky**, coloured by level, with when it
+  ends and who issued it. Click it for the full warning.
+* **A badge next to the place** in Saved locations: RED, ORANGE, YELLOW, WATCH,
+  ADVISORY or MY LIMIT.
+* **The ⚠ Warnings tab**, with each warning in full: its area, when it's valid,
+  what's expected, what to do, and who issued it. For rain, it also shows how
+  much rain RBSB-Weather's own forecast has for the same hours.
+  * **Open on…** opens the warning on the issuer's website.
+  * **Show on Earth map** switches to the Earth Flat tab.
+  * **Mute this warning** takes it off the banner, badge and notifications.
+    It stays listed in the tab, and comes back if it's upgraded or reissued.
+* **The 24-hour chart** shades the hours a warning is in force, and the
+  **7-day forecast** tags the days it covers.
+* **The desktop widget** shows the warning under the place name. Click it to
+  open the Warnings tab.
+* **The tray temperature** gets a coloured dot.
+* **A desktop notification** when a warning is issued, upgraded (for example
+  Orange to Red) or reissued. Each change is notified once, even across a
+  restart.
+
+**Levels.** Red means take action now; Orange, take action; Yellow, be aware;
+a Watch means severe weather is possible. RBSB-Weather uses each service's own
+colour where it gives one (MetService and MeteoAlarm do). Warnings are shown as
+issued; their wording is never changed.
+
+**My own limits** (Settings → Weather Alerts): get an alert when the forecast
+has wind gusts, rain in a day, a high or low temperature past the limits you
+set, or any snow or thunderstorms. Values are in your units. These come from
+RBSB-Weather's forecast, not from a weather service, so they have a grey
+**MY LIMIT** badge and say "not official". Gust limits need gust forecasts:
+Open-Meteo supplies them for every day, other providers only for today.
+
+**Settings → Weather Alerts** also lets you:
+
+* turn official warnings off;
+* choose which levels to show, from all (including advisories) down to Red only;
+* check every 15, 30 or 60 minutes;
+* turn the banner and badges, notifications or the tray dot on or off;
+* beep for Red warnings;
+* limit notifications to the selected place.
+
+The table at the top shows which service covers each of your places and
+whether the last check worked.
+
+If a warning service can't be reached, the warnings from the last check stay
+on screen until they expire, and the Warnings tab says the check failed.
+Expired warnings disappear by themselves.
+
+**Always follow official advice.** RBSB-Weather passes warnings on; it doesn't
+replace your weather service, Civil Defence or emergency services. Check the
+issuer's website for the latest.
+
 ## Desktop widget
 
 Tick **View → Desktop widget** to put a small animated weather card on your
@@ -521,6 +596,7 @@ antivirus that inspects HTTPS are the usual suspects.
 * Saved forecasts, the cloud map and log: `~/.cache/rbsb-weather/`
 * When updates were last checked: `~/.cache/rbsb-weather/updates.json`
 * The world wind map (Wind tab): `~/.cache/rbsb-weather/wind/`
+* The last weather warnings, and which have been notified: `~/.cache/rbsb-weather/alerts.json`
 
 Installing a newer RBSB-Weather never touches these files, so your locations,
 settings and API keys carry over. Removing the package leaves them too.
@@ -571,7 +647,12 @@ The status bar always credits the service supplying the weather on screen.
 Earth maps by [Solar System Scope](https://www.solarsystemscope.com/textures/)
 (CC BY 4.0), based on NASA imagery. Moon imagery from NASA's Scientific
 Visualization Studio (CGI Moon Kit). World wind from NOAA's Global Forecast
-System (GFS), public domain. Live clouds by
+System (GFS), public domain. Weather warnings from
+[MetService](https://www.metservice.com/) (CC BY 4.0), the
+[US National Weather Service](https://www.weather.gov/) (public domain),
+[MET Norway](https://www.met.no/en) (CC BY 4.0) and
+[MeteoAlarm](https://meteoalarm.org/) (EUMETNET, with each country's national
+weather service; UK warnings © Crown copyright, Met Office). Live clouds by
 [Live Cloud Maps](https://github.com/matteason/live-cloud-maps) (Matt Eason,
 CC0); contains modified EUMETSAT data.
 

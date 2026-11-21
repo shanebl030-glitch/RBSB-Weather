@@ -401,7 +401,7 @@ class TestMoonTab(TempEnvTestCase):
         w = self.make()
         w.resize(1100, 820)
         w.add_location(self.place(0))
-        w.tabs.setCurrentIndex(1)
+        w.tabs.setCurrentWidget(w.moon_scroll)          # (by widget: the Warnings tab is now 2nd, 2.4)
         self.assertTrue(wait_until(lambda: w.moon_panel.report is not None, 30))
         from PyQt6.QtTest import QTest
         QTest.qWait(100)

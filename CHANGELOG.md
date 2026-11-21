@@ -4,7 +4,84 @@ Created By Shane BlackbuRn
 
 Entries before 2.0.0 use the app's old name, WeatherDesk, as they were written.
 
-## Unreleased – README screenshots (docs only; the app is unchanged)
+## 2.4.0 – 2026-11-22 (on branch claude/rbsb-weather-2.4.0; not released)
+
+Requested by Shane: weather alerts and extreme weather events. He approved the
+five design concepts (main window, warning details, widget and notification,
+Settings → Weather Alerts, warning levels) and asked to keep them all.
+
+### Added – official weather warnings
+- **Sources.** Each warning comes straight from the service that issues it,
+  matched to each saved place by the warning's own area:
+  - New Zealand: MetService's public CAP feed. Its ColourCode sets the level,
+    because MetService's CAP severity sits a step below the colour it issues.
+  - United States: the National Weather Service (api.weather.gov), asked by
+    point.
+  - Norway: MET Norway MetAlerts, asked by point and checked against the
+    polygon.
+  - Most of Europe: MeteoAlarm's per-country feeds. Only warnings with a map
+    area are used; warnings described only by a region code are left out.
+  - Elsewhere: none yet. The Warnings tab says so.
+- **Where warnings show:**
+  - a coloured banner across the top of the sky (click it for the full
+    warning);
+  - RED / ORANGE / YELLOW / WATCH / ADVISORY / MY LIMIT badges in Saved
+    locations;
+  - a new **⚠ Warnings** tab with the full text, area, valid times, what to do,
+    the issuer, and (for rain) RBSB-Weather's own rain total for the same
+    hours;
+  - the warning hours shaded on the 24-hour chart, and tags on the 7-day
+    forecast;
+  - a warning line on the desktop widget (click it to open the Warnings tab);
+  - a coloured dot on the tray temperature;
+  - a desktop notification when a warning is issued, upgraded or reissued.
+- **Notifications** are sent once per change, even across a restart. Several
+  at once are grouped into one. Clicking the notification opens the Warnings
+  tab for that place.
+- **Mute** a warning: it stays listed, but leaves the banner, badges and
+  notifications until it changes.
+- **Safety and robustness:**
+  - test messages, exercises and cancellations are ignored;
+  - expired warnings disappear;
+  - if a service can't be reached, the warnings from the last check stay
+    until they expire;
+  - one service failing never stops the others;
+  - XML with DOCTYPE or entity declarations is refused;
+  - feeds and documents have size limits;
+  - only web links are opened;
+  - CAP documents are fetched once and reused until the feed changes.
+
+### Added – my own limits (not official)
+- Alerts from the forecast for wind gusts, rain in a day, high or low
+  temperature, snow or thunderstorms, set in your own units.
+- They're grey, have a **MY LIMIT** badge and say "not official".
+- Open-Meteo now also sends each day's strongest gust, for the gust limit.
+  It's saved beside the daily forecast, not inside it, so 2.4's saved
+  forecasts still load if you roll back.
+
+### Added – Settings → Weather Alerts
+- Official warnings on or off, with a table of which service covers each
+  place and whether the last check worked.
+- Which levels to show; check every 15, 30 or 60 minutes.
+- Your own limits.
+- Banner and badges, notifications, tray dot, beep for Red, selected place
+  only.
+
+### Changed
+- The Warnings tab is the second tab (after Forecast).
+- About → credits now include the warning services.
+- The User Guide has a new "Weather warnings" section.
+- The README has four new screenshots (15–18). `tools/make_screenshots.py`
+  takes them with sample warnings.
+
+### Tests
+- New `test_alerts` (35) and `test_alerts_gui` (13): each format, matching,
+  levels, the antimeridian, damaged replies, failures, own limits, the store,
+  notifications, muting, settings and every place a warning shows.
+- `test_moon` now finds the Moon tab by widget, not by position, since the
+  Warnings tab is now second.
+
+## README screenshots – 2026-11-22 (docs only; merged as PR #11)
 
 Requested by Shane: update the README and add screenshots of the app.
 

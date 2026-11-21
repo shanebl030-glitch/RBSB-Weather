@@ -1525,4 +1525,63 @@ failed. The images were reviewed here (offscreen Qt with the same emoji font as
 Mint). How the README looks on GitHub can only be seen once the branch is
 pushed.
 
+## 2.4.0: weather warnings (2026-11-22, branch claude/rbsb-weather-2.4.0)
+
+**Shane:** "I've been thinking about weather alerts and extreme weather events"
+→ "show me some visuals of what it would look like" → (5 concept screens on a
+design canvas) → "I'd keep all. Approved and proceed"
+
+**Research (before building):**
+- **MetService:** publishes a public CAP feed (alerts.metservice.com/cap/rss,
+  CC BY 4.0; it had no warnings out at the time). Its ColourCode parameter
+  carries Yellow, Orange or Red. Another project noted that its CAP severity
+  sits a step below that colour, so the colour is used.
+- **NWS:** api.weather.gov answers by point and needs an identifying
+  User-Agent.
+- **MET Norway:** MetAlerts 2.0 current.json takes lat/lon.
+- **MeteoAlarm:** has a legacy Atom feed per country. The UK feed had
+  polygons on every warning; some countries may give only region codes, and
+  those can't be placed.
+- **MeteoAlarm's redistribution terms:** their page couldn't be opened from
+  here. Check them before the release.
+
+**Built:**
+- `alerts.py`: sources, parsing, matching, levels, own limits, the store and
+  notification tracking.
+- `alerts_ui.py`: everything in the window.
+- `alerts_panel.py`: the Warnings tab.
+- `alerts_dialog.py`: Settings → Weather Alerts.
+- Elsewhere:
+  - the chart's shaded hours and the tray dot in `widgets.py`;
+  - the widget's warning line;
+  - Open-Meteo's daily gusts, saved outside DailyPoint so rollback still
+    works;
+  - new settings, the User Guide section, the credits, the README and
+    screenshots 15–18.
+
+**Changed from the concepts:**
+- **Widget warning line:** it sits under the provider name, not along the
+  bottom. Along the bottom it pushed the mini forecast to one day.
+- **Red warnings:** they beep (optional) rather than play a sound file.
+  That needs no extra package.
+
+**Problems found while testing:**
+1. **The scene crashed painting the banner.** It's a button, and the scene's
+   text-avoidance only knew labels. Fixed.
+2. **Saved settings changed on reload.** An empty limits setting came back
+   filled with the defaults. Fixed: empty now means "defaults".
+3. **The same warning would have been notified again after a restart.** The
+   notification signature included the expiry. It now uses the level and
+   issue time; a reissue (including an extension) carries a new issue time.
+   Own-limit alerts no longer change each time the forecast refreshes.
+4. **`test_moon` opened the Moon tab by position**, which is now Warnings. It
+   now opens it by widget.
+
+**Tested:**
+- Full suite: 655 run, 653 passed, 2 skipped (environment-only), 0 failed.
+- Real `.deb` installed over 2.3.2 and run against the fake warning services.
+- Two mutation checks were caught by the tests.
+- Not tested live (no access from here); see the test report's "Still needs
+  your Mint".
+
 Created By Shane BlackbuRn

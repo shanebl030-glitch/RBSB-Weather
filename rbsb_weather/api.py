@@ -42,6 +42,7 @@ HOURLY_FIELDS = ["temperature_2m", "precipitation_probability", "precipitation",
 DAILY_FIELDS = [
     "weather_code", "temperature_2m_max", "temperature_2m_min", "precipitation_sum",
     "precipitation_probability_max", "wind_speed_10m_max", "sunrise", "sunset", "uv_index_max",
+    "wind_gusts_10m_max",                     # 2.4: for the "wind gusts over" alert limit
 ]
 
 
@@ -296,6 +297,7 @@ def parse_forecast(data: Any, location: Location) -> Forecast:
             hourly.append(HourlyPoint(str(t[i]), _num(temp[i]), _num(pp[i]), _num(pr[i]), _int(wc[i])))
 
     daily: list[DailyPoint] = []
+    gusts: list = []
     d = data.get("daily")
     if isinstance(d, dict) and isinstance(d.get("time"), list):
         n = len(d["time"])
@@ -313,10 +315,12 @@ def parse_forecast(data: Any, location: Location) -> Forecast:
                 sunset=cols["sunset"][i] if isinstance(cols["sunset"][i], str) else None,
                 uv_index_max=_num(cols["uv_index_max"][i]),
             ))
+            gusts.append(_num(cols["wind_gusts_10m_max"][i]))
 
     off = data.get("utc_offset_seconds")
     return Forecast(location=location, timezone=str(data.get("timezone") or location.timezone),
                     current=current, hourly=hourly, daily=daily,
+                    daily_gusts=gusts if any(g is not None for g in gusts) else [],
                     utc_offset_seconds=int(off) if isinstance(off, (int, float)) and not isinstance(off, bool) else None)
 
 
@@ -346,6 +350,8 @@ def forecast_from_dict(d: dict) -> Forecast:
             provider_id=str(d.get("provider_id") or _provider_id_for(str(d.get("source") or ""))),
             calculated=[str(x) for x in d.get("calculated") or [] if isinstance(x, str)],
             from_cache=True,
+            daily_gusts=[float(x) if isinstance(x, (int, float)) and not isinstance(x, bool) else None
+                         for x in (d.get("daily_gusts") or [])[:16]],
         )
     except (KeyError, TypeError, ValueError) as e:
         raise DataError(f"Cached forecast is invalid: {e}") from None

@@ -114,10 +114,32 @@ class Server:
                 pass
 
             def do_GET(self):
+                if self.path.startswith("/alerts-"):
+                    return self._alerts()
                 q = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query))
                 body = json.dumps(sample(float(q.get("latitude", 0)), float(q.get("longitude", 0)))).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def _alerts(self):
+                """Sample warnings (2.4) from tests/data/alerts, timed around now."""
+                name = {"rss": "metservice_rss.xml", "rain-auckland.xml": "cap_rain_auckland.xml",
+                        "wind-wellington.xml": "cap_wind_wellington.xml", "test.xml": "cap_test.xml",
+                        "united-kingdom": "meteoalarm_uk.xml",
+                        "alerts-nws": "nws_point.json"}.get(urllib.parse.urlsplit(self.path).path.rsplit("/", 1)[-1])
+                if name is None:
+                    self.send_response(404)
+                    self.end_headers()
+                    return
+                now = dt.datetime.now(dt.timezone.utc).replace(second=0, microsecond=0)
+                body = (ROOT / "tests" / "data" / "alerts" / name).read_text().replace(
+                    "{BASE}", f"http://127.0.0.1:{self.server.server_address[1]}/alerts-metservice").replace(
+                    "{ONSET}", (now - dt.timedelta(hours=1)).isoformat()).replace(
+                    "{EXPIRES}", (now + dt.timedelta(hours=32)).isoformat()).encode()
+                self.send_response(200)
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
@@ -148,8 +170,15 @@ def main() -> int:
     def wait(ms):
         QTest.qWait(ms)
 
-    w = MainWindow(client=OpenMeteoClient(forecast_url=srv.url, geocode_url=srv.url), enable_tray=False)
+    from rbsb_weather import alerts as A
+    base = srv.url.rsplit("/v1/", 1)[0]
+    ac = A.AlertClient(metservice_url=f"{base}/alerts-metservice/cap/rss", nws_url=f"{base}/alerts-nws",
+                       metno_url=f"{base}/alerts-metno", meteoalarm_url=base + "/alerts-meteoalarm/{slug}")
+    w = MainWindow(client=OpenMeteoClient(forecast_url=srv.url, geocode_url=srv.url), enable_tray=False,
+                   alert_client=ac)
     w.set_earth_clouds(False)                           # the Earth tabs stay offline
+    # warnings (2.4) have their own screenshots at the end; the others are taken without them
+    w.apply_alert_settings({"alerts_official": False, "alerts_own": False})
     w.resize(1240, 860)
     w.show()
     keys = {}
@@ -242,6 +271,35 @@ def main() -> int:
     dlg.show_available(info)
     shot(dlg, "14-update-available.png", 800)
     dlg.close()
+    w.update_button.setVisible(False)
+
+    # ---- weather warnings (2.4), with sample warnings
+    w.apply_alert_settings({"alerts_official": True, "alerts_own": True})
+    end = time.time() + 15
+    while time.time() < end and (not w.alert_store.checked or w._alerts_busy):
+        wait(200)
+    select("Auckland")
+    w.tabs.setCurrentIndex(0)
+    shot(w, "15-warning-banner.png", 2500)
+    w.tabs.setCurrentWidget(w.alerts_panel)
+    shot(w, "16-warnings-tab.png", 1500)
+    w.show_alerts_settings()
+    shot(w._alerts_dialog, "17-weather-alerts-settings.png", 1200)
+    w._alerts_dialog.close()
+    w.set_desktop_widget(True)
+    dw = w.desktop_widget
+    wait(2500)
+    img = QImage(dw.width() + 60, dw.height() + 60, QImage.Format.Format_ARGB32_Premultiplied)
+    p = QPainter(img)
+    g = QLinearGradient(0, 0, img.width(), img.height())
+    g.setColorAt(0, QColor(46, 62, 92))
+    g.setColorAt(1, QColor(22, 28, 44))
+    p.fillRect(img.rect(), g)
+    dw.render(p, QPoint(30, 30))
+    p.end()
+    img.save(str(OUT / "18-widget-warning.png"))
+    print("saved 18-widget-warning.png")
+    w.set_desktop_widget(False)
     w._quitting = True
     w.close()
     srv.httpd.shutdown()

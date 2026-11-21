@@ -35,6 +35,7 @@ from .wind_panel import WindPanel
 from .widgets import HourlyChart, app_icon, render_tray_icon
 from .workers import Bridge, Worker, retire
 from . import forecast_strip
+from .alerts_ui import AlertsMixin
 
 log = logging.getLogger(__name__)
 
@@ -80,11 +81,11 @@ def _age_text(seconds: float) -> str:
     return f"{seconds // 86400} days ago"
 
 
-class MainWindow(QMainWindow):
+class MainWindow(AlertsMixin, QMainWindow):
     def __init__(self, client: Optional[OpenMeteoClient] = None,
                  store: Optional[SettingsStore] = None,
                  cache: Optional[ForecastCache] = None,
-                 enable_tray: bool = True, update_client=None, wind_client=None):
+                 enable_tray: bool = True, update_client=None, wind_client=None, alert_client=None):
         super().__init__()
         self.store = store or SettingsStore()
         self.cache = cache or ForecastCache()
@@ -190,6 +191,7 @@ class MainWindow(QMainWindow):
         self._wind_token = 0
         self.bridge.update_progress.connect(self._on_update_progress)
         self.bridge.update_downloaded.connect(self._on_update_downloaded)
+        self._init_alerts(alert_client)           # weather warnings (2.4, alerts_ui.py)
 
         if self.settings.window_geometry:
             try:
@@ -215,6 +217,7 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(0, self.refresh_selected)
         QTimer.singleShot(0, self.start_startup_round)
         QTimer.singleShot(0, self._restore_known_update)
+        QTimer.singleShot(0, self.check_alerts)
 
     # ================================================================ UI
     def _build_ui(self) -> None:
@@ -312,6 +315,7 @@ class MainWindow(QMainWindow):
             lbl.setStyleSheet("color: white; background: transparent;")
         # the mini forecast in the scene's bottom-right corner keeps clear of this text
         self.scene.avoid_widgets = [self.place_label, self.temp_label, self.desc_label, self.message_label]
+        self._scene_layout = left
         cl.addWidget(self.scene, 3)
 
         grid = QGridLayout()
@@ -405,6 +409,7 @@ class MainWindow(QMainWindow):
         for panel in (self.earth_panel, self.globe_panel):
             panel.clouds_box.setChecked(self.settings.earth_clouds)
             panel.clouds_toggled.connect(self.set_earth_clouds)
+        self._build_alerts_ui(self._scene_layout)       # banner + Warnings tab (2.4)
         ml.addWidget(self.tabs, 1)
         split.addWidget(main)
         split.setStretchFactor(1, 1)
@@ -507,6 +512,8 @@ class MainWindow(QMainWindow):
                                      triggered=self.show_providers)
         sm.addAction(self.act_providers)
         sm.addSeparator()
+        self.act_alerts = QAction("Weather &Alerts…", self, triggered=self.show_alerts_settings)
+        sm.addAction(self.act_alerts)
         self.act_update_auto = QAction("Check for &updates automatically", self, checkable=True,
                                        checked=self.settings.update_check,
                                        triggered=self.set_update_check)
@@ -549,6 +556,8 @@ class MainWindow(QMainWindow):
                     self.loc_list.setCurrentItem(it)
         finally:
             self.loc_list.blockSignals(False)
+        if hasattr(self, "alert_store"):
+            self._refresh_alert_badges()
         has = bool(self.settings.locations)
         for b in (self.up_btn, self.down_btn, self.remove_btn, self.refresh_btn):
             b.setEnabled(has)
@@ -598,6 +607,7 @@ class MainWindow(QMainWindow):
         self._populate_locations()
         self.render()
         self.refresh_selected()
+        self.check_alerts()                     # its warnings straight away (2.4)
 
     def remove_selected(self) -> None:
         loc = self.settings.selected_location()
@@ -609,6 +619,8 @@ class MainWindow(QMainWindow):
         self._pending.pop(loc.key, None)
         self.cache.remove(loc)
         self.save_settings()
+        self.alert_store.update({}, [l.key for l in self.settings.locations])
+        self.alert_store.save()
         self._populate_locations()
         self.render()
         self.statusBar().showMessage(f"Removed {loc.name}", 5000)
@@ -805,6 +817,8 @@ class MainWindow(QMainWindow):
         else:
             self.update_earth_markers()
             self._update_status()
+        self._refresh_alert_badges()       # own limits follow the new forecast (2.4)
+        self._notify_alerts()
 
     def _on_forecast_failed(self, token: int, key: str, msg: str) -> None:
         if self._pending.get(key) != token:
@@ -824,6 +838,11 @@ class MainWindow(QMainWindow):
 
     # ========================================================= Render
     def render(self) -> None:
+        self._render_main()
+        loc = self.settings.selected_location()
+        self._render_alerts(loc, self.forecasts.get(loc.key) if loc else None)   # 2.4
+
+    def _render_main(self) -> None:
         s = self.settings
         loc = s.selected_location()
         fc = self.forecasts.get(loc.key) if loc else None
@@ -1031,9 +1050,16 @@ class MainWindow(QMainWindow):
             self.tray.setToolTip(APP_NAME)
             return
         c = fc.current
-        self.tray.setIcon(render_tray_icon(c.temperature, self.settings.temp_unit, c.weather_code))
-        self.tray.setToolTip(f"{fc.location.name}: {units.fmt_temp(c.temperature, self.settings.temp_unit)}"
-                             f", {weather_codes.describe(c.weather_code)}")
+        dot = self.tray_alert_colour(fc.location.key) if hasattr(self, "alert_store") else None
+        self.tray.setIcon(render_tray_icon(c.temperature, self.settings.temp_unit, c.weather_code,
+                                           alert_colour=dot))
+        tip = (f"{fc.location.name}: {units.fmt_temp(c.temperature, self.settings.temp_unit)}"
+               f", {weather_codes.describe(c.weather_code)}")
+        if hasattr(self, "alert_store"):
+            worst = next(iter(self.shown_alerts(fc.location.key)), None)
+            if worst is not None:
+                tip += f"\n⚠ {worst.title()}"
+        self.tray.setToolTip(tip)
 
     # =========================================================== Earth
     def update_earth_markers(self) -> None:
@@ -1279,9 +1305,12 @@ class MainWindow(QMainWindow):
                 dw.on_top_changed.connect(self._on_widget_on_top)
                 dw.locked_changed.connect(self._on_widget_locked)
                 dw.moved.connect(self._on_widget_moved)
+                dw.alerts_requested.connect(lambda: (self.show_normal(), self.show_alerts_tab()))
                 self.desktop_widget = dw
                 loc = self.settings.selected_location()
                 self._update_widget(self.forecasts.get(loc.key) if loc else None)
+                if loc is not None:
+                    self._render_alerts(loc, self.forecasts.get(loc.key))
                 self._update_widget_status(loc)
             self.desktop_widget.place_at(self.settings.widget_x, self.settings.widget_y)
             self.desktop_widget.show()
@@ -1588,6 +1617,8 @@ class MainWindow(QMainWindow):
         earth = (f"<br>{EARTH_CREDIT} – <a href='{SOURCE_URL}'>solarsystemscope.com/textures</a>"
                  f"<br>{CLOUD_CREDIT} – <a href='{PROJECT_URL}'>github.com/matteason/live-cloud-maps</a>"
                  f"<br>{WIND_CREDIT} – <a href='{WIND_URL}'>ncei.noaa.gov</a>")
+        from .alerts import CREDIT as ALERT_CREDIT
+        earth += f"<br>{ALERT_CREDIT}"
         return (f"{base}<br>{credit}" if credit else base) + earth
 
     def buy_coffee(self) -> None:
@@ -1751,7 +1782,9 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(200, self.restart_into_new_version)
 
     def _on_tray_message_clicked(self) -> None:
-        if self._tray_click == "restart" and self._installed_newer:
+        if self._tray_click == "alerts":
+            self._on_alert_notice_clicked()
+        elif self._tray_click == "restart" and self._installed_newer:
             self.restart_into_new_version()
         elif self._update_info is not None:
             self.show_update_dialog(self._update_info)

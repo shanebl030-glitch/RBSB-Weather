@@ -1,4 +1,4 @@
-# RBSB-Weather 2.3.1
+# RBSB-Weather 2.4.0
 
 *Formerly **WeatherDesk**. Renamed in 2.0.0 because "WeatherDesk" is used by many
 other apps; nothing else changed, and your settings come with you (see
@@ -82,6 +82,14 @@ RBSB-Weather is free and stays free. The same link is in the app under
 * Offline fallback: the last forecast for each location is saved and shown,
   clearly labelled, when there's no internet.
 * Single instance: launching it a second time brings the existing window forward.
+* Official severe weather warnings for your saved places (2.4): MetService in
+  New Zealand, the US National Weather Service, MET Norway and MeteoAlarm
+  for most of Europe. They show as a coloured banner in the sky, badges in
+  Saved locations, a Warnings tab with the full text, shaded hours on the
+  chart, tags on the 7-day forecast, a line on the desktop widget, a dot on
+  the tray temperature and a desktop notification. You can also set your own
+  limits (wind gusts, rain, heat, frost, snow, thunderstorms), which are
+  clearly marked as not official.
 * Checks for updates once a day (Settings to turn it off; Help → Check for
   Updates to check now). A new version is downloaded, checked against its
   checksum and opened in your package installer; nothing installs without you.
@@ -91,7 +99,7 @@ RBSB-Weather is free and stays free. The same link is in the app under
 
 ## Screenshots
 
-Taken from the real app with `tools/make_screenshots.py`. The forecasts are
+Taken from the real app with `tools/make_screenshots.py`. The forecasts and warnings are
 sample data (the build machine can't reach the weather services), but the
 sky, Sun, Moon and day/night are the real ones for when they were taken, and
 the Wind tab shows a real NOAA GFS forecast saved for the tests.
@@ -153,8 +161,24 @@ the Wind tab shows a real NOAA GFS forecast saved for the tests.
 *The update window (Help → Check for Updates), shown here with an example release.*
 ## Install
 
+![An orange heavy rain warning in the sky banner](docs/media/screenshots/15-warning-banner.png)
+
+*Weather warnings (2.4): the banner across the sky, badges in Saved locations, the warning hours shaded on the chart and the days tagged in the 7-day forecast. Sample warning.*
+
+![The Warnings tab](docs/media/screenshots/16-warnings-tab.png)
+
+*The Warnings tab: the warning in full, with RBSB-Weather's own forecast for the same hours.*
+
+![Settings → Weather Alerts](docs/media/screenshots/17-weather-alerts-settings.png)
+
+*Settings → Weather Alerts: who covers each place, levels, your own limits and how to be told.*
+
+![The desktop widget with a warning](docs/media/screenshots/18-widget-warning.png)
+
+*The desktop widget with a warning. Click it for the full warning.*
+
 ```bash
-sudo apt install ./rbsb-weather_2.3.1_all.deb
+sudo apt install ./rbsb-weather_2.4.0_all.deb
 ```
 
 `apt` pulls in `python3-pyqt6` automatically. Launch **RBSB-Weather** from the
@@ -278,6 +302,8 @@ sends it. The full log is written to
 | `rbsb_weather/diagnostics.py` | Help → Test connection |
 | `rbsb_weather/wind.py`, `wind_panel.py` | The Wind tab: NOAA GFS download (NOMADS, or NOAA's copy on AWS), cache, the globe with the wind, temperature and rain & snow layers and moving streaks |
 | `rbsb_weather/grib2.py` | A small GRIB2 reader for the GFS wind, temperature and rain (checked against ecCodes) |
+| `rbsb_weather/alerts.py` | Weather warnings: reading each service's warnings (CAP, GeoJSON), matching them to places, levels, your own limits, the saved state |
+| `rbsb_weather/alerts_ui.py`, `alerts_panel.py`, `alerts_dialog.py` | Warnings in the window: banner, badges, the Warnings tab, notifications, Settings → Weather Alerts |
 | `rbsb_weather/updates.py`, `update_dialog.py` | Check for updates: GitHub's latest release, verified download, the update window |
 | `rbsb_weather/migrate.py` | Carrying a WeatherDesk user's settings, keys and login entry over to RBSB-Weather (2.0.0) |
 | `rbsb_weather/units.py`, `weather_codes.py` | Unit conversion and weather descriptions |
@@ -318,7 +344,11 @@ it also downloads the global cloud map from clouds.matteason.co.uk (at most
 once an hour; nothing about you or your locations is sent). While the Wind
 tab is open it downloads the world wind from NOAA (nomads.ncep.noaa.gov, or
 NOAA's copy on Amazon) at most every 3 hours; again, nothing about you is
-sent. There's no
+sent. Weather warnings (2.4) are checked every 15 minutes by default: the
+whole New Zealand (MetService) or country (MeteoAlarm) warning feed is
+downloaded and matched on your computer, while the US National Weather
+Service and MET Norway are asked for the warnings at a saved place's
+coordinates. There's no
 tracking or analytics. Weather data
 comes from [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0) and
 [MET Norway](https://api.met.no/) (CC BY 4.0). Earth maps
@@ -327,4 +357,8 @@ come from [Solar System Scope](https://www.solarsystemscope.com/textures/)
 (public domain). Live clouds come from [Live Cloud Maps](https://github.com/matteason/live-cloud-maps)
 by Matt Eason (CC0) and contain modified EUMETSAT data. World wind comes from
 NOAA's [Global Forecast System](https://www.ncei.noaa.gov/products/weather-climate-models/global-forecast)
-(public domain).
+(public domain). Weather warnings come from [MetService](https://www.metservice.com/)
+(CC BY 4.0), the [US National Weather Service](https://www.weather.gov/)
+(public domain), [MET Norway](https://www.met.no/en) (CC BY 4.0) and
+[MeteoAlarm](https://meteoalarm.org/) (EUMETNET, with each country's national
+weather service; UK warnings © Crown copyright, Met Office).
