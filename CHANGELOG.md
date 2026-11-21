@@ -4,6 +4,35 @@ Created By Shane BlackbuRn
 
 Entries before 2.0.0 use the app's old name, WeatherDesk, as they were written.
 
+## Unreleased – README screenshots (docs only; the app is unchanged)
+
+Requested by Shane: update the README and add screenshots of the app.
+
+### Added
+- **14 screenshots** in `docs/media/screenshots/`, in a new Screenshots section
+  of the README: four places in different weather (Auckland, London at night,
+  Tokyo in the rain, New York in the snow), forecast playback, the Moon, Earth
+  Flat, Earth Globe, the Wind tab's three layers, the desktop widget, Weather
+  Providers and the update window.
+- **`tools/make_screenshots.py`** takes them again from the real app, in a
+  throw-away profile. Its forecasts are sample data from a local server; it
+  doesn't connect to anything else.
+- **`tests/test_screenshots.py`** (in the baseline suite):
+  - the sample forecasts are valid;
+  - every picture the README shows exists;
+  - every screenshot is in the README;
+  - the tool only connects to this computer.
+
+### Changed – README
+- The intro now says it's for Debian- and Ubuntu-based distributions.
+- Added the credit lines "Designed and Created By Shane BlackbuRn" and "Coded
+  By Claude AI".
+- Features: added the "click to restart" notice after an update (2.3.1).
+- Update: fixed a sentence about 1.1.1 that was in the wrong place, and the
+  line wrapping.
+- Project layout: the Wind tab and GRIB2 reader rows now mention temperature
+  and rain, and the screenshot tool is listed.
+
 ## 2.3.1 – 2026-11-22 (on branch claude/rbsb-weather-2.3.1; not released)
 
 Requested by Shane after installing 2.3.0: the copy he had open kept running
