@@ -4,7 +4,8 @@
 other apps; nothing else changed, and your settings come with you (see
 [Coming from WeatherDesk](#coming-from-weatherdesk)).*
 
-A desktop weather app for Linux Mint (and other Ubuntu 24.04-based systems).
+A desktop weather app for Linux: made on Linux Mint, for Debian- and
+Ubuntu-based distributions (Ubuntu 24.04 or newer, or the equivalent).
 It shows current conditions, a 24-hour chart, a 7-day forecast, and the
 temperature in your system tray. It uses the free Open-Meteo service, with
 MET Norway (yr.no) as an automatic backup, so you don't need an account or an
@@ -15,6 +16,8 @@ or as backups.
 
 **Created By Shane BlackbuRn**
 
+**Designed and Created By Shane BlackbuRn** · **Coded By Claude AI**
+
 *Shane's design and Claude's coding.* Every feature started as Shane's idea and
 design; Claude (Anthropic's AI) wrote the code and the tests to his spec.
 
@@ -24,6 +27,8 @@ design; Claude (Anthropic's AI) wrote the code and the tests to his spec.
 (afternoon showers and a thunderstorm, a clear night with stars and the Moon,
 dawn fog, then sunshine). Recorded from RBSB-Weather itself with sample forecast
 data.*
+
+More pictures are in [Screenshots](#screenshots) below.
 
 ## Support
 
@@ -80,8 +85,72 @@ RBSB-Weather is free and stays free. The same link is in the app under
 * Checks for updates once a day (Settings to turn it off; Help → Check for
   Updates to check now). A new version is downloaded, checked against its
   checksum and opened in your package installer; nothing installs without you.
+* After an update is installed, a copy that's still open says
+  "⬆ RBSB-Weather x.y.z was installed: click to restart" in its status bar.
 * The in-app User Guide is under Help → User Guide (F1).
 
+## Screenshots
+
+Taken from the real app with `tools/make_screenshots.py`. The forecasts are
+sample data (the build machine can't reach the weather services), but the
+sky, Sun, Moon and day/night are the real ones for when they were taken, and
+the Wind tab shows a real NOAA GFS forecast saved for the tests.
+
+![Auckland on a partly cloudy morning](docs/media/screenshots/01-forecast-auckland.png)
+
+*The main window: Auckland on a partly cloudy morning, with the current conditions, the mini forecast in the sky, the 24-hour chart and the 7-day forecast.*
+
+![London at night](docs/media/screenshots/02-night-london.png)
+
+*London in the evening: a night sky with stars and the Moon in its real phase and position.*
+
+![Tokyo in the rain before dawn](docs/media/screenshots/03-rain-tokyo.png)
+
+*Tokyo before dawn, in the rain.*
+
+![New York in the snow](docs/media/screenshots/04-snow-new-york.png)
+
+*New York in the afternoon, in the snow.*
+
+![Forecast playback](docs/media/screenshots/05-playback.png)
+
+*Forecast playback: the slider shows the sky and weather five hours ahead (afternoon showers).*
+
+![The Moon tab](docs/media/screenshots/06-moon.png)
+
+*The Moon tab: the current phase, moonrise and moonset, upcoming phases and the next 7 days.*
+
+![The Earth Flat tab](docs/media/screenshots/07-earth-flat.png)
+
+*Earth Flat: day and night right now, with each saved place's local time and weather.*
+
+![The Earth Globe tab](docs/media/screenshots/08-earth-globe.png)
+
+*Earth Globe: drag to spin, with the real Sun, Moon and stars behind it.*
+
+![The Wind tab: wind](docs/media/screenshots/09-wind.png)
+
+*The Wind tab: wind speed around the world, with moving streaks that follow the wind.*
+
+![The Wind tab: temperature](docs/media/screenshots/10-temperature.png)
+
+*The Wind tab's temperature layer.*
+
+![The Wind tab: rain and snow](docs/media/screenshots/11-rain.png)
+
+*The Wind tab's rain & snow layer.*
+
+![The desktop widget](docs/media/screenshots/12-desktop-widget.png)
+
+*The floating desktop widget, with the weather provider under the place name.*
+
+![Settings → Weather Providers](docs/media/screenshots/13-weather-providers.png)
+
+*Settings → Weather Providers: choose the primary provider and backups.*
+
+![The update window](docs/media/screenshots/14-update-available.png)
+
+*The update window (Help → Check for Updates), shown here with an example release.*
 ## Install
 
 ```bash
@@ -100,14 +169,17 @@ sha256sum -c SHA256SUMS
 ## Update
 
 From 2.1.0 the app tells you when there's a newer version and can download it
-for you (Help → Check for Updates). Or install the newer .deb the same way. Your settings and saved forecasts in
-`~/.config/rbsb-weather` and `~/.cache/rbsb-weather` are kept, and so are API
-keys (in the keyring, or `~/.config/rbsb-weather/keys.json`). Then open
-RBSB-Weather: if an older copy is still running (for example in the tray), it
-closes itself cleanly and the new version takes over. From 2.3.1, a copy that's
-already open notices the new version within half a minute and offers
-"⬆ RBSB-Weather x.y.z was installed: click to restart" in its status bar. From 1.1.1 on this is
-automatic; before that you had to quit the old copy first.
+for you (Help → Check for Updates). Or install the newer .deb the same way as
+above. Your settings and saved forecasts in `~/.config/rbsb-weather` and
+`~/.cache/rbsb-weather` are kept, and so are API keys (in the keyring, or
+`~/.config/rbsb-weather/keys.json`).
+
+Then open RBSB-Weather: if an older copy is still running (for example in the
+tray), it closes itself cleanly and the new version takes over (from 1.1.1 on
+this is automatic; before that you had to quit the old copy first). From 2.3.1,
+a copy that's already open notices the new version within half a minute and
+offers "⬆ RBSB-Weather x.y.z was installed: click to restart" in its status
+bar.
 
 ## Coming from WeatherDesk
 
@@ -204,11 +276,12 @@ sends it. The full log is written to
 | `rbsb_weather/globe.py`, `globe_panel.py` | Globe projection and drawing (numpy or pure Python), Earth Globe tab |
 | `rbsb_weather/net.py` | Fast IPv4/IPv6 connection racing |
 | `rbsb_weather/diagnostics.py` | Help → Test connection |
-| `rbsb_weather/wind.py`, `wind_panel.py` | World wind for the Wind tab: NOAA GFS download (NOMADS, or NOAA's copy on AWS), cache, the globe with colours and moving streaks |
-| `rbsb_weather/grib2.py` | A small GRIB2 reader for the GFS wind (checked against ecCodes) |
+| `rbsb_weather/wind.py`, `wind_panel.py` | The Wind tab: NOAA GFS download (NOMADS, or NOAA's copy on AWS), cache, the globe with the wind, temperature and rain & snow layers and moving streaks |
+| `rbsb_weather/grib2.py` | A small GRIB2 reader for the GFS wind, temperature and rain (checked against ecCodes) |
 | `rbsb_weather/updates.py`, `update_dialog.py` | Check for updates: GitHub's latest release, verified download, the update window |
 | `rbsb_weather/migrate.py` | Carrying a WeatherDesk user's settings, keys and login entry over to RBSB-Weather (2.0.0) |
 | `rbsb_weather/units.py`, `weather_codes.py` | Unit conversion and weather descriptions |
+| `tools/make_screenshots.py` | Takes the README screenshots from the real app, with sample data |
 | `tests/` | Test suite and fake server |
 | `packaging/` | Launcher, .desktop file, and icon |
 

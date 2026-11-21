@@ -1498,4 +1498,31 @@ Created By Shane BlackbuRn
   You'll first see it in real use when the next version after 2.3.1 is
   installed.
 
+## README refresh and screenshots (2026-11-22, branch claude/readme-screenshots)
+
+**Shane:** "I want to updated this as well and add quite a few snapshots of the app"
+
+**What was done:**
+- Wrote `tools/make_screenshots.py`. It runs the real app offscreen in a
+  temporary profile. A local server gives believable forecasts in Open-Meteo's
+  format, dated today, for Auckland, London, Tokyo and New York. The Wind tab
+  uses the real GFS sample from the tests, and live clouds are switched off so
+  nothing goes online.
+- Took 14 screenshots and checked each one by eye. Fixes from that review:
+  - "Today" showed "Mainly clear" while it was raining. The daily weather now
+    uses the most severe weather of the day, as Open-Meteo does.
+  - The rain amounts were too high, and it snowed at 4°C in New York. Both
+    toned down.
+  - The Wind tab said the data was 5 days older than it is. It now matches the
+    sample's 120-hour forecast.
+- README: added a Screenshots section and the new credit lines, fixed the
+  Update section, and updated the intro, Features and Project layout.
+- Added `tests/test_screenshots.py` to the baseline suite. It catches a missing
+  picture: with one image removed, the test failed.
+
+**Tested:** full suite 607 run, 605 passed, 2 skipped (environment-only), 0
+failed. The images were reviewed here (offscreen Qt with the same emoji font as
+Mint). How the README looks on GitHub can only be seen once the branch is
+pushed.
+
 Created By Shane BlackbuRn
