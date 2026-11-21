@@ -16,7 +16,7 @@ from unittest import mock
 
 from helpers import PLACES, ROOT, TempEnvTestCase, qapp, wait_until
 
-from weatherdesk import moon as M
+from rbsb_weather import moon as M
 
 REF = json.loads((Path(__file__).with_name("moon_reference.json")).read_text())
 UTC = dt.timezone.utc
@@ -198,7 +198,7 @@ class TestRendering(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = qapp()
-        from weatherdesk import moon_render as R
+        from rbsb_weather import moon_render as R
         cls.R = R
 
     def lit_stats(self, img):
@@ -372,7 +372,7 @@ class TestMoonTab(TempEnvTestCase):
         super().tearDown()
 
     def make(self):
-        from weatherdesk.main_window import MainWindow
+        from rbsb_weather.main_window import MainWindow
         w = MainWindow(client=self.client(), enable_tray=False)
         w.show()
         self.wins.append(w)
@@ -415,7 +415,7 @@ class TestMoonTab(TempEnvTestCase):
                 self.assertGreaterEqual(a.height(), a.fontMetrics().height(), f"row squashed at {size}")
             days = w.moon_panel.day_cells
             self.assertLess(days[0]["rise"].geometry().bottom(), days[0]["set"].geometry().top())
-        from weatherdesk.moon_render import texture_meta
+        from rbsb_weather.moon_render import texture_meta
         if texture_meta()["source"] == "nasa-cgi-moon-kit":
             self.assertIn("NASA", w.moon_panel.credit_label.text())
             self.assertIn("NASA", w.about_html())
@@ -434,8 +434,8 @@ class TestMoonTab(TempEnvTestCase):
         self.assertRegex(txt, r"^(Up now · \d+° high in the \w+"
                               r"|Below horizon · shown at its highest, \w{3} \d\d:\d\d"
                               r"|Below the horizon all day · shown at its highest)$")
-        from weatherdesk.moon_panel import build_report
-        from weatherdesk.models import Location
+        from rbsb_weather.moon_panel import build_report
+        from rbsb_weather.models import Location
         t = dt.datetime(2026, 11, 15, 8, 0, tzinfo=UTC)
         rots = {n: build_report(Location(n, la, lo, timezone=tz), tz, now=t, big_px=40, small_px=16).view.rotation
                 for n, la, lo, tz in (("Auckland", -36.85, 174.76, "Pacific/Auckland"),
@@ -451,7 +451,7 @@ class TestMoonTab(TempEnvTestCase):
         london = PLACES[0].copy()
         london.update(name="London", latitude=51.5072, longitude=-0.1276, country="United Kingdom",
                       admin1="England", timezone="Europe/London")
-        from weatherdesk.models import Location
+        from rbsb_weather.models import Location
         w.add_location(Location.from_dict(london))
         self.assertTrue(wait_until(lambda: w.moon_panel.report is not None and
                                    w.moon_panel.report.location.name == "London", 30))
@@ -496,7 +496,7 @@ class TestMoonTab(TempEnvTestCase):
         self.assertIn("Could not save", w.statusBar().currentMessage())
 
     def test_night_scene_hides_moon_below_horizon(self):
-        from weatherdesk import scene as sc
+        from rbsb_weather import scene as sc
         from PyQt6.QtGui import QImage, QPainter
         from PyQt6.QtCore import QRectF
         s = sc.WeatherScene()
@@ -505,13 +505,13 @@ class TestMoonTab(TempEnvTestCase):
                                        moon_up=False))
         img = QImage(400, 200, QImage.Format.Format_ARGB32_Premultiplied)
         p = QPainter(img)
-        with mock.patch("weatherdesk.moon_render.render_moon") as rm:
+        with mock.patch("rbsb_weather.moon_render.render_moon") as rm:
             s.paint_scene(p, QRectF(0, 0, 400, 200))
         p.end()
         self.assertFalse(rm.called)
 
     def test_night_scene_uses_rendered_moon(self):
-        from weatherdesk import scene as sc
+        from rbsb_weather import scene as sc
         from PyQt6.QtGui import QImage, QPainter
         from PyQt6.QtCore import QRectF
         s = sc.WeatherScene()
@@ -520,8 +520,8 @@ class TestMoonTab(TempEnvTestCase):
                                        moon_rotation=121.0, moon_up=True, moon_altitude=47))
         img = QImage(400, 200, QImage.Format.Format_ARGB32_Premultiplied)
         p = QPainter(img)
-        with mock.patch("weatherdesk.moon_render.render_moon", wraps=__import__(
-                "weatherdesk.moon_render", fromlist=["x"]).render_moon) as rm:
+        with mock.patch("rbsb_weather.moon_render.render_moon", wraps=__import__(
+                "rbsb_weather.moon_render", fromlist=["x"]).render_moon) as rm:
             s.paint_scene(p, QRectF(0, 0, 400, 200))
         p.end()
         self.assertTrue(rm.called)

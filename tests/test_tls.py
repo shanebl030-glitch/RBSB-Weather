@@ -18,8 +18,8 @@ from unittest import mock
 from helpers import TempEnvTestCase, qapp, wait_until
 from tls_fixtures import HOST, SilentServer, TLSFakeServer, client_context, make_cert, openssl_available
 
-from weatherdesk import net
-from weatherdesk.api import ApiError, NetworkError, OpenMeteoClient
+from rbsb_weather import net
+from rbsb_weather.api import ApiError, NetworkError, OpenMeteoClient
 
 V4, V6 = socket.AF_INET, socket.AF_INET6
 
@@ -106,7 +106,7 @@ class TestHandshakeStall(TLSCase):
             self.client().fetch_forecast(self.place(0))
         el = time.monotonic() - t0
         # 1.12.0: two retries, the last allowing the handshake LAST_TRY_HANDSHAKE_X times longer
-        from weatherdesk.api import LAST_TRY_HANDSHAKE_X
+        from rbsb_weather.api import LAST_TRY_HANDSHAKE_X
         self.assertLess(el, (2 + LAST_TRY_HANDSHAKE_X) * net.HANDSHAKE_TIMEOUT + 1.0)
         self.assertGreaterEqual(el, (2 + LAST_TRY_HANDSHAKE_X) * net.HANDSHAKE_TIMEOUT * 0.9)
         self.assertEqual(self.silent.connections, 3)
@@ -304,7 +304,7 @@ class TestPathMtuBlackHole(TempEnvTestCase):
             self.assertLess(time.monotonic() - t0, 0.8)   # loaded from disk: no stall at all
 
     def test_diagnostics_confirms_packet_size_problem(self):
-        from weatherdesk import diagnostics
+        from rbsb_weather import diagnostics
         with mock.patch.object(diagnostics, "PROBE_TIMEOUT", 1.0):
             rep = diagnostics.run_diagnostics(self.client())
         self.assertIn("secure handshake STALLS", rep)
@@ -376,14 +376,14 @@ class TestAddressOrdering(unittest.TestCase):
 
 class TestDiagnosticsTLS(TLSCase):
     def test_healthy_reports_handshake(self):
-        from weatherdesk.diagnostics import run_diagnostics
+        from rbsb_weather.diagnostics import run_diagnostics
         self.addrs = [ai(self.tls.port)]
         rep = run_diagnostics(self.client())
         self.assertIn("secure handshake", rep)
         self.assertIn("Everything looks good", rep)
 
     def test_stall_is_explained(self):
-        from weatherdesk import diagnostics
+        from rbsb_weather import diagnostics
         self.addrs = [ai(self.silent.port)]
         with mock.patch.object(diagnostics, "PROBE_TIMEOUT", 1.0):
             rep = diagnostics.run_diagnostics(self.client())
@@ -395,7 +395,7 @@ class TestDiagnosticsTLS(TLSCase):
 class TestGuiRecovers(TLSCase):
     def test_window_shows_weather_not_error(self):
         qapp()
-        from weatherdesk.main_window import MainWindow
+        from rbsb_weather.main_window import MainWindow
         self.addrs = [ai(self.silent.port), ai(self.tls.port)]
         w = MainWindow(client=self.client(), enable_tray=False)
         w.show()

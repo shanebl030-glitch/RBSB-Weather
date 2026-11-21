@@ -361,11 +361,11 @@ def base_url(server, pid: str) -> str:
 
 def factories(server, timeout: float = 3.0) -> dict:
     """Providers pointed at the fake server (Open-Meteo and MET Norway too)."""
-    from weatherdesk.api import OpenMeteoClient
-    from weatherdesk.metno import MetNoClient
-    from weatherdesk.providers import REGISTRY
-    from weatherdesk.providers.metno import MetNoProvider
-    from weatherdesk.providers.openmeteo import OpenMeteoProvider
+    from rbsb_weather.api import OpenMeteoClient
+    from rbsb_weather.metno import MetNoClient
+    from rbsb_weather.providers import REGISTRY
+    from rbsb_weather.providers.metno import MetNoProvider
+    from rbsb_weather.providers.openmeteo import OpenMeteoProvider
     out = {
         "open-meteo": lambda: OpenMeteoProvider(client=OpenMeteoClient(server.forecast_url, server.geocode_url,
                                                                        timeout=timeout)),

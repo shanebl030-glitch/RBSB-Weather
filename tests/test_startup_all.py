@@ -19,9 +19,9 @@ from PyQt6.QtTest import QTest
 
 from test_gui import GuiCase
 
-from weatherdesk import main_window as MW
-from weatherdesk.main_window import MainWindow
-from weatherdesk.storage import Settings, SettingsStore
+from rbsb_weather import main_window as MW
+from rbsb_weather.main_window import MainWindow
+from rbsb_weather.storage import Settings, SettingsStore
 
 REPORT: list[str] = []
 
@@ -43,7 +43,7 @@ class StartupCase(GuiCase):
         return [self.place(i).key for i in range(n or self.N)]
 
     def restart(self):
-        """Start WeatherDesk again, recording every forecast request it makes."""
+        """Start RBSB-Weather again, recording every forecast request it makes."""
         w = MainWindow(client=self.client(), enable_tray=False)
         self.windows.append(w)
         self.calls: list[tuple[float, str]] = []
@@ -149,7 +149,7 @@ class TestStartupUpdatesAll(StartupCase):
 
 
 class TestBootWithoutNetwork(StartupCase):
-    """At boot the network often comes up after WeatherDesk starts."""
+    """At boot the network often comes up after RBSB-Weather starts."""
 
     def test_failed_locations_are_retried_and_recover(self):
         keys = self.save_locations()

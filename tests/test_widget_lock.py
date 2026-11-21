@@ -17,8 +17,8 @@ from PyQt6.QtGui import QMouseEvent
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
 
-from weatherdesk.desktop_widget import DesktopWidget
-from weatherdesk.storage import Settings, SettingsStore
+from rbsb_weather.desktop_widget import DesktopWidget
+from rbsb_weather.storage import Settings, SettingsStore
 
 
 def _send(w, kind, glob: QPoint, button, buttons):
@@ -55,7 +55,7 @@ class TestWidgetLock(TempEnvTestCase):
         super().tearDown()
 
     def make(self):
-        from weatherdesk.main_window import MainWindow
+        from rbsb_weather.main_window import MainWindow
         w = MainWindow(client=self.client(), enable_tray=False)
         w.show()
         self.wins.append(w)

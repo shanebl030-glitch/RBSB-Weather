@@ -16,7 +16,7 @@ from PyQt6.QtCore import QPointF, Qt
 from PyQt6.QtGui import QColor, QImage
 from PyQt6.QtTest import QTest
 
-from weatherdesk import earth as E
+from rbsb_weather import earth as E
 
 REF = json.loads(Path(__file__).with_name("earth_reference.json").read_text())
 UTC = dt.timezone.utc
@@ -119,7 +119,7 @@ class TestEarthTab(TempEnvTestCase):
     def setUp(self):
         super().setUp()
         self.app = qapp()
-        from weatherdesk.main_window import MainWindow
+        from rbsb_weather.main_window import MainWindow
         self.w = MainWindow(client=self.client(), enable_tray=False)
         self.w.resize(1100, 820)
         self.w.show()
@@ -132,7 +132,7 @@ class TestEarthTab(TempEnvTestCase):
         super().tearDown()
 
     def add(self, d):
-        from weatherdesk.models import Location
+        from rbsb_weather.models import Location
         self.w.add_location(Location.from_dict(d))
         self.assertTrue(wait_until(lambda: not self.w._pending))
 
@@ -200,7 +200,7 @@ class TestEarthTab(TempEnvTestCase):
         self.w.set_unit("temp_unit", "F")
         self.assertTrue(card.temp.text().endswith("°F"))
         self.server.mode = "http500"
-        from weatherdesk.models import Location
+        from rbsb_weather.models import Location
         self.w.add_location(Location.from_dict(LONDON))
         self.assertTrue(wait_until(lambda: not self.w._pending))
         self.assertEqual(card.name.text(), "London")

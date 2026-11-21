@@ -1,26 +1,44 @@
-# WeatherDesk Test Report
+# RBSB-Weather Test Report (formerly WeatherDesk)
 
 Created By Shane BlackbuRn
 
 | Item | Result |
 |---|---|
-| Version | 1.18.0 (forecast playback in the sky; built on 1.17.0 (clouds follow the wind) and 1.16.0 (startup updates, widget lock), on top of the approved 1.15.0) |
-| Date | 2026-11-20 |
+| Version | 2.0.0 (the 1.18.0 app renamed to RBSB-Weather, with carry-over of WeatherDesk users' data) |
+| Date | 2026-11-21 |
 | Environment | Ubuntu 24.04.5 (Linux Mint 22 base), Python 3.12, PyQt6 6.6.1 / Qt 6.4.2, headless (offscreen), 2 CPUs, `python3-keyring` installed (no D-Bus, so keys use the private file) |
-| Suites | `test_core`, `test_net`, `test_tls`, `test_metno`, `test_providers`, `test_scene`, `test_moon`, `test_earth`, `test_globe`, `test_clouds`, `test_sky`, `test_refresh`, `test_timefmt`, `test_arc`, `test_forecast_strip`, `test_instance`, `test_gui`, `test_stress`, **`test_robustness`**, **`test_audit`**, **`test_packaging`**, **`test_soak`** (new in 1.15.0), **`test_startup_all`** and **`test_widget_lock`** (new in 1.16.0), **`test_wind_clouds`** (new in 1.17.0), **`test_playback`** (new in 1.18.0) |
-| Tests run | 488 |
-| Passed | 486 |
+| Suites | as 1.18.0, plus **`test_migrate`** (new in 2.0.0) |
+| Tests run | 503 |
+| Passed | 501 |
 | Failed / errors | 0 / 0 |
-| Skipped | 2: `test_readonly_dir_raises_oserror` (root ignores directory permissions; it passed as the `nobody` user in 1.11), and the NASA-converter test (needs build-time numpy + tifffile). Neither is a WeatherDesk fault |
+| Skipped | 2: `test_readonly_dir_raises_oserror` (root ignores directory permissions; it passed as the `nobody` user in 1.11), and the NASA-converter test (needs build-time numpy + tifffile). Neither is an app fault |
 | Run time | about 506 s (2 CPUs), including the 60 s soak |
 | Command | `PYTHON=/usr/bin/python3.12 ./run_tests.sh` (full log in `test-results.log`) |
-| Baseline before the audit (1.14.0) | 2 errors, both `ModuleNotFoundError: keyring`: the package wasn't installed on this new build machine. Fixed by installing it; the two tests now skip with a reason if it's missing |
 
 **Mocks and simulations.** Every provider test runs against a local fake
 server sending replies in each service's documented format. That proves
 WeatherDesk handles those formats, failures and recoveries. It does **not**
 prove the live services still send them. None of the weather services could
 be reached from the build machine (all blocked, HTTP 403 from its proxy).
+
+## 2.0.0: renamed to RBSB-Weather
+
+| Check | Result |
+|---|---|
+| Copy of settings, cache and `keys.json` | Byte-identical; `keys.json` stays 0600 and the folder 0700; old logs not copied; old folders unchanged |
+| Never overwrites | An existing RBSB-Weather settings file is kept; runs only once (marker); a failed copy is retried next start |
+| Interrupted copy | No half-filled folder left behind; the next attempt succeeds |
+| Keyring | Copied from "WeatherDesk" to "RBSB-Weather" (fake keyring); an existing key isn't overwritten; a locked entry doesn't stop the rest |
+| Start at login | `rbsb-weather.desktop` written, the old file renamed `.migrated`; an existing new entry is kept |
+| Real app, temporary home with a WeatherDesk profile | Carried over on the first start; nothing on the second |
+| Real WeatherDesk 1.18.0 process (from git tag v1.18.0) running | Asked to hand over via its old socket, exited 0, RBSB-Weather owns the new socket and has its settings |
+| Package | `Package: rbsb-weather`, `Replaces`/`Conflicts: weatherdesk`, `/usr/bin/weatherdesk` → `rbsb-weather`, menu keyword `weatherdesk` |
+| **Real dpkg upgrade** | Installed `weatherdesk` 1.18.0 running (pid 3672, profile with 2 locations, °F, 12-hour, Weather Underground first with a Station ID, 2 keys in `keys.json`, login entry). `apt install ./rbsb-weather_2.0.0_all.deb`: "REMOVED: weatherdesk, NEW: rbsb-weather". `rbsb-weather` then: "WeatherDesk is running (yield); replacing it", old copy "exited (0)", "carried over from WeatherDesk: settings and saved locations, saved forecasts, Start at login". The installed app reads Auckland + London, F, 12, the provider chain, Station ID IAUCKL123, and both keys. `weatherdesk --version` prints RBSB-Weather 2.0.0; a second launch brings the running copy forward |
+| Rollback and upgrade again | `apt install ./weatherdesk_1.18.0_all.deb` removed rbsb-weather and restored 1.18.0 with its settings unchanged; a second one-step upgrade was clean |
+
+**Not tested here:** a real GNOME Keyring (no D-Bus in the sandbox; covered
+by the fake-keyring tests only), the menu, icon and login entry on a real
+desktop, and a real reboot.
 
 ## 1.18.0: forecast playback
 

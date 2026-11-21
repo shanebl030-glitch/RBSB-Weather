@@ -16,11 +16,11 @@ from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
 
 from fake_server import make_forecast
-from weatherdesk import scene as sc
-from weatherdesk.api import parse_forecast
-from weatherdesk.models import Location
-from weatherdesk.storage import Settings, SettingsStore
-from weatherdesk.weather_codes import all_codes
+from rbsb_weather import scene as sc
+from rbsb_weather.api import parse_forecast
+from rbsb_weather.models import Location
+from rbsb_weather.storage import Settings, SettingsStore
+from rbsb_weather.weather_codes import all_codes
 
 REPORT: list[str] = []
 
@@ -328,7 +328,7 @@ class TestDesktopWidgetAndToggles(TempEnvTestCase):
         super().tearDown()
 
     def make(self):
-        from weatherdesk.main_window import MainWindow
+        from rbsb_weather.main_window import MainWindow
         w = MainWindow(client=self.client(), enable_tray=False)
         w.show()
         self.wins.append(w)
@@ -396,7 +396,7 @@ class TestDesktopWidgetAndToggles(TempEnvTestCase):
         w = self.make()
         w.set_desktop_widget(True)
         texts = [a.text() for a in w.desktop_widget.build_menu().actions()]
-        for t in ("Open WeatherDesk", "Refresh", "Size", "Keep on top of windows", "Hide widget"):
+        for t in ("Open RBSB-Weather", "Refresh", "Size", "Keep on top of windows", "Hide widget"):
             self.assertIn(t, texts)
 
     def test_animation_toggle_persists(self):

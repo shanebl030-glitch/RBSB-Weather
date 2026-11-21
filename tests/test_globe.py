@@ -16,7 +16,7 @@ from PyQt6.QtCore import QPointF, Qt
 from PyQt6.QtGui import QColor, QImage
 from PyQt6.QtTest import QTest
 
-from weatherdesk import globe as G
+from rbsb_weather import globe as G
 
 REPORT: list[str] = []
 LONDON = dict(name="London", latitude=51.5072, longitude=-0.1276, country="United Kingdom",
@@ -135,7 +135,7 @@ class TestGlobeTab(TempEnvTestCase):
     def setUp(self):
         super().setUp()
         self.app = qapp()
-        from weatherdesk.main_window import MainWindow
+        from rbsb_weather.main_window import MainWindow
         self.w = MainWindow(client=self.client(), enable_tray=False)
         self.w.resize(1100, 820)
         self.w.show()
@@ -148,7 +148,7 @@ class TestGlobeTab(TempEnvTestCase):
         super().tearDown()
 
     def add(self, d):
-        from weatherdesk.models import Location
+        from rbsb_weather.models import Location
         self.w.add_location(Location.from_dict(d))
         self.assertTrue(wait_until(lambda: not self.w._pending))
 
@@ -277,13 +277,13 @@ class TestGlobeTab(TempEnvTestCase):
         self.w.globe_panel.centre_btn.click()
         self.assertTrue(wait_until(lambda: abs(self.v.c_lon - 174.76) < 0.5, 5))
         with mock.patch.object(G, "has_numpy", return_value=False), \
-                mock.patch("weatherdesk.globe_panel.has_numpy", return_value=False):
+                mock.patch("rbsb_weather.globe_panel.has_numpy", return_value=False):
             self.v.turn_to(10, 20)                         # no numpy: jumps straight there
             self.assertEqual((self.v.c_lat, self.v.c_lon), (10, 20))
 
     def test_texture_error_shown(self):
         from pathlib import Path
-        from weatherdesk import earth as E
+        from rbsb_weather import earth as E
         self.add(PLACES[0])
         with mock.patch.object(E, "NIGHT_FILE", Path("/nonexistent/night.jpg")), mock.patch.dict(E._tex, clear=True):
             self.w.tabs.setCurrentWidget(self.w.globe_panel)

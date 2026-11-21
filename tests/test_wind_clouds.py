@@ -22,10 +22,10 @@ from PyQt6.QtTest import QTest
 
 import fake_server
 from fake_server import make_forecast, make_metno
-from weatherdesk import scene as sc
-from weatherdesk.api import parse_forecast
-from weatherdesk.metno import parse_metno
-from weatherdesk.models import Location
+from rbsb_weather import scene as sc
+from rbsb_weather.api import parse_forecast
+from rbsb_weather.metno import parse_metno
+from rbsb_weather.models import Location
 
 REPORT: list[str] = []
 FRAME = 1 / sc.FPS
@@ -150,7 +150,7 @@ class TestWindModel(unittest.TestCase):
         self.assertEqual(c.wind_sign, 1.0)
 
     def test_met_norway_from_direction_and_ms_to_kmh(self):
-        """MET Norway reports wind_from_direction and m/s; WeatherDesk converts to km/h."""
+        """MET Norway reports wind_from_direction and m/s; RBSB-Weather converts to km/h."""
         d = make_metno(-36.8, 174.7)
         d["properties"]["timeseries"][0]["data"]["instant"]["details"].update(
             wind_from_direction=90.0, wind_speed=10.0)
@@ -358,7 +358,7 @@ class TestNothingElseChanged(unittest.TestCase):
         qapp()
 
     def frame(self, kmh, frm):
-        from weatherdesk.forecast_strip import Day
+        from rbsb_weather.forecast_strip import Day
         s = sc.WeatherScene(seed=4)
         s.resize(*MAIN)
         c = cond(sc.PARTLY, kmh, frm)
@@ -418,7 +418,7 @@ class TestWindowAndWidget(TempEnvTestCase):
         super().tearDown()
 
     def test_main_window_and_desktop_widget_share_the_wind(self):
-        from weatherdesk.main_window import MainWindow
+        from rbsb_weather.main_window import MainWindow
         w = MainWindow(client=self.client(), enable_tray=False)
         w.show()
         self.wins.append(w)

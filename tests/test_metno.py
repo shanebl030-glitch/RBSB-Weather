@@ -20,12 +20,12 @@ from zoneinfo import ZoneInfo
 from helpers import TempEnvTestCase, qapp, wait_until
 from fake_server import METNO_PATH, make_metno
 
-from weatherdesk import net
-from weatherdesk.api import NetworkError, OpenMeteoClient
-from weatherdesk.metno import (MetNoClient, SOURCE_NAME, SUN_ALT, apparent_temperature, parse_metno,
+from rbsb_weather import net
+from rbsb_weather.api import NetworkError, OpenMeteoClient
+from rbsb_weather.metno import (MetNoClient, SOURCE_NAME, SUN_ALT, apparent_temperature, parse_metno,
                                sun_rise_set, wmo_code)
-from weatherdesk.models import Location
-from weatherdesk import earth
+from rbsb_weather.models import Location
+from rbsb_weather import earth
 
 AKL = ZoneInfo("Pacific/Auckland")
 WAIUKU = Location("Waiuku", -37.2486, 174.7300, "New Zealand", "Auckland", "Pacific/Auckland")
@@ -54,7 +54,7 @@ class TestSymbols(unittest.TestCase):
             self.assertIsNone(wmo_code(bad))
 
     def test_every_mapped_code_is_known_to_the_app(self):
-        from weatherdesk import weather_codes
+        from rbsb_weather import weather_codes
         bases = ["clearsky", "fair", "partlycloudy", "cloudy", "fog"]
         for kind in ("rain", "sleet", "snow"):
             for lvl in ("light", "", "heavy"):
@@ -132,7 +132,7 @@ class TestParse(unittest.TestCase):
 
     def test_window_shows_parsed_forecast(self):
         """The forecast is the same model the rest of the app uses (cache round trip)."""
-        from weatherdesk.api import forecast_from_dict, forecast_to_dict
+        from rbsb_weather.api import forecast_from_dict, forecast_to_dict
         back = forecast_from_dict(json.loads(json.dumps(forecast_to_dict(self.fc))))
         self.assertEqual(back.source, SOURCE_NAME)
         self.assertEqual(back.daily, self.fc.daily)
@@ -140,7 +140,7 @@ class TestParse(unittest.TestCase):
         self.assertEqual(forecast_from_dict(old).source, "Open-Meteo")
 
     def test_bad_responses(self):
-        from weatherdesk.api import DataError
+        from rbsb_weather.api import DataError
         for bad in (None, [], {}, {"properties": {}}, {"properties": {"timeseries": []}},
                     {"properties": {"timeseries": [{"time": "x", "data": {}}]}}):
             with self.assertRaises(DataError):
@@ -163,16 +163,16 @@ class TestClientAndBackup(TempEnvTestCase):
         path, q = [r for r in self.server.requests if r[0] == METNO_PATH][-1]
         self.assertEqual((q["lat"], q["lon"]), ("-37.2486", "174.7300"))     # at most 4 decimals
         ua = self.server.metno_agents[-1]
-        self.assertIn("WeatherDesk/", ua)
-        self.assertIn("github.com/shanebl030-glitch/WeatherDesk", ua)
+        self.assertIn("RBSB-Weather/", ua)
+        self.assertIn("github.com/shanebl030-glitch/RBSB-Weather", ua)
 
     # 1.15: Open-Meteo's own built-in backup (1.12) was removed; the Provider Manager has
     # done this job since 1.13. These are the same scenarios, through the manager.
     def manager(self, om_url=None, chain=("open-meteo", "met.no"), clock=None):
-        from weatherdesk.keystore import KeyStore
-        from weatherdesk.providers.manager import ProviderManager
-        from weatherdesk.providers.metno import MetNoProvider
-        from weatherdesk.providers.openmeteo import OpenMeteoProvider
+        from rbsb_weather.keystore import KeyStore
+        from rbsb_weather.providers.manager import ProviderManager
+        from rbsb_weather.providers.metno import MetNoProvider
+        from rbsb_weather.providers.openmeteo import OpenMeteoProvider
         om = OpenMeteoProvider(client=OpenMeteoClient(om_url or self.server.forecast_url,
                                                       self.server.geocode_url, timeout=2))
         kw = {"clock": clock} if clock else {}
@@ -235,7 +235,7 @@ class TestClientAndBackup(TempEnvTestCase):
         self.assertIn("could not be read", m.status("met.no").last_error)
 
     def test_diagnostics_reports_both_sources(self):
-        from weatherdesk import diagnostics
+        from rbsb_weather import diagnostics
         with mock.patch.object(diagnostics, "PROBE_TIMEOUT", 1.0):
             rep = diagnostics.run_diagnostics(self.manager(dead_url()))
         self.assertIn("Forecast – Open-Meteo (primary): FAILED", rep)
@@ -305,7 +305,7 @@ class TestWindow(TempEnvTestCase):
     def setUp(self):
         super().setUp()
         self.app = qapp()
-        from weatherdesk.main_window import MainWindow
+        from rbsb_weather.main_window import MainWindow
         self.MW = MainWindow
         self.windows = []
 
@@ -322,8 +322,8 @@ class TestWindow(TempEnvTestCase):
     def make(self, backup=True):
         if backup:      # 1.13: the backup is the Provider Manager's chain
             import provider_fixtures as PF
-            from weatherdesk.keystore import KeyStore
-            from weatherdesk.providers.manager import ProviderManager
+            from rbsb_weather.keystore import KeyStore
+            from rbsb_weather.providers.manager import ProviderManager
             c = ProviderManager(chain=["open-meteo", "met.no"], factories=PF.factories(self.server, 2),
                                 keystore=KeyStore(self.tmp / "keys", use_keyring=False))
         else:
@@ -340,7 +340,7 @@ class TestWindow(TempEnvTestCase):
         return k
 
     def test_retries_quickly_then_backs_off(self):
-        from weatherdesk import main_window as MWm
+        from rbsb_weather import main_window as MWm
         w = self.make(backup=False)
         k = self.add(w)
         self.server.mode = "http500"
@@ -418,7 +418,7 @@ class TestWindow(TempEnvTestCase):
         self.assertIn("MET Norway", html)
 
     def test_settings_value_validated(self):
-        from weatherdesk.storage import Settings
+        from rbsb_weather.storage import Settings
         self.assertEqual(Settings.from_dict({"weather_source": "met.no"}).weather_source, "met.no")
         self.assertEqual(Settings.from_dict({"weather_source": "bogus"}).weather_source, "open-meteo")
         self.assertEqual(Settings().to_dict()["weather_source"], "open-meteo")

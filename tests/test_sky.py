@@ -17,9 +17,9 @@ from PyQt6.QtGui import QWheelEvent
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
 
-from weatherdesk import earth as E
-from weatherdesk import globe as G
-from weatherdesk import sky as S
+from rbsb_weather import earth as E
+from rbsb_weather import globe as G
+from rbsb_weather import sky as S
 
 REPORT: list[str] = []
 UTC = dt.timezone.utc
@@ -92,7 +92,7 @@ class TestSkyGeometry(unittest.TestCase):
 
     def test_rendered_moon_bright_towards_sun(self):
         qapp()
-        from weatherdesk.moon_render import render_moon
+        from rbsb_weather.moon_render import render_moon
         m, s = S.ecef(5, 170), S.ecef(-15, 120)               # Sun lower-left of the Moon
         b = S.basis(0, -10)
         bl, rot = S.moon_orientation(m, s, b)
@@ -123,11 +123,11 @@ class TestGlobeSkyAndZoom(TempEnvTestCase):
     def setUp(self):
         super().setUp()
         self.app = qapp()
-        from weatherdesk.main_window import MainWindow
+        from rbsb_weather.main_window import MainWindow
         self.w = MainWindow(client=self.client(), enable_tray=False)
         self.w.resize(1100, 820)
         self.w.show()
-        from weatherdesk.models import Location
+        from rbsb_weather.models import Location
         for d in (PLACES[0], dict(name="London", latitude=51.5072, longitude=-0.1276, country="United Kingdom",
                                   admin1="England", timezone="Europe/London")):
             self.w.add_location(Location.from_dict(d))
@@ -186,7 +186,7 @@ class TestGlobeSkyAndZoom(TempEnvTestCase):
         self.v.set_center(-mlat * 0.5, mlon + 180 - 50)
         self.paint()
         self.assertIn("moon", self.v.sky_drawn)
-        from weatherdesk.moon import moon_phase
+        from rbsb_weather.moon import moon_phase
         self.assertEqual(self.v.sky_drawn["moon"][4], round(moon_phase(t).illumination * 100))
         # straight behind the Earth: hidden
         self.v.set_center(*antipode(mlat, mlon))
@@ -292,7 +292,7 @@ class TestGlobeSkyAndZoom(TempEnvTestCase):
         self.v.set_center(-mlat * 0.5, mlon + 180 - 50)
         self.paint()
         key, img = self.v._moon_cache
-        from weatherdesk.globe_panel import MOON_SIZE
+        from rbsb_weather.globe_panel import MOON_SIZE
         rad = self.v.globe_rect().width() / 2
         size = rad * MOON_SIZE * 2
         self.assertEqual(img.width(), key[0])
@@ -317,7 +317,7 @@ class TestGlobeSkyAndZoom(TempEnvTestCase):
         self.assertGreater(self.v._moon_cache[0][0], key[0])
 
     def test_zoomed_render_is_capped_and_memory_bounded(self):
-        from weatherdesk.globe_panel import MAX_RENDER
+        from rbsb_weather.globe_panel import MAX_RENDER
         self.v.set_zoom(3.0, animate=False)
         self.assertTrue(wait_until(lambda: not self.v._low_res and self.v.image is not None, 3))
         QTest.qWait(50)
@@ -348,12 +348,12 @@ class TestGlobeSkyAndZoom(TempEnvTestCase):
 
 
 def G_ZOOM_MAX():
-    from weatherdesk.globe_panel import ZOOM_MAX
+    from rbsb_weather.globe_panel import ZOOM_MAX
     return ZOOM_MAX
 
 
 def G_ZOOM_MIN():
-    from weatherdesk.globe_panel import ZOOM_MIN
+    from rbsb_weather.globe_panel import ZOOM_MIN
     return ZOOM_MIN
 
 

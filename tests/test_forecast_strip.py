@@ -17,8 +17,8 @@ from PyQt6.QtTest import QTest
 
 from test_gui import GuiCase
 
-from weatherdesk import forecast_strip as FS
-from weatherdesk import scene as sc
+from rbsb_weather import forecast_strip as FS
+from rbsb_weather import scene as sc
 
 REPORT: list[str] = []
 TODAY = dt.date(2026, 11, 16)                 # a Monday
@@ -49,8 +49,8 @@ class TestDailyData(unittest.TestCase):
 
     def test_days_from_forecast_values_and_order(self):
         from fake_server import make_forecast
-        from weatherdesk.api import parse_forecast
-        from weatherdesk.models import Location
+        from rbsb_weather.api import parse_forecast
+        from rbsb_weather.models import Location
         loc = Location.from_dict(PLACES[0])
         fc = parse_forecast(make_forecast(loc.latitude, loc.longitude), loc)
         days = FS.days_from_forecast(fc)
@@ -65,8 +65,8 @@ class TestDailyData(unittest.TestCase):
 
     def test_past_days_skipped(self):
         from fake_server import make_forecast
-        from weatherdesk.api import parse_forecast
-        from weatherdesk.models import Location
+        from rbsb_weather.api import parse_forecast
+        from rbsb_weather.models import Location
         loc = Location.from_dict(PLACES[0])
         fc = parse_forecast(make_forecast(loc.latitude, loc.longitude), loc)
         d1 = dt.date.fromisoformat(fc.daily[1].date)
@@ -361,7 +361,7 @@ class TestInScenes(GuiCase):
         w = self.make()
         self.assertEqual(w.scene.forecast_days, [])
         self.server.mode = "http500"
-        from weatherdesk.models import Location
+        from rbsb_weather.models import Location
         w.add_location(Location.from_dict(PLACES[0]))
         self.assertTrue(wait_until(lambda: not w._pending))
         self.scene_frame(w.scene)

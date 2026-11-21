@@ -10,10 +10,10 @@ from unittest import mock
 
 from helpers import TempEnvTestCase, qapp, wait_until
 
-from weatherdesk import net
-from weatherdesk.api import OpenMeteoClient
-from weatherdesk.diagnostics import run_diagnostics
-from weatherdesk.models import Location
+from rbsb_weather import net
+from rbsb_weather.api import OpenMeteoClient
+from rbsb_weather.diagnostics import run_diagnostics
+from rbsb_weather.models import Location
 
 
 class BlackHole:
@@ -64,7 +64,7 @@ def client_fd_count(server_port: int) -> int:
     server's port. The fake server closes them from its own thread a moment after the
     client hangs up, which on a busy machine can take over 2 s. That was seen 2 times
     in about 300 runs, and each time the socket closed by itself about 50 ms later,
-    with no WeatherDesk code running. WeatherDesk's sockets (client side, a random
+    with no RBSB-Weather code running. RBSB-Weather's sockets (client side, a random
     local port) are all still counted, so a real leak still fails the test."""
     server_inodes = set()
     for table in ("/proc/net/tcp", "/proc/net/tcp6"):
@@ -173,7 +173,7 @@ class TestFastConnect(NetCase):
         server_before = fd_count() - before          # the fake server's own sockets
         for _ in range(30):
             net.fast_create_connection(("weather.test", 1), 5, stagger=0.02).close()
-        # Only WeatherDesk's side is counted (see client_fd_count); it must return
+        # Only RBSB-Weather's side is counted (see client_fd_count); it must return
         # exactly to the baseline. A real leak would leave up to 30 extra here.
         deadline = time.monotonic() + 2
         while client_fd_count(port) > before and time.monotonic() < deadline:
@@ -185,7 +185,7 @@ class TestFastConnect(NetCase):
             time.sleep(0.05)
 
     def test_leak_check_catches_a_real_leak(self):
-        """The check above must still fail for a leak on WeatherDesk's side."""
+        """The check above must still fail for a leak on RBSB-Weather's side."""
         self.addrs = [_ai(self.server.port)]
         port = self.server.port
         before = client_fd_count(port)
@@ -224,7 +224,7 @@ class TestClientUsesFastConnect(NetCase):
         self.assertEqual(len(fc.daily), 7)
 
     def test_error_paths_still_mapped(self):
-        from weatherdesk.api import ApiError, NetworkError
+        from rbsb_weather.api import ApiError, NetworkError
         self.addrs = [_ai(_closed_port())]
         with self.assertRaises(NetworkError):
             self.make_client().fetch_forecast(self.place(0))
@@ -262,8 +262,8 @@ class TestDiagnostics(TempEnvTestCase):
         self.assertIn("responded slowly", rep)
 
     def test_cli_diagnose_flag(self):
-        from weatherdesk import app
-        with mock.patch("weatherdesk.diagnostics.run_diagnostics", return_value="REPORT") as m, \
+        from rbsb_weather import app
+        with mock.patch("rbsb_weather.diagnostics.run_diagnostics", return_value="REPORT") as m, \
                 mock.patch("builtins.print") as pr:
             self.assertEqual(app.main(["--diagnose"]), 0)
         m.assert_called_once()
@@ -274,7 +274,7 @@ class TestDiagnosticsDialog(TempEnvTestCase):
     def test_dialog_runs_and_reports(self):
         qapp()
         from PyQt6.QtTest import QTest
-        from weatherdesk.main_window import MainWindow
+        from rbsb_weather.main_window import MainWindow
         w = MainWindow(client=self.client(), enable_tray=False)
         w.show()
         w.show_connection_test()

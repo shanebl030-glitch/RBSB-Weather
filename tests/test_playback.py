@@ -23,11 +23,11 @@ from PyQt6.QtGui import QImage, QPainter
 from PyQt6.QtTest import QTest
 
 from fake_server import make_forecast
-from weatherdesk import scene as sc
-from weatherdesk import units
-from weatherdesk.api import parse_forecast
-from weatherdesk.models import Location
-from weatherdesk.playback import PLAY_RATE, STEP_MIN, TICK_MS, PlaybackBar
+from rbsb_weather import scene as sc
+from rbsb_weather import units
+from rbsb_weather.api import parse_forecast
+from rbsb_weather.models import Location
+from rbsb_weather.playback import PLAY_RATE, STEP_MIN, TICK_MS, PlaybackBar
 
 REPORT: list[str] = []
 LOC = Location("Auckland", -36.85, 174.76, "New Zealand", "Auckland", "Pacific/Auckland")
@@ -381,7 +381,7 @@ class TestInTheApp(TempEnvTestCase):
     def setUp(self):
         super().setUp()
         qapp()
-        from weatherdesk.main_window import MainWindow
+        from rbsb_weather.main_window import MainWindow
         self.w = MainWindow(client=self.client(), enable_tray=False)
         self.w.resize(1150, 800)
         self.w.show()
@@ -413,7 +413,7 @@ class TestInTheApp(TempEnvTestCase):
         when = sc.local_time(self.fc) + dt.timedelta(hours=3)
         hp = sc.hourly_at(self.fc, when)
         self.assertEqual(w.temp_label.text(), units.fmt_temp(hp.temperature, "C"))
-        from weatherdesk import weather_codes
+        from rbsb_weather import weather_codes
         self.assertTrue(w.desc_label.text().startswith(weather_codes.describe(hp.weather_code)))
         self.assertIn(f"{hp.precipitation_probability:.0f}%", w.desc_label.text())
         self.assertEqual(w.message_label.text(), f"▶ Forecast for {units.fmt_clock(when, day=True)}")

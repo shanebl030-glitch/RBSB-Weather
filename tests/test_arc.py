@@ -13,8 +13,8 @@ from helpers import qapp
 from PyQt6.QtCore import QRectF
 from PyQt6.QtGui import QImage, QPainter
 
-from weatherdesk import moon as M
-from weatherdesk import scene as sc
+from rbsb_weather import moon as M
+from rbsb_weather import scene as sc
 
 UTC = dt.timezone.utc
 REPORT: list[str] = []
@@ -235,7 +235,7 @@ class TestSceneDrawsOnArc(unittest.TestCase):
         stays up; down at night stays down."""
         from unittest import mock
         from test_scene import _fc
-        from weatherdesk import moon as M_
+        from rbsb_weather import moon as M_
         for when, alt, expect_up in (("2026-11-15T12:00", 30.0, True), ("2026-11-15T23:30", -20.0, False)):
             with mock.patch.object(M_, "sky_geometry", return_value=(0.0, alt, 90.0, 0.13)):
                 c = sc.conditions_from_forecast(_fc(now=when), now=time.time())

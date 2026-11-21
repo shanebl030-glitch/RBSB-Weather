@@ -1,8 +1,83 @@
-# WeatherDesk Changelog
+# RBSB-Weather Changelog (formerly WeatherDesk)
 
 Created By Shane BlackbuRn
 
-## 1.18.0 – 2026-11-21 (on branch claude/weatherdesk-1.18.0; not released)
+Entries before 2.0.0 use the app's old name, WeatherDesk, as they were written.
+
+## 2.0.0 – 2026-11-21 (on branch claude/rbsb-weather-2.0.0; not released)
+
+Requested by Shane: "WeatherDesk is too common". The app is now
+**RBSB-Weather**. There are no feature changes; existing users' data comes with
+them automatically.
+
+### Changed – the name
+- **RBSB-Weather** everywhere you see it: the window, menu entry, About box
+  ("formerly WeatherDesk"), tray tooltip, User Guide and README.
+- **`rbsb-weather`** for the command, Debian package, menu entry file, icon,
+  and the folders `~/.config/rbsb-weather` and `~/.cache/rbsb-weather`.
+- The Python package folder is `rbsb_weather` (Python names can't contain
+  `-`). Environment variables are now `RBSB_WEATHER_*`; the keyring service
+  is "RBSB-Weather"; the log is `rbsb-weather.log`.
+- Web requests identify as `RBSB-Weather/2.0.0`, and MET Norway's contact
+  address is github.com/shanebl030-glitch/RBSB-Weather (the GitHub repository
+  needs renaming to match).
+- Version 2.0.0, because the package, command and folders changed.
+
+### Added – carrying WeatherDesk users over (`rbsb_weather/migrate.py`)
+- **On the first start**, before the window loads its settings, it copies:
+  - `~/.config/weatherdesk` (settings, saved locations, `keys.json`, which
+    stays readable only by you) to `~/.config/rbsb-weather`;
+  - `~/.cache/weatherdesk` (saved forecasts, cloud map, provider status;
+    not the old logs) to `~/.cache/rbsb-weather`;
+  - API keys in the keyring, from the "WeatherDesk" service to
+    "RBSB-Weather", without overwriting a key already there;
+  - "Start at login": `weatherdesk.desktop` is replaced by
+    `rbsb-weather.desktop`, and the old file renamed to
+    `weatherdesk.desktop.migrated` (not deleted), so it doesn't start twice.
+- **Copied, never moved or deleted**, so a WeatherDesk package still finds
+  its data. A folder is only copied when RBSB-Weather has no data of its own
+  there, so nothing is ever overwritten. A new folder is built under a
+  temporary name and renamed into place, so an interrupted copy can't leave a
+  half-filled folder. A marker file stops it running twice; if the copy
+  fails, it tries again next start. A failure never stops the app starting.
+- The status bar says what was carried over.
+- **A WeatherDesk still running** (in the tray, after the upgrade) is asked
+  to hand over through its old single-instance socket, saves its settings
+  and quits, and *then* its data is copied. The process check accepts both
+  names, and still only touches the process that owns the socket.
+- Skipped when the test suite's folder overrides are set (so tests never
+  touch a real profile), or with `RBSB_WEATHER_MIGRATE=0`.
+
+### Packaging
+- `Replaces: weatherdesk` and `Conflicts: weatherdesk`: `apt install
+  ./rbsb-weather_2.0.0_all.deb` removes the old package and installs the new
+  one in one step. Installing a WeatherDesk .deb later does the reverse.
+- `/usr/bin/weatherdesk` is kept as a link to `rbsb-weather`, so old
+  shortcuts and habits still work. The menu entry has "weatherdesk" as a
+  search keyword.
+- Files renamed: `packaging/rbsb-weather.{desktop,sh,svg}`,
+  `docs/media/rbsb-weather-playback.gif`.
+- "Start at login" helpers (`autostart_path`, `AUTOSTART_ENTRY`) moved from
+  `main_window.py` to `storage.py`, so the migration can use them without
+  loading the window code. `main_window` still exports them.
+
+### Tests
+- New `tests/test_migrate.py` (15 tests): copying, never overwriting, only
+  once, retry after a failure, an interrupted copy, keyring copy with a fake
+  keyring (including a locked one), the login entry, the process check, the
+  real app started with a WeatherDesk profile in a temporary home, and a
+  **real WeatherDesk 1.18.0 process** (taken from git tag v1.18.0) handing
+  over to RBSB-Weather. That last test skips in the source archive, which
+  has no git history.
+- `test_packaging` checks the new names, `Replaces`/`Conflicts` and the
+  `weatherdesk` link.
+
+### Docs
+- README: "formerly WeatherDesk" note and a "Coming from WeatherDesk" section
+  (what's carried over, the old command, going back).
+- User Guide: the same, in a short section.
+
+## 1.18.0 – 2026-11-21 (released as v1.18.0)
 
 Requested by Shane (idea 2 from the "what could no other app have" list):
 forecast playback in the animated sky. Built on 1.17.0, which isn't released

@@ -15,8 +15,8 @@ from PyQt6.QtCore import QBuffer, QByteArray, QIODevice, QRect
 from PyQt6.QtGui import QColor, QImage, QPainter
 from PyQt6.QtTest import QTest
 
-from weatherdesk import clouds as C
-from weatherdesk import earth as E
+from rbsb_weather import clouds as C
+from rbsb_weather import earth as E
 
 UTC = dt.timezone.utc
 REPORT: list[str] = []
@@ -76,7 +76,7 @@ class TestDownload(TempEnvTestCase):
         self.server.cloud_last_modified = "Sun, 15 Nov 2026 03:00:00 GMT"
         self.assertEqual(C.update(self.store, self.server.cloud_url), "updated")
         self.assertEqual(self.store.image_time().hour, 3)
-        self.assertIn("WeatherDesk/", self.server.cloud_headers[-1].get("User-Agent", ""))
+        self.assertIn("RBSB-Weather/", self.server.cloud_headers[-1].get("User-Agent", ""))
 
     def test_due_schedule(self):
         C.update(self.store, self.server.cloud_url)
@@ -188,7 +188,7 @@ class TestCompositing(unittest.TestCase):
         self.assertGreater(pixel_at(with_c, *SPOT).lightness(), 0)    # faint cloud still visible
 
     def test_note(self):
-        store = C.CloudStore("/nonexistent/weatherdesk-test")
+        store = C.CloudStore("/nonexistent/rbsb_weather-test")
         self.assertIn("unavailable", C.note(store, None, "HTTP 404"))
         self.assertIn("once they've downloaded", C.note(store, None, ""))
 
@@ -198,11 +198,11 @@ class TestEarthTabsClouds(TempEnvTestCase):
         super().setUp()
         self.app = qapp()
         self.server.cloud_body = cloud_jpeg()
-        from weatherdesk.main_window import MainWindow
+        from rbsb_weather.main_window import MainWindow
         self.w = MainWindow(client=self.client(), enable_tray=False)
         self.w.resize(1100, 820)
         self.w.show()
-        from weatherdesk.models import Location
+        from rbsb_weather.models import Location
         self.w.add_location(Location.from_dict(PLACES[0]))
         self.assertTrue(wait_until(lambda: not self.w._pending))
 
@@ -276,7 +276,7 @@ class TestEarthTabsClouds(TempEnvTestCase):
         QTest.qWait(50)
 
     def test_setting_validation(self):
-        from weatherdesk.storage import Settings
+        from rbsb_weather.storage import Settings
         self.assertTrue(Settings.from_dict({"earth_clouds": "yes"}).earth_clouds)
         self.assertFalse(Settings.from_dict({"earth_clouds": False}).earth_clouds)
 

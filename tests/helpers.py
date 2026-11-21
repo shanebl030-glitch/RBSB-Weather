@@ -15,11 +15,11 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 if not os.environ.get("XDG_RUNTIME_DIR"):
-    _rt = Path(tempfile.gettempdir()) / f"weatherdesk-test-runtime-{os.getuid()}"
+    _rt = Path(tempfile.gettempdir()) / f"rbsb_weather-test-runtime-{os.getuid()}"
     _rt.mkdir(mode=0o700, exist_ok=True)
     os.environ["XDG_RUNTIME_DIR"] = str(_rt)
 # Never touch the desktop's real keyring from tests: keys go to the temp config dir.
-os.environ["WEATHERDESK_KEYRING"] = "0"
+os.environ["RBSB_WEATHER_KEYRING"] = "0"
 # Tests talk only to the local fake server; never route them through a proxy.
 for _k in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "all_proxy", "ALL_PROXY"):
     os.environ.pop(_k, None)
@@ -37,7 +37,7 @@ def qapp():
     from PyQt6.QtWidgets import QApplication
     app = QApplication.instance()
     if app is None:
-        app = QApplication(["weatherdesk-tests"])
+        app = QApplication(["rbsb_weather-tests"])
         app.setQuitOnLastWindowClosed(False)
     _APP = app
     return app
@@ -57,22 +57,22 @@ class TempEnvTestCase(unittest.TestCase):
     """Isolated directories + a running fake Open-Meteo server."""
 
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="weatherdesk-test-"))
+        self.tmp = Path(tempfile.mkdtemp(prefix="rbsb_weather-test-"))
         self._env = {k: os.environ.get(k) for k in
-                     ("WEATHERDESK_CONFIG_DIR", "WEATHERDESK_CACHE_DIR", "XDG_CONFIG_HOME")}
-        os.environ["WEATHERDESK_CONFIG_DIR"] = str(self.tmp / "config")
-        os.environ["WEATHERDESK_CACHE_DIR"] = str(self.tmp / "cache")
+                     ("RBSB_WEATHER_CONFIG_DIR", "RBSB_WEATHER_CACHE_DIR", "XDG_CONFIG_HOME")}
+        os.environ["RBSB_WEATHER_CONFIG_DIR"] = str(self.tmp / "config")
+        os.environ["RBSB_WEATHER_CACHE_DIR"] = str(self.tmp / "cache")
         os.environ["XDG_CONFIG_HOME"] = str(self.tmp / "xdg")
-        from weatherdesk import net
+        from rbsb_weather import net
         net.reset_health()                 # connection-health memory is process-wide
         self.server = FakeServer().start()
         # never reach the real cloud map service from tests
-        from weatherdesk import clouds
+        from rbsb_weather import clouds
         self._cloud_url = clouds.CLOUD_URL
         clouds.CLOUD_URL = self.server.cloud_url
 
     def tearDown(self):
-        from weatherdesk import clouds
+        from rbsb_weather import clouds
         clouds.CLOUD_URL = self._cloud_url
         self.server.stop()
         for k, v in self._env.items():
@@ -83,10 +83,10 @@ class TempEnvTestCase(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def client(self, timeout: float = 3.0):
-        from weatherdesk.api import OpenMeteoClient
+        from rbsb_weather.api import OpenMeteoClient
         return OpenMeteoClient(self.server.forecast_url, self.server.geocode_url, timeout=timeout)
 
     @staticmethod
     def place(i: int = 0):
-        from weatherdesk.models import Location
+        from rbsb_weather.models import Location
         return Location.from_dict(PLACES[i])
