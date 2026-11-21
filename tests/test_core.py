@@ -335,6 +335,19 @@ class TestCache(TempEnvTestCase):
         self.assertIsNone(c.load(self.place(0)))
         self.assertEqual(ForecastCache(self.tmp / "nope").clean_orphans([]), 0)
 
+    def test_clean_orphans_keeps_other_files(self):
+        """Regression (2.1.0): the cleanup deleted every .json in the cache folder, so
+        provider status, network memory, the cloud map's record and the update-check
+        record were lost at each start. Only forecast files may go."""
+        c = ForecastCache()
+        c.save(self.client().fetch_forecast(self.place(0)))
+        others = ("providers.json", "network.json", "clouds.json", "updates.json", "notes.json")
+        for name in others:
+            (c.dir / name).write_text("{}")
+        self.assertEqual(c.clean_orphans([]), 1)              # only the forecast file
+        for name in others:
+            self.assertTrue((c.dir / name).exists(), name)
+
     def test_negative_coordinates_distinct_files(self):
         c = ForecastCache()
         a, b = Location("a", -1.5, 2.0), Location("b", 1.5, 2.0)

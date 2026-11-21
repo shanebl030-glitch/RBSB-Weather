@@ -4,15 +4,15 @@ Created By Shane BlackbuRn
 
 | Item | Result |
 |---|---|
-| Version | 2.0.0 (the 1.18.0 app renamed to RBSB-Weather, with carry-over of WeatherDesk users' data) |
+| Version | 2.1.0 (check for updates; built on 2.0.0, the rename to RBSB-Weather) |
 | Date | 2026-11-21 |
 | Environment | Ubuntu 24.04.5 (Linux Mint 22 base), Python 3.12, PyQt6 6.6.1 / Qt 6.4.2, headless (offscreen), 2 CPUs, `python3-keyring` installed (no D-Bus, so keys use the private file) |
-| Suites | as 1.18.0, plus **`test_migrate`** (new in 2.0.0) |
-| Tests run | 503 |
-| Passed | 501 |
+| Suites | as 1.18.0, plus **`test_migrate`** (new in 2.0.0) and **`test_updates`** (new in 2.1.0) |
+| Tests run | 539 |
+| Passed | 537 |
 | Failed / errors | 0 / 0 |
 | Skipped | 2: `test_readonly_dir_raises_oserror` (root ignores directory permissions; it passed as the `nobody` user in 1.11), and the NASA-converter test (needs build-time numpy + tifffile). Neither is an app fault |
-| Run time | about 506 s (2 CPUs), including the 60 s soak |
+| Run time | about 524 s (2 CPUs), including the 60 s soak |
 | Command | `PYTHON=/usr/bin/python3.12 ./run_tests.sh` (full log in `test-results.log`) |
 
 **Mocks and simulations.** Every provider test runs against a local fake
@@ -20,6 +20,28 @@ server sending replies in each service's documented format. That proves
 WeatherDesk handles those formats, failures and recoveries. It does **not**
 prove the live services still send them. None of the weather services could
 be reached from the build machine (all blocked, HTTP 403 from its proxy).
+
+## 2.1.0: check for updates
+
+| Check | Result |
+|---|---|
+| Reading releases | Normal, `V1.15.0`-style tags, drafts, pre-releases and bad tags refused; only `rbsb-weather_<version>_all.deb` is used; long notes cut; a bad page address replaced |
+| Versions | 2.1.0 > 2.0.0, 2.10.0 > 2.9.0; same or older is not an update |
+| When due | Never checked: due. 1 h after a good check: not due. 25 h: due. Failed 1 h ago: not due. Failed 4 h ago: due. Clock went back: due |
+| Addresses | GitHub, api.github.com and *.githubusercontent.com allowed; http, look-alike domains, file: and others refused; http only for a local test server |
+| Check errors | 404, rate limit, HTTP 500, damaged and oversized replies, no network, all in plain English; one retry after a timeout (tested: 2 requests, then success) |
+| Download | Verified through a redirect, saved 0644, no temporary files left, progress reported; a wrong checksum, a missing or unlisted checksum, an HTML page, an incomplete file, an oversized file and a redirect away from GitHub are all refused and leave no files; cancel leaves no files; an identical file is reused without downloading; another file with the name is kept and `-2` used |
+| Window | Menu items present and on by default; a manual check shows the update, then installs (opener called with the verified file); a bad download is never opened; up to date; error and retry; automatic check once a day, never in the first minute, never when switched off; skip hides it, the menu still shows it; a known update shown at startup without the network; closing during a download cancels it and deletes the part file |
+| Stability | The window tests ran 20 times in a row with no failure (after fixing a crash on closing, see CHANGELOG) |
+| **Real GitHub** | Check found RBSB-Weather 2.0.0 (installable). The download (GitHub redirect to its download server) passed the checksum; SHA256 0eb8931c… is the same as the tested 2.0.0 package |
+| **Real dpkg upgrade 2.0.0 → 2.1.0** | Installed 2.0.0 running; `apt install ./rbsb-weather_2.1.0_all.deb` ("Unpacking rbsb-weather (2.1.0) over (2.0.0)"); launching 2.1.0 made 2.0.0 quit cleanly (exit 0) and take over |
+| **Installed 2.1.0, real automatic check** | 61 s after starting: "update check: latest release is 2.0.0 (this is 2.1.0)" from the real GitHub; nothing announced (correct); `updates.json` written |
+| Installed 2.1.0, restart | `updates.json` and `providers.json` still there after a restart (2.0.0 deleted them at startup) |
+| Cache clean-up regression | `providers.json`, `network.json`, `clouds.json`, `updates.json` and other files survive; only orphaned forecast files are removed |
+
+**Not tested here:** opening the .deb in Mint's package installer, the tray
+notice on a real panel, and a real update from 2.1.0 to a later release (none
+exists yet).
 
 ## 2.0.0: renamed to RBSB-Weather
 

@@ -107,6 +107,8 @@ class Settings:
     widget_locked: bool = False               # desktop widget can't be dragged (1.16)
     earth_clouds: bool = True                 # live clouds on the Earth tabs
     startup_update_all: bool = True           # update every saved location at startup (1.16)
+    update_check: bool = True                 # check GitHub for a newer version once a day (2.1)
+    update_skip: str = ""                     # a version the user chose to skip ("" = none)
     weather_source: str = "open-meteo"        # 1.12 setting; kept in step with provider_chain[0]
     # Weather Providers (1.13): primary first, then backups in order; and when to go back
     # to the primary after it failed (see providers/manager.py RECOVERY)
@@ -180,6 +182,8 @@ class Settings:
             "widget_locked": self.widget_locked,
             "earth_clouds": self.earth_clouds,
             "startup_update_all": self.startup_update_all,
+            "update_check": self.update_check,
+            "update_skip": self.update_skip,
             "weather_source": self.weather_source,
             "provider_chain": list(self.provider_chain),
             "provider_recovery": self.provider_recovery,
@@ -216,7 +220,7 @@ class Settings:
         if d.get("refresh_minutes") in REFRESH_CHOICES and not isinstance(d.get("refresh_minutes"), bool):
             s.refresh_minutes = d["refresh_minutes"]
         for k in ("show_tray", "close_to_tray", "animations", "desktop_widget", "widget_on_top", "widget_locked", "earth_clouds",
-                  "startup_update_all"):
+                  "startup_update_all", "update_check"):
             if isinstance(d.get(k), bool):
                 setattr(s, k, d[k])
         for k in ("widget_x", "widget_y"):
@@ -242,6 +246,9 @@ class Settings:
                 for pid, o in opts.items() if isinstance(o, dict) and re.fullmatch(r"[a-z0-9.\-]{1,40}", str(pid))}
         if d.get("provider_recovery") in ("next", "15", "30", "60", "stay"):
             s.provider_recovery = d["provider_recovery"]
+        skip = d.get("update_skip")
+        if isinstance(skip, str) and re.fullmatch(r"\d{1,4}(\.\d{1,4}){0,3}", skip):
+            s.update_skip = skip
         if d.get("widget_size") in WIDGET_SIZES:
             s.widget_size = d["widget_size"]
         if isinstance(d.get("window_geometry"), str):
@@ -281,6 +288,9 @@ class SettingsStore:
 
     def save(self, settings: Settings) -> None:
         atomic_write_json(self.path, settings.to_dict())
+
+
+_FORECAST_FILE = re.compile(r"m?\d{1,3}\.\d{4}_m?\d{1,3}\.\d{4}\.json")
 
 
 class ForecastCache:
@@ -328,7 +338,11 @@ class ForecastCache:
         wanted = {self._path(l).name for l in keep}
         removed = 0
         for p in self.dir.glob("*.json"):
-            if p.name not in wanted:
+            # Only forecast files (like m36.8500_174.7600.json). Before 2.1.0 this removed
+            # every .json here, including providers.json, network.json, clouds.json and
+            # updates.json, so provider status, network memory and the cloud map's
+            # download record were lost at each start.
+            if p.name not in wanted and _FORECAST_FILE.fullmatch(p.name):
                 try:
                     p.unlink()
                     removed += 1

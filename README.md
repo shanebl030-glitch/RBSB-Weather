@@ -1,4 +1,4 @@
-# RBSB-Weather 2.0.0
+# RBSB-Weather 2.1.0
 
 *Formerly **WeatherDesk**. Renamed in 2.0.0 because "WeatherDesk" is used by many
 other apps; nothing else changed, and your settings come with you (see
@@ -66,12 +66,15 @@ data.*
 * Offline fallback: the last forecast for each location is saved and shown,
   clearly labelled, when there's no internet.
 * Single instance: launching it a second time brings the existing window forward.
+* Checks for updates once a day (Settings to turn it off; Help → Check for
+  Updates to check now). A new version is downloaded, checked against its
+  checksum and opened in your package installer; nothing installs without you.
 * The in-app User Guide is under Help → User Guide (F1).
 
 ## Install
 
 ```bash
-sudo apt install ./rbsb-weather_2.0.0_all.deb
+sudo apt install ./rbsb-weather_2.1.0_all.deb
 ```
 
 `apt` pulls in `python3-pyqt6` automatically. Launch **RBSB-Weather** from the
@@ -85,7 +88,8 @@ sha256sum -c SHA256SUMS
 
 ## Update
 
-Install the newer .deb the same way. Your settings and saved forecasts in
+From 2.1.0 the app tells you when there's a newer version and can download it
+for you (Help → Check for Updates). Or install the newer .deb the same way. Your settings and saved forecasts in
 `~/.config/rbsb-weather` and `~/.cache/rbsb-weather` are kept, and so are API
 keys (in the keyring, or `~/.config/rbsb-weather/keys.json`). Then open
 RBSB-Weather: if an older copy is still running (for example in the tray), it
@@ -94,7 +98,7 @@ automatic; before that you had to quit the old copy first.
 
 ## Coming from WeatherDesk
 
-Install the 2.0.0 package as above. It replaces the old `weatherdesk` package
+Install RBSB-Weather (2.0.0 or later) as above. It replaces the old `weatherdesk` package
 (apt removes it for you) and the first time RBSB-Weather starts it carries over:
 
 * settings and saved locations (`~/.config/weatherdesk` → `~/.config/rbsb-weather`)
@@ -187,6 +191,7 @@ sends it. The full log is written to
 | `rbsb_weather/globe.py`, `globe_panel.py` | Globe projection and drawing (numpy or pure Python), Earth Globe tab |
 | `rbsb_weather/net.py` | Fast IPv4/IPv6 connection racing |
 | `rbsb_weather/diagnostics.py` | Help → Test connection |
+| `rbsb_weather/updates.py`, `update_dialog.py` | Check for updates: GitHub's latest release, verified download, the update window |
 | `rbsb_weather/migrate.py` | Carrying a WeatherDesk user's settings, keys and login entry over to RBSB-Weather (2.0.0) |
 | `rbsb_weather/units.py`, `weather_codes.py` | Unit conversion and weather descriptions |
 | `tests/` | Test suite and fake server |

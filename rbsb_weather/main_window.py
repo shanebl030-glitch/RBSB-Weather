@@ -83,7 +83,7 @@ class MainWindow(QMainWindow):
     def __init__(self, client: Optional[OpenMeteoClient] = None,
                  store: Optional[SettingsStore] = None,
                  cache: Optional[ForecastCache] = None,
-                 enable_tray: bool = True):
+                 enable_tray: bool = True, update_client=None):
         super().__init__()
         self.store = store or SettingsStore()
         self.cache = cache or ForecastCache()
@@ -155,7 +155,24 @@ class MainWindow(QMainWindow):
         self.age_timer.timeout.connect(self._update_status)
         self.age_timer.timeout.connect(self._update_scene)      # keeps the sun moving
         self.age_timer.timeout.connect(self.request_moon)       # refreshes moon data every 10 min
+        self.age_timer.timeout.connect(self._maybe_check_updates)  # once a day (2.1)
         self.age_timer.start()
+
+        # ---- check for updates (2.1, see updates.py)
+        from .updates import UpdateClient
+        self.update_client = update_client or UpdateClient()
+        self._update_token = 0                # current check
+        self._update_dl_token = 0             # current download (separate, so a check can't cancel it)
+        self._update_checking = False
+        self._update_manual = False
+        self._update_info = None              # a newer release we know about
+        self._update_dialog = None
+        self._update_cancel = None            # threading.Event of a download in progress
+        self._started_mono = time.monotonic()
+        self.open_file = self._open_with_desktop   # replaced in tests (never launches anything)
+        self.bridge.update_checked.connect(self._on_update_checked)
+        self.bridge.update_progress.connect(self._on_update_progress)
+        self.bridge.update_downloaded.connect(self._on_update_downloaded)
 
         if self.settings.window_geometry:
             try:
@@ -180,6 +197,7 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(0, lambda: self.statusBar().showMessage(self.store.last_error, 15000))
         QTimer.singleShot(0, self.refresh_selected)
         QTimer.singleShot(0, self.start_startup_round)
+        QTimer.singleShot(0, self._restore_known_update)
 
     # ================================================================ UI
     def _build_ui(self) -> None:
@@ -365,6 +383,13 @@ class MainWindow(QMainWindow):
 
         self.status_label = QLabel()
         self.statusBar().addWidget(self.status_label, 1)
+        self.update_button = QPushButton()      # "Update available: x.y.z" (2.1)
+        self.update_button.setFlat(True)
+        self.update_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.update_button.setToolTip("A newer version of RBSB-Weather is available. Click to see what's new.")
+        self.update_button.clicked.connect(lambda: self.show_update_dialog(self._update_info))
+        self.update_button.setVisible(False)
+        self.statusBar().addPermanentWidget(self.update_button)
         credit = QLabel(AUTHOR_CREDIT)
         credit.setStyleSheet("color: palette(placeholder-text); padding-right: 6px;")
         self.statusBar().addPermanentWidget(credit)
@@ -444,10 +469,16 @@ class MainWindow(QMainWindow):
         self.act_providers = QAction("Weather &Providers…", self, shortcut=QKeySequence("Ctrl+,"),
                                      triggered=self.show_providers)
         sm.addAction(self.act_providers)
+        sm.addSeparator()
+        self.act_update_auto = QAction("Check for &updates automatically", self, checkable=True,
+                                       checked=self.settings.update_check,
+                                       triggered=self.set_update_check)
+        sm.addAction(self.act_update_auto)
 
         hm = mb.addMenu("&Help")
         hm.addAction(QAction("&User Guide", self, shortcut=QKeySequence("F1"), triggered=self.show_guide))
         hm.addAction(QAction("&Test connection…", self, triggered=self.show_connection_test))
+        hm.addAction(QAction("Check for &Updates…", self, triggered=self.check_for_updates))
         hm.addSeparator()
         hm.addAction(QAction("&About RBSB-Weather", self, triggered=self.show_about))
 
@@ -462,6 +493,7 @@ class MainWindow(QMainWindow):
         menu.addAction("Quit", self.quit_app)
         self.tray.setContextMenu(menu)
         self.tray.activated.connect(self._on_tray_activated)
+        self.tray.messageClicked.connect(lambda: self._update_info and self.show_update_dialog(self._update_info))
         self.tray.setVisible(self.settings.show_tray)
 
     # ======================================================= Locations
@@ -1483,6 +1515,199 @@ class MainWindow(QMainWindow):
         else:
             self.show_normal()
 
+    # ================================================== Updates (2.1)
+    def set_update_check(self, on: bool) -> None:
+        self.settings.update_check = bool(on)
+        self.act_update_auto.setChecked(self.settings.update_check)
+        self.save_settings()
+        if not on:
+            self.update_button.setVisible(False)
+
+    def _maybe_check_updates(self) -> None:
+        """Runs every minute: starts the automatic check when it's due (once a day)."""
+        from . import updates
+        if (not self.settings.update_check or self._quitting or self._update_checking
+                or time.monotonic() - self._started_mono < updates.FIRST_CHECK_DELAY_S):
+            return
+        if updates.due(updates.load_state()):
+            self._start_update_check(manual=False)
+
+    def check_for_updates(self) -> None:
+        """Help → Check for Updates…: check now and show the answer."""
+        dlg = self._open_update_dialog()
+        dlg.show_checking()
+        self._start_update_check(manual=True)
+
+    def _start_update_check(self, manual: bool) -> None:
+        from . import updates
+        self._update_token += 1
+        self._update_checking = True
+        self._update_manual = self._update_manual or manual
+        st = updates.load_state()
+        st["last_attempt"] = time.time()
+        updates.save_state(st)
+        self.worker.check_update(self._update_token, self.update_client)
+
+    def _on_update_checked(self, token: int, info, error: str) -> None:
+        if token != self._update_token:
+            return
+        from . import updates
+        from dataclasses import asdict
+        manual, self._update_manual = self._update_manual, False
+        self._update_checking = False
+        st = updates.load_state()
+        if error:
+            st["last_error"] = error
+            log.info("update check failed: %s", error)
+        else:
+            st["last_ok"] = time.time()
+            st.pop("last_error", None)
+            if updates.is_newer(info):
+                st["latest"] = asdict(info)
+            else:
+                st.pop("latest", None)
+        updates.save_state(st)
+        dlg = self._update_dialog if manual else None
+        if error:
+            if dlg is not None:
+                dlg.show_error(error)
+            return
+        if not updates.is_newer(info):
+            self._update_info = None
+            self.update_button.setVisible(False)
+            if dlg is not None:
+                dlg.show_up_to_date(info.version)
+            return
+        self._update_info = info
+        skipped = info.version == self.settings.update_skip
+        if dlg is not None:
+            dlg.show_available(info, skipped=skipped)
+        if not skipped:
+            self._announce_update(info, popup=not manual)
+
+    def _restore_known_update(self) -> None:
+        """At startup: show a newer version found by an earlier check, without the network."""
+        from . import updates
+        if not self.settings.update_check:
+            return
+        latest = updates.load_state().get("latest")
+        if not isinstance(latest, dict):
+            return
+        try:
+            info = updates.UpdateInfo(**{k: latest[k] for k in updates.UpdateInfo.__dataclass_fields__
+                                         if k in latest})
+        except TypeError:
+            return
+        if (updates.version_from_tag(info.version) and updates.is_newer(info)
+                and info.version != self.settings.update_skip):
+            self._update_info = info
+            self._announce_update(info, popup=False)
+
+    def _announce_update(self, info, popup: bool) -> None:
+        from . import updates
+        self.update_button.setText(f"⬆ Update available: {info.version}")
+        self.update_button.setVisible(True)
+        if not popup:
+            return
+        st = updates.load_state()
+        if st.get("notified") == info.version:      # tell once per version, not every day
+            return
+        self.statusBar().showMessage(f"{info.title} is available. Click \"Update available\" to see what's new.", 30000)
+        if self.tray is not None and self.tray.isVisible():
+            self.tray.showMessage(f"{APP_NAME} update", f"{info.title} is available. Click to see what's new.",
+                                  QSystemTrayIcon.MessageIcon.Information, 15000)
+        st["notified"] = info.version
+        updates.save_state(st)
+
+    def _open_update_dialog(self):
+        from .update_dialog import UpdateDialog
+        if self._update_dialog is None:
+            # Kept (hidden) and reused rather than deleted on close: a "destroyed" callback
+            # into this window could run while the window itself is being destroyed,
+            # which crashed Qt in testing.
+            dlg = UpdateDialog(self, __version__)
+            dlg.download_requested.connect(self._start_update_download)
+            dlg.cancel_requested.connect(self._cancel_update_download)
+            dlg.skip_requested.connect(self._skip_update)
+            dlg.retry_requested.connect(self.check_for_updates)
+            dlg.github_requested.connect(self._open_release_page)
+            self._update_dialog = dlg
+        self._update_dialog.show()
+        self._update_dialog.raise_()
+        self._update_dialog.activateWindow()
+        return self._update_dialog
+
+    def show_update_dialog(self, info) -> None:
+        if info is None:
+            self.check_for_updates()
+            return
+        dlg = self._open_update_dialog()
+        if not dlg.downloading:
+            dlg.show_available(info, skipped=info.version == self.settings.update_skip)
+
+    def _skip_update(self) -> None:
+        if self._update_info is None:
+            return
+        self.settings.update_skip = self._update_info.version
+        self.save_settings()
+        self.update_button.setVisible(False)
+        self.statusBar().showMessage(f"Version {self._update_info.version} will be skipped. "
+                                     "Help → Check for Updates still shows it.", 10000)
+        if self._update_dialog is not None:
+            self._update_dialog.close()
+
+    def _open_release_page(self) -> None:
+        from . import updates
+        url = self._update_info.page_url if self._update_info else updates.RELEASES_PAGE
+        from PyQt6.QtCore import QUrl
+        from PyQt6.QtGui import QDesktopServices
+        QDesktopServices.openUrl(QUrl(url))
+
+    def _start_update_download(self) -> None:
+        import threading
+        from . import updates
+        if self._update_info is None or self._update_dialog is None or self._update_cancel is not None:
+            return
+        self._update_dl_token += 1
+        self._update_cancel = threading.Event()
+        self._update_dialog.show_downloading()
+        self.worker.download_update(self._update_dl_token, self.update_client, self._update_info,
+                                    updates.downloads_folder(), self._update_cancel)
+
+    def _cancel_update_download(self) -> None:
+        if self._update_cancel is not None:
+            self._update_cancel.set()
+
+    def _on_update_progress(self, token: int, done, total) -> None:
+        if token == self._update_dl_token and self._update_dialog is not None:
+            self._update_dialog.set_progress(int(done), int(total))
+
+    def _on_update_downloaded(self, token: int, path: str, error: str) -> None:
+        if token != self._update_dl_token:
+            return
+        self._update_cancel = None
+        dlg = self._update_dialog
+        if error:
+            log.info("update download: %s", error)
+            if dlg is not None:
+                dlg.show_download_failed(error)
+            return
+        opened = False
+        try:
+            opened = bool(self.open_file(path))
+        except Exception as e:
+            log.warning("could not open the package installer: %s", e)
+        if dlg is not None:
+            dlg.show_downloaded(path, opened)
+        else:
+            self.statusBar().showMessage(f"Update downloaded and checked: {path}", 30000)
+
+    @staticmethod
+    def _open_with_desktop(path: str) -> bool:
+        from PyQt6.QtCore import QUrl
+        from PyQt6.QtGui import QDesktopServices
+        return QDesktopServices.openUrl(QUrl.fromLocalFile(path))
+
     def _on_tray_activated(self, reason) -> None:
         if reason == QSystemTrayIcon.ActivationReason.Trigger:
             self.toggle_visible()
@@ -1509,6 +1734,10 @@ class MainWindow(QMainWindow):
             self.desktop_widget.close()
             self.desktop_widget.deleteLater()
             self.desktop_widget = None
+        if self._update_cancel is not None:
+            self._update_cancel.set()      # stop a download; its partial file is deleted
+        if self._update_dialog is not None:
+            self._update_dialog.close()
         retire(self.bridge, self.worker)   # worker threads may still be running
         self.refresh_timer.stop()
         self.age_timer.stop()

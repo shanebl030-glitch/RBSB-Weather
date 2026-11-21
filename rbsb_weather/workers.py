@@ -35,6 +35,9 @@ class Bridge(QObject):
     moon_saved = pyqtSignal(str, str)              # path, error ("" = ok)
     earth_ok = pyqtSignal(int, object, object, str, str)  # token, QImage|None, time, error, cloud note
     provider_test = pyqtSignal(int, str, bool, str)       # token, provider id, ok, message (no keys)
+    update_checked = pyqtSignal(int, object, str)         # token, UpdateInfo|None, error ("" = ok)
+    update_progress = pyqtSignal(int, object, object)     # token, bytes done, bytes total (0 = unknown)
+    update_downloaded = pyqtSignal(int, str, str)         # token, path, error ("" = ok)
 
 
 # Bridges are never destroyed while a worker thread might still emit on them.
@@ -131,6 +134,46 @@ class Worker:
                 ok, msg = False, redact(f"Unexpected error: {e}", [key])
             self.bridge.provider_test.emit(token, provider_id, ok, msg)
         self._spawn("provider-test", job)
+
+    def check_update(self, token: int, client) -> None:
+        """Ask GitHub for the latest release (updates.py), off the GUI thread."""
+        def job():
+            from .updates import UpdateError
+            try:
+                info = client.check()
+            except UpdateError as e:
+                self.bridge.update_checked.emit(token, None, str(e))
+                return
+            except Exception as e:
+                log.exception("update check crashed")
+                self.bridge.update_checked.emit(token, None, f"Unexpected error: {e}")
+                return
+            self.bridge.update_checked.emit(token, info, "")
+        self._spawn("update-check", job)
+
+    def download_update(self, token: int, client, info, folder, cancel_event) -> None:
+        """Download and verify the update's .deb; progress is sent at most ~10 times a second."""
+        def job():
+            from .updates import UpdateError
+            import time as _t
+            last = [0.0]
+
+            def progress(done, total):
+                now = _t.monotonic()
+                if now - last[0] >= 0.1 or (total and done >= total):
+                    last[0] = now
+                    self.bridge.update_progress.emit(token, done, total)
+            try:
+                path = client.download(info, folder, progress, cancel_event.is_set)
+            except UpdateError as e:
+                self.bridge.update_downloaded.emit(token, "", str(e))
+                return
+            except Exception as e:
+                log.exception("update download crashed")
+                self.bridge.update_downloaded.emit(token, "", f"Unexpected error: {e}")
+                return
+            self.bridge.update_downloaded.emit(token, str(path), "")
+        self._spawn("update-download", job)
 
     def search(self, token: int, query: str) -> None:
         def job():
