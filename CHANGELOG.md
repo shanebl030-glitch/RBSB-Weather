@@ -4,7 +4,69 @@ Created By Shane BlackbuRn
 
 Entries before 2.0.0 use the app's old name, WeatherDesk, as they were written.
 
-## 2.2.0 – 2026-11-21 (on branch claude/rbsb-weather-2.2.0; not released)
+## 2.3.0 – 2026-11-22 (on branch claude/rbsb-weather-2.3.0; not released)
+
+Requested by Shane: "on the wind tab can we add to Other layers (temperature,
+rain)".
+
+### Added – temperature and rain & snow layers on the Wind tab
+- **Three layer buttons** above the globe: **🌬 Wind**, **🌡 Temperature** and
+  **🌧 Rain & snow**. The choice is remembered. The moving streaks always
+  follow the wind, on every layer.
+- **Temperature:** the air 2 m above the ground, coloured from purple and blue
+  (freezing) through green to orange and red (hot). The key is in °C or °F.
+- **Rain & snow:** the forecast's precipitation rate (snow counted as the water
+  it melts to), from light blue drizzle to purple downpours. Dry areas are
+  see-through, so the Earth shows. The key is in mm/h or in/h, on a
+  square-root scale so light rain isn't squashed against the end.
+  - It's the model's average over the few hours before the time shown (as
+    GFS publishes it), and the line above the globe says so.
+- **Hover readout** now gives everything at that point, for example "wind
+  16 km/h from the ENE (57°) · 61°F · rain/snow dry", in your units. Over a
+  saved place it gives that place's.
+- The colour key and readout change instantly with View → Units.
+
+### Data
+- The same NOAA download now also gets GFS **TMP 2 m above ground** and
+  **PRATE at the surface**, about 400 KB in all (was 200 KB):
+  - NOMADS: the filter asks for the extra variables and levels;
+  - AWS: the index gives their byte ranges too. Only the four fields are
+    fetched; surface temperature and accumulated rain are skipped.
+- Kelvin is converted to °C, and kg/m²/s to mm/h.
+  - A field on a different grid from the wind is left out, not guessed.
+  - Without the new fields, the tab shows the wind as before.
+- **A map saved by 2.2.0 (wind only)** is shown at once, and the layers are
+  downloaded once (the saved file now records what it holds). Until then the
+  Temperature and Rain buttons are greyed out, with a tooltip saying why.
+
+### Fixed during development (never released)
+- **"Rain _snow":** Qt treats `&` in a button label as a keyboard shortcut
+  marker, so it showed an underline. The label now shows "Rain & snow".
+- **The colour key hidden behind the globe:** on a short window, the colour
+  key and "Moving streaks" were drawn over by the globe (seen in a
+  screenshot), because the new button row made the tab taller than the globe's
+  minimum allowed. The globe now gives way.
+
+### Tests
+- New test file `tests/data/gfs_2p5_layers.grib2`: the real GFS 10 m wind, 2 m
+  temperature and precipitation rate (one field per message), with ecCodes'
+  values. Regenerating the test files left every existing one byte-identical.
+- `test_wind`: 26 → 35 tests. It checks:
+  - temperature and rain against ecCodes' values (converted), with plausible
+    world ranges;
+  - wind-only files;
+  - pure Python agreeing with numpy;
+  - colour maps (dry is see-through, cold is blue, hot is red), and falling
+    back to wind;
+  - the readout in knots, °F and in/h;
+  - the NOMADS filter asking for all four fields;
+  - the index ranges (picking TMP 2 m and PRATE, not surface TMP or APCP);
+  - the AWS fallback fetching exactly the four fields;
+  - upgrading a saved 2.2.0 map once;
+  - the layer buttons (remembered, legend and units, streaks still moving);
+  - buttons greyed out without the layers, keeping the choice.
+
+## 2.2.0 – 2026-11-21 (released as v2.2.0)
 
 Requested by Shane: "I'd like to add new tab for wind etc... as attached as a
 globe" (with a screenshot of a world wind map). He chose NOAA GFS as the data
@@ -102,7 +164,7 @@ merged yet either.
   download, and whether today's 1° files use the same packing as the sample,
   can only be checked on Shane's Mint.
 
-## 2.1.2 – 2026-11-21 (on branch claude/rbsb-weather-2.1.2; not released)
+## 2.1.2 – 2026-11-21 (released in v2.2.0)
 
 Requested by Shane: "one more update for the widget, under the city location
 list the weather provider in small font".

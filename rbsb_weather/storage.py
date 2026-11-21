@@ -109,6 +109,7 @@ class Settings:
     startup_update_all: bool = True           # update every saved location at startup (1.16)
     update_check: bool = True                 # check GitHub for a newer version once a day (2.1)
     update_skip: str = ""                     # a version the user chose to skip ("" = none)
+    wind_layer: str = "wind"                  # Wind tab layer: wind | temp | rain (2.3)
     weather_source: str = "open-meteo"        # 1.12 setting; kept in step with provider_chain[0]
     # Weather Providers (1.13): primary first, then backups in order; and when to go back
     # to the primary after it failed (see providers/manager.py RECOVERY)
@@ -184,6 +185,7 @@ class Settings:
             "startup_update_all": self.startup_update_all,
             "update_check": self.update_check,
             "update_skip": self.update_skip,
+            "wind_layer": self.wind_layer,
             "weather_source": self.weather_source,
             "provider_chain": list(self.provider_chain),
             "provider_recovery": self.provider_recovery,
@@ -249,6 +251,8 @@ class Settings:
         skip = d.get("update_skip")
         if isinstance(skip, str) and re.fullmatch(r"\d{1,4}(\.\d{1,4}){0,3}", skip):
             s.update_skip = skip
+        if d.get("wind_layer") in ("wind", "temp", "rain"):
+            s.wind_layer = d["wind_layer"]
         if d.get("widget_size") in WIDGET_SIZES:
             s.widget_size = d["widget_size"]
         if isinstance(d.get("window_geometry"), str):

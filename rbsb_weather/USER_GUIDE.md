@@ -221,19 +221,33 @@ and Rotate slowly is unavailable.
 
 ## Wind
 
-The **🌬 Wind** tab shows the wind over the whole world on a globe, 10 m above
-the ground:
+The **🌬 Wind** tab shows the weather over the whole world on a globe. Choose
+what the colours show with the buttons above the globe; your choice is
+remembered:
 
-* **Colours** show the wind speed, from calm blue through green and yellow to
-  red and purple for storm-force winds. The key under the globe is in your
-  wind unit (View → Units).
+* **🌬 Wind**: wind speed 10 m above the ground.
+* **🌡 Temperature**: air temperature 2 m above the ground, from purple and
+  blue for freezing through green to orange and red for hot. The key is in your
+  temperature unit.
+* **🌧 Rain & snow**: where it's raining or snowing, from light blue for
+  drizzle through green and yellow to red and purple for downpours (snow is
+  measured as the water it melts to). Dry areas are see-through, so you see
+  the Earth. This is the forecast's average rate over the few hours before the
+  time shown, so it shows rain bands and storms rather than single showers.
+
+The moving streaks always follow the wind, whichever layer is shown.
+
+* **Colours** for wind show the speed, from calm blue through green and yellow
+  to red and purple for storm-force winds. The key under the globe is in your
+  units (View → Units).
 * **Moving streaks** follow the wind, so you can see where the air is going
   and spot the swirls of lows and highs. Untick **Moving streaks** to stop
   them (they also stop when View → Animations is off, or when another tab is
   showing).
-* **Hover** anywhere on the globe to see the wind there: its speed and the
-  direction it's coming **from**, as weather forecasts give it. Hovering over
-  one of your saved places shows the wind at that place.
+* **Hover** anywhere on the globe to see the weather there: the wind speed and
+  the direction it's coming **from** (as weather forecasts give it), the
+  temperature, and the rain or snow rate. Hovering over one of your saved
+  places shows that place's.
 * **Drag** to turn the globe, use the **mouse wheel** or **+ / −** to zoom,
   and click **Centre on selected** to turn to your selected place.
 * Coastlines are drawn so you can see where the land is.
@@ -245,7 +259,7 @@ gusts around hills don't show. The line above the globe says which time the
 map is for. It's always the forecast closest to now (GFS has one every 3
 hours), from the newest run that's been published.
 
-The wind is only downloaded when you open the tab (about 200 KB), then again
+It's only downloaded when you open the tab (about 400 KB), then again
 every 3 hours while you use it. It's saved, so the tab works offline with the
 last map. If NOAA can't be reached, the saved map stays up and the line above
 the globe says so.

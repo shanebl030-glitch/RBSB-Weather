@@ -1,4 +1,7 @@
-"""The Wind tab (2.2.0): world wind on the globe, coloured by speed, with moving streaks.
+"""The Wind tab: world weather on the globe, with moving wind streaks.
+
+Layers: 🌬 wind speed (2.2.0), 🌡 air temperature and 🌧 rain & snow (2.3.0). The
+streaks always follow the wind, whichever layer is coloured in.
 
 Reuses the Earth Globe's projection, dragging, zooming and saved-place markers
 (GlobeView). The globe's picture is the Earth map, dimmed, with the wind-speed
@@ -46,9 +49,33 @@ TRAIL_FADE = 0.95                # how much of a trail survives each frame
 MAP_W, MAP_H = 1440, 720         # globe picture (smooth upscale of the 1° grid)
 
 
+LAYERS = (("wind", "🌬 Wind"), ("temp", "🌡 Temperature"), ("rain", "🌧 Rain && snow"))   # && shows "&"
+
+
 def wind_text(u: float, v: float, wind_unit: str) -> str:
     spd, frm = W.speed_and_direction(u, v)
     return f"{units.fmt_wind(spd * 3.6, wind_unit)} from the {units.compass(frm)} ({frm:.0f}°)"
+
+
+def rain_text(mm_h: float, precip_unit: str) -> str:
+    if mm_h < W.RAIN_MIN:
+        return "dry"
+    if precip_unit == "in":
+        return f"{units.convert_precip(mm_h, 'in'):.2f} in/h"
+    return f"{mm_h:.1f} mm/h"
+
+
+def point_text(fld: W.WindField, lat: float, lon: float, wind_unit: str, temp_unit: str,
+               precip_unit: str) -> str:
+    """Everything known at a point: wind, and temperature and rain when downloaded."""
+    parts = [f"wind {wind_text(*fld.at(lat, lon), wind_unit)}"]
+    t = fld.temp_at(lat, lon)
+    if t is not None:
+        parts.append(units.fmt_temp(t, temp_unit))
+    r = fld.rain_at(lat, lon)
+    if r is not None:
+        parts.append(f"rain/snow {rain_text(r, precip_unit)}")
+    return " · ".join(parts)
 
 
 _coast_cache: dict = {}
@@ -89,8 +116,8 @@ def coastlines(w: int = MAP_W, h: int = MAP_H) -> Optional[QImage]:
     return out
 
 
-def compose_map(fld: W.WindField) -> QImage:
-    """The globe picture: the day Earth map dimmed, with the speed colours over it."""
+def compose_map(fld: W.WindField, layer: str = "wind") -> QImage:
+    """The globe picture: the day Earth map dimmed, with the layer's colours over it."""
     out = QImage(MAP_W, MAP_H, QImage.Format.Format_ARGB32_Premultiplied)
     out.fill(QColor(10, 14, 24))
     p = QPainter(out)
@@ -101,10 +128,10 @@ def compose_map(fld: W.WindField) -> QImage:
             p.drawImage(QRectF(0, 0, MAP_W, MAP_H), E._texture(E.DAY_FILE))
         except Exception:
             pass                                  # still useful without the map
-        p.setOpacity(0.62)
-        speeds = W.speed_map(fld).scaled(MAP_W, MAP_H, Qt.AspectRatioMode.IgnoreAspectRatio,
-                                         Qt.TransformationMode.SmoothTransformation)
-        p.drawImage(0, 0, speeds)
+        p.setOpacity(0.62 if layer != "rain" else 0.85)
+        colours = W.layer_map(fld, layer).scaled(MAP_W, MAP_H, Qt.AspectRatioMode.IgnoreAspectRatio,
+                                                 Qt.TransformationMode.SmoothTransformation)
+        p.drawImage(0, 0, colours)
         coast = coastlines()
         if coast is not None:
             p.setOpacity(0.8)
@@ -200,6 +227,8 @@ class WindView(GlobeView):
         super().__init__(parent)
         self.field: Optional[W.WindField] = None
         self.wind_unit = "km/h"
+        self.temp_unit = "C"
+        self.precip_unit = "mm"
         self.message = "Getting the world wind from NOAA…"
         self.particles = Particles(PARTICLES_NUMPY if has_numpy() else PARTICLES_PYTHON)
         self.trails: Optional[QImage] = None
@@ -210,6 +239,9 @@ class WindView(GlobeView):
         self.timer.setInterval(FRAME_MS)
         self.timer.timeout.connect(self._frame)
         self.card.hide()
+        # the tab also has a row of layer buttons and the colour key: let the globe give way
+        # on a short window instead of overlapping them
+        self.setMinimumSize(260, 180)
 
     # -- no location card or Sun/Moon on this globe; markers and labels stay
     def refresh_card(self, now=None) -> None:
@@ -336,12 +368,13 @@ class WindView(GlobeView):
             self.hover_text.emit("")
             return
         lat, lon, u, v = w
+        units_ = (self.wind_unit, self.temp_unit, self.precip_unit)
         txt = (f"{abs(lat):.1f}°{'N' if lat >= 0 else 'S'} {abs(lon):.1f}°{'E' if lon >= 0 else 'W'}: "
-               f"wind {wind_text(u, v, self.wind_unit)}")
+               f"{point_text(self.field, lat, lon, *units_)}")
         self.hover_text.emit(txt)
         key = self.marker_at(e.position())
         m = next((x for x in self.markers if x.key == key), None)
-        self.setToolTip(f"{m.name}: {wind_text(*self.field.at(m.lat, m.lon), self.wind_unit)}" if m else txt)
+        self.setToolTip(f"{m.name}: {point_text(self.field, m.lat, m.lon, *units_)}" if m else txt)
 
     def leaveEvent(self, e):
         super().leaveEvent(e)
@@ -388,18 +421,44 @@ class WindView(GlobeView):
 
 
 class SpeedLegend(QWidget):
-    """The colour key, labelled in the user's wind unit."""
+    """The colour key for the layer shown, labelled in the user's units."""
+
+    TICKS = {"wind": [0, 4, 8, 12.5, 18, 27, 34], "temp": [-40, -20, 0, 10, 20, 30, 45],
+             "rain": [0.1, 1, 4, 12, 35]}
+    TIPS = {"wind": "Wind speed 10 m above the ground", "temp": "Air temperature 2 m above the ground",
+            "rain": "Rain and snow (melted), as the forecast's average rate over the hours before"}
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.unit = "km/h"
+        self.temp_unit = "C"
+        self.precip_unit = "mm"
+        self.layer = "wind"
         self.setMinimumSize(260, 30)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.setToolTip("Wind speed 10 m above the ground")
+        self.setToolTip(self.TIPS["wind"])
 
     def set_unit(self, unit: str) -> None:
         self.unit = unit
         self.update()
+
+    def set_layer(self, layer: str, temp_unit: Optional[str] = None, precip_unit: Optional[str] = None) -> None:
+        self.layer = layer if layer in W.SCALES else "wind"
+        self.temp_unit = temp_unit or self.temp_unit
+        self.precip_unit = precip_unit or self.precip_unit
+        self.setToolTip(self.TIPS[self.layer])
+        self.update()
+
+    def _label(self, x: float, last: bool) -> str:
+        if self.layer == "temp":
+            return units.fmt_temp(x, self.temp_unit)
+        if self.layer == "rain":
+            if self.precip_unit == "in":
+                v = units.convert_precip(x, "in")
+                return f"{v:.2f}".rstrip("0").rstrip(".") + (" in/h" if last else "")
+            return f"{x:g}" + (" mm/h" if last else "")
+        label = f"{units.convert_wind(x * 3.6, self.unit):.0f}" if x else "0"
+        return label + (f" {self.unit}" if last else "")
 
     def paintEvent(self, _e):
         p = QPainter(self)
@@ -408,10 +467,15 @@ class SpeedLegend(QWidget):
             top = 2
             h = 10
             r = QRectF(4, top, self.width() - 8, h)
-            top_speed = W.SPEED_COLOURS[-1][0]
+            stops = W.SCALES[self.layer]
+            lo, hi = stops[0][0], stops[-1][0]
+            if self.layer == "rain":                     # mm/h spread out: use a square-root scale
+                pos = lambda x: math.sqrt(max(0.0, x - lo) / (hi - lo))      # noqa: E731
+            else:
+                pos = lambda x: (x - lo) / (hi - lo)                          # noqa: E731
             g = QLinearGradient(r.left(), 0, r.right(), 0)
-            for s, (cr, cg, cb) in W.SPEED_COLOURS:
-                g.setColorAt(s / top_speed, QColor(cr, cg, cb))
+            for x, (cr, cg, cb) in stops:
+                g.setColorAt(min(1.0, max(0.0, pos(x))), QColor(cr, cg, cb))
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(g)
             p.drawRoundedRect(r, 3, 3)
@@ -419,16 +483,14 @@ class SpeedLegend(QWidget):
             f.setPointSizeF(max(7.0, f.pointSizeF() * 0.8))
             p.setFont(f)
             p.setPen(self.palette().color(self.foregroundRole()))
-            ticks = [0, 4, 8, 12.5, 18, 27, 34]
-            for s in ticks:
-                x = r.left() + s / top_speed * r.width()
-                label = f"{units.convert_wind(s * 3.6, self.unit):.0f}" if s else "0"
-                if s == ticks[-1]:
-                    label += f" {self.unit}"
-                fm = p.fontMetrics()
+            ticks = self.TICKS[self.layer]
+            fm = p.fontMetrics()
+            for x in ticks:
+                label = self._label(x, x == ticks[-1])
                 w = fm.horizontalAdvance(label)
-                x = min(max(x - w / 2, 0), self.width() - w)
-                p.drawText(QPointF(x, top + h + fm.ascent() + 2), label)
+                cx = r.left() + pos(x) * r.width()
+                cx = min(max(cx - w / 2, 0), self.width() - w)
+                p.drawText(QPointF(cx, top + h + fm.ascent() + 2), label)
         finally:
             p.end()
 
@@ -436,6 +498,7 @@ class SpeedLegend(QWidget):
 class WindPanel(QWidget):
     location_clicked = pyqtSignal(str)
     refresh_requested = pyqtSignal()
+    layer_changed = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -444,6 +507,20 @@ class WindPanel(QWidget):
         self.info = QLabel("Wind 10 m above the ground, from NOAA's GFS forecast.")
         self.info.setWordWrap(True)
         lay.addWidget(self.info)
+        layers = QHBoxLayout()                     # 🌬 Wind · 🌡 Temperature · 🌧 Rain & snow (2.3)
+        layers.setSpacing(4)
+        self.layer = "wind"
+        self.layer_buttons: dict[str, QPushButton] = {}
+        for key, text in LAYERS:
+            b = QPushButton(text)
+            b.setCheckable(True)
+            b.setAutoExclusive(True)
+            b.setChecked(key == "wind")
+            b.clicked.connect(lambda _=False, k=key: self.set_layer(k, user=True))
+            layers.addWidget(b)
+            self.layer_buttons[key] = b
+        layers.addStretch(1)
+        lay.addLayout(layers)
         self.view = WindView()
         self.view.location_clicked.connect(self.location_clicked.emit)
         lay.addWidget(self.view, 1)
@@ -484,17 +561,55 @@ class WindPanel(QWidget):
         self.view.wind_unit = unit
         self.legend.set_unit(unit)
 
+    def set_units(self, wind_unit: str, temp_unit: str, precip_unit: str) -> None:
+        self.view.wind_unit, self.view.temp_unit, self.view.precip_unit = wind_unit, temp_unit, precip_unit
+        self.legend.set_unit(wind_unit)
+        self.legend.set_layer(self.legend.layer, temp_unit, precip_unit)
+
+    def _shown_layer(self) -> str:
+        fld = self.view.field
+        return self.layer if fld is None or self.layer in fld.layers else "wind"
+
+    def set_layer(self, layer: str, user: bool = False) -> None:
+        """Show another layer (the wind streaks stay). `user`: chosen with a button (remembered)."""
+        if layer not in dict(LAYERS):
+            layer = "wind"
+        self.layer = layer
+        shown = self._shown_layer()
+        for k, b in self.layer_buttons.items():
+            b.setChecked(k == shown)
+        self.legend.set_layer(shown)
+        fld = self.view.field
+        if fld is not None:
+            self.view.set_source(compose_map(fld, shown), fld.valid)
+            self.info.setText(info_text(fld, layer=shown))
+        if user:
+            self.layer_changed.emit(layer)
+
+    def _update_buttons(self) -> None:
+        fld = self.view.field
+        for k, b in self.layer_buttons.items():
+            ok = fld is not None and k in fld.layers
+            b.setEnabled(ok or k == "wind")
+            b.setToolTip("" if ok or k == "wind" else "Not in the saved forecast yet: it comes with the next download")
+
     def set_field(self, fld: Optional[W.WindField], error: str = "", source: str = "") -> None:
         if fld is None:
             self.view.set_field(None, None, error or "The world wind isn't available yet.")
             self.info.setText(error or "The world wind isn't available yet.")
+            self._update_buttons()
             return
-        self.view.set_field(fld, compose_map(fld))
-        self.info.setText(info_text(fld, error))
+        shown = self.layer if self.layer in fld.layers else "wind"
+        self.view.set_field(fld, compose_map(fld, shown))
+        self._update_buttons()
+        for k, b in self.layer_buttons.items():
+            b.setChecked(k == shown)
+        self.legend.set_layer(shown)
+        self.info.setText(info_text(fld, error, layer=shown))
 
     def retime(self) -> None:
         if self.view.field is not None:
-            self.info.setText(info_text(self.view.field))
+            self.info.setText(info_text(self.view.field, layer=self._shown_layer()))
 
     def showEvent(self, e):
         super().showEvent(e)
@@ -506,10 +621,15 @@ class WindPanel(QWidget):
         self.clock.stop()
 
 
-def info_text(fld: W.WindField, note: str = "") -> str:
+WHAT = {"wind": "Wind 10 m above the ground",
+        "temp": "Air temperature 2 m above the ground (moving streaks: the wind)",
+        "rain": "Rain and snow, as the average rate over the few hours before (moving streaks: the wind)"}
+
+
+def info_text(fld: W.WindField, note: str = "", layer: str = "wind") -> str:
     local = fld.valid.astimezone()
     run = fld.run.astimezone()
-    txt = (f"Wind 10 m above the ground for {local:%a} {units.fmt_clock(local)} (your time), "
+    txt = (f"{WHAT.get(layer, WHAT['wind'])} for {local:%a} {units.fmt_clock(local)} (your time), "
            f"from NOAA's GFS forecast run of {run:%a} {units.fmt_clock(run)}. Updated every 3 hours.")
     if note:
         txt += f" {note}"

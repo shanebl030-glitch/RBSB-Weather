@@ -1,4 +1,4 @@
-# RBSB-Weather 2.2.0
+# RBSB-Weather 2.3.0
 
 *Formerly **WeatherDesk**. Renamed in 2.0.0 because "WeatherDesk" is used by many
 other apps; nothing else changed, and your settings come with you (see
@@ -57,9 +57,10 @@ RBSB-Weather is free and stays free. The same link is in the app under
   weather icon. Click a marker to select that place; the globe turns to face it.
   The globe zooms (wheel, +/−), and the real Sun, Moon (with its phase) and
   stars sit behind it, moving as it turns.
-* A Wind tab: the wind over the whole world on a globe, coloured by speed,
-  with moving streaks that follow it, coastlines, and the wind at any point
-  when you hover. From NOAA's free GFS forecast, updated every 3 hours.
+* A Wind tab: the weather over the whole world on a globe, with layers for
+  wind speed, temperature, and rain & snow, moving streaks that follow the
+  wind, coastlines, and everything at a point when you hover. From NOAA's free
+  GFS forecast, updated every 3 hours.
 * Live satellite clouds on both Earth tabs, updated every 3 hours: white over
   the day side, hiding city lights at night.
 * A 24-hour chart of temperature with the chance of precipitation.
@@ -84,7 +85,7 @@ RBSB-Weather is free and stays free. The same link is in the app under
 ## Install
 
 ```bash
-sudo apt install ./rbsb-weather_2.2.0_all.deb
+sudo apt install ./rbsb-weather_2.3.0_all.deb
 ```
 
 `apt` pulls in `python3-pyqt6` automatically. Launch **RBSB-Weather** from the

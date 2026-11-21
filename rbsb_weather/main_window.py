@@ -381,7 +381,9 @@ class MainWindow(QMainWindow):
         self.wind_panel = WindPanel()                       # world wind on the globe (2.2)
         self.wind_panel.location_clicked.connect(self._on_earth_location_clicked)
         self.wind_panel.refresh_requested.connect(self.request_wind)
-        self.wind_panel.set_wind_unit(self.settings.wind_unit)
+        self.wind_panel.set_units(self.settings.wind_unit, self.settings.temp_unit, self.settings.precip_unit)
+        self.wind_panel.set_layer(self.settings.wind_layer)           # remembered layer (2.3)
+        self.wind_panel.layer_changed.connect(self._on_wind_layer)
         # streaks move only when both View → Animations and the tab's "Moving streaks" are on
         self.wind_panel.streaks_box.toggled.disconnect()
         self.wind_panel.streaks_box.toggled.connect(
@@ -1061,6 +1063,10 @@ class MainWindow(QMainWindow):
         self._wind_token += 1
         self.worker.wind_update(self._wind_token, self._wind_store, self._wind_client)
 
+    def _on_wind_layer(self, layer: str) -> None:
+        self.settings.wind_layer = layer
+        self.save_settings()
+
     def _on_wind_ok(self, token: int, fld, note: str) -> None:
         if token != self._wind_token:
             return
@@ -1304,8 +1310,9 @@ class MainWindow(QMainWindow):
         self.save_settings()
         if attr == "time_format":
             units.set_time_format(value)
-        if attr == "wind_unit":
-            self.wind_panel.set_wind_unit(value)
+        if attr in ("wind_unit", "temp_unit", "precip_unit"):
+            s_ = self.settings
+            self.wind_panel.set_units(s_.wind_unit, s_.temp_unit, s_.precip_unit)
         self._refresh_location_texts()
         self.render()
         if attr == "time_format":
