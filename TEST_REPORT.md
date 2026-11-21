@@ -4,15 +4,15 @@ Created By Shane BlackbuRn
 
 | Item | Result |
 |---|---|
-| Version | 2.1.1 (buy me a coffee link; built on 2.1.0, check for updates) |
+| Version | 2.1.2 (provider name on the desktop widget; built on 2.1.1) |
 | Date | 2026-11-21 |
 | Environment | Ubuntu 24.04.5 (Linux Mint 22 base), Python 3.12, PyQt6 6.6.1 / Qt 6.4.2, headless (offscreen), 2 CPUs, `python3-keyring` installed (no D-Bus, so keys use the private file) |
-| Suites | as 1.18.0, plus **`test_migrate`** (new in 2.0.0) **`test_updates`** (new in 2.1.0) and **`test_support`** (new in 2.1.1) |
-| Tests run | 545 |
-| Passed | 543 |
+| Suites | as 1.18.0, plus **`test_migrate`** (new in 2.0.0) **`test_updates`** (new in 2.1.0) **`test_support`** (new in 2.1.1) and **`test_widget_source`** (new in 2.1.2) |
+| Tests run | 549 |
+| Passed | 547 |
 | Failed / errors | 0 / 0 |
 | Skipped | 2: `test_readonly_dir_raises_oserror` (root ignores directory permissions; it passed as the `nobody` user in 1.11), and the NASA-converter test (needs build-time numpy + tifffile). Neither is an app fault |
-| Run time | about 499 s (2 CPUs), including the 60 s soak |
+| Run time | about 522 s (2 CPUs), including the 60 s soak |
 | Command | `PYTHON=/usr/bin/python3.12 ./run_tests.sh` (full log in `test-results.log`) |
 
 **Mocks and simulations.** Every provider test runs against a local fake
@@ -20,6 +20,16 @@ server sending replies in each service's documented format. That proves
 WeatherDesk handles those formats, failures and recoveries. It does **not**
 prove the live services still send them. None of the weather services could
 be reached from the build machine (all blocked, HTTP 403 from its proxy).
+
+## 2.1.2: provider name on the desktop widget
+
+| Check | Result |
+|---|---|
+| Shown | "Open-Meteo" under the place, smaller than the place name, with a tooltip; the mini forecast keeps clear of it |
+| Wording | "MET Norway (backup)" when a backup supplied it; "Open-Meteo · saved copy" offline; hidden with no location |
+| Fits | "Weather Underground (backup)" at small, medium and large, without overlapping the temperature or update time (tested, and seen in screenshots) |
+| `test_net` leak check | Failed once (18 != 16) from unrelated file activity in the test process; now checks the leaked sockets themselves; still fails when the counter is deliberately broken; 36 clean runs |
+| Update checker on Mint | Shane confirmed 2.1.0 found the published 2.1.1 |
 
 ## 2.1.1: buy me a coffee
 

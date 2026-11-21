@@ -1318,3 +1318,40 @@ suggested $3 or "any amount"; he kept NZ$0.99.
   let him pay himself.
 
 Created By Shane BlackbuRn
+
+## Session 2d – 2026-11-21 – v2.1.2 (provider name on the desktop widget)
+
+**Context:**
+- Shane published 2.1.1. It took a second try, because the first one wasn't
+  published; I walked him through it.
+- I checked it: the files were byte-identical, and the live update check
+  offered 2.1.1 to 2.1.0.
+- He then confirmed on Mint: "Did a check for update and it works". That's
+  the first real update found by the app on a user's machine.
+- Request: "one more update for the widget, under the city location list the
+  weather provider in small font".
+
+**How I read it:** the desktop widget, under the place name. He wasn't asked
+to confirm; it's easy to move if he meant somewhere else.
+
+### Decisions
+| Decision | Reason |
+|---|---|
+| Use the provider that supplied the forecast on screen, with "(backup)" or "· saved copy" when that applies | Says exactly where the weather came from; matches the main window's status bar |
+| Small (7.5 pt at medium size, never below 7 pt), slightly dimmer than the place | "small font"; it supports the place name rather than competing with it |
+| Placed in a column with the place name, the update time staying top right | Keeps the existing layout; the mini forecast avoids it |
+
+### Problem found while testing
+- **One full run failed `test_net`'s "catches a real leak" check (18 != 16).**
+  It's unrelated to the widget. The test compared the whole process's open
+  files, so 2 files opened elsewhere at that moment broke it.
+  - It didn't repeat in 21 runs of core+net and 15 more after the fix.
+  - Rewritten to check the 5 leaked connections themselves.
+  - A deliberately broken counter still makes it fail, so it wasn't weakened.
+
+### Tested
+- 4 new tests, plus screenshots at small, medium and large sizes, with the
+  longest name on the small widget.
+- Full suite: 549 run, 547 passed, 2 skipped (environment-only), 0 failed.
+
+Created By Shane BlackbuRn

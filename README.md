@@ -1,4 +1,4 @@
-# RBSB-Weather 2.1.1
+# RBSB-Weather 2.1.2
 
 *Formerly **WeatherDesk**. Renamed in 2.0.0 because "WeatherDesk" is used by many
 other apps; nothing else changed, and your settings come with you (see
@@ -45,8 +45,8 @@ RBSB-Weather is free and stays free. The same link is in the app under
 * A mini forecast of 1–7 days, with animated icons, high/low and rain chance,
   in the bottom-right of the animated sky. It adapts to the space and stays
   put, with the setting sun or moon passing behind it.
-* A floating desktop widget with the same animated sky, the temperature and
-  when it was last updated.
+* A floating desktop widget with the same animated sky, the temperature,
+  when it was last updated, and which weather provider it came from.
 * A Moon tab with a high-resolution picture of the current phase (correct
   for your hemisphere), moonrise and moonset, upcoming phases, and the next
   7 days. It's calculated on your computer, so it works offline, and you can
@@ -81,7 +81,7 @@ RBSB-Weather is free and stays free. The same link is in the app under
 ## Install
 
 ```bash
-sudo apt install ./rbsb-weather_2.1.1_all.deb
+sudo apt install ./rbsb-weather_2.1.2_all.deb
 ```
 
 `apt` pulls in `python3-pyqt6` automatically. Launch **RBSB-Weather** from the

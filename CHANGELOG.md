@@ -4,7 +4,47 @@ Created By Shane BlackbuRn
 
 Entries before 2.0.0 use the app's old name, WeatherDesk, as they were written.
 
-## 2.1.1 – 2026-11-21 (on branch claude/rbsb-weather-2.1.1; not released)
+## 2.1.2 – 2026-11-21 (on branch claude/rbsb-weather-2.1.2; not released)
+
+Requested by Shane: "one more update for the widget, under the city location
+list the weather provider in small font".
+
+### Added – provider name on the desktop widget
+- Under the place name, in small, slightly dimmer text, the widget shows the
+  weather provider that supplied what's on screen. For example:
+  - `Open-Meteo`;
+  - `MET Norway (backup)` when the main provider couldn't be reached;
+  - `Open-Meteo · saved copy` when offline.
+
+  Hovering over it explains which case it is.
+- The text scales with the widget size, but is never below 7 pt. It fits
+  "Weather Underground (backup)" on the small widget, and the mini forecast
+  keeps clear of it.
+- The line is hidden when no location is selected.
+
+### Tests
+- New `tests/test_widget_source.py` (4 tests). It checks:
+  - the provider is shown under the place, smaller than the place name;
+  - the backup and saved-copy wording;
+  - the line is cleared when there's no location;
+  - the longest name fits every widget size without overlapping the
+    temperature or the update time.
+- Also checked visually at all three sizes.
+
+### Test fix – `test_net` "catches a real leak" check
+- It failed once in a full run ("18 != 16"). It compared every file open in
+  the whole test process before and after opening 5 deliberately "leaked"
+  connections, so anything else opening 2 files at that moment failed it.
+  It didn't happen again in 36 more runs.
+- It now checks that each of the 5 leaked connections is counted, which is
+  what it's meant to prove. A failure message names any other new files.
+- Confirmed it still has teeth: with the leak counter deliberately broken to
+  ignore connections, the test fails.
+
+### Confirmed by Shane on Linux Mint
+- The update checker (2.1.0) found the published 2.1.1 on the real GitHub.
+
+## 2.1.1 – 2026-11-21 (released as v2.1.1)
 
 Requested by Shane: "add to the about and user guide 'If you enjoy this app
 considering buying me a coffee for a $ 0.99' and add my paypal account".
@@ -40,7 +80,7 @@ considering buying me a coffee for a $ 0.99' and add my paypal account".
   so whether the link opens the right PayPal page can only be checked in a
   browser.
 
-## 2.1.0 – 2026-11-21 (on branch claude/rbsb-weather-2.1.0; not released)
+## 2.1.0 – 2026-11-21 (released as v2.1.0)
 
 Requested by Shane: "Is it possible to add a check for updates", with the
 daily check "turned on by default".
@@ -134,7 +174,7 @@ daily check "turned on by default".
 - User Guide: new "Updates" section, and `updates.json` under Files.
 - README: feature line, Update section and module table.
 
-## 2.0.0 – 2026-11-21 (on branch claude/rbsb-weather-2.0.0; not released)
+## 2.0.0 – 2026-11-21 (released as v2.0.0)
 
 Requested by Shane: "WeatherDesk is too common". The app is now
 **RBSB-Weather**. There are no feature changes; existing users' data comes with

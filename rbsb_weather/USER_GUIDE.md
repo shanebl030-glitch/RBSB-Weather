@@ -230,6 +230,12 @@ The top-right corner shows when the weather was last updated, for example
 (for example "(2 h ago)"), if the weather hasn't been updated for a while,
 the last update failed, or it's showing a saved copy while offline.
 
+Under the place name, in small text, is the weather provider the forecast came
+from, for example **Open-Meteo**. It says **(backup)** when your main provider
+couldn't be reached and a backup supplied the weather, and **· saved copy**
+when it's showing the last saved forecast while offline. Hover over it for
+details.
+
 * **Drag** it to move it. Its position is remembered.
 * **Double-click** it to open RBSB-Weather.
 * **Right-click** it for Refresh, Size (small, medium or large), Keep on top

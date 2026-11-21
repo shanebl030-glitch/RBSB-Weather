@@ -1174,6 +1174,17 @@ class MainWindow(QMainWindow):
                        weather_codes.describe(c.weather_code), hilo, conditions_from_forecast(fc))
         dw.scene.set_forecast(forecast_strip.days_from_forecast(fc), forecast_strip.location_today(fc),
                               s.temp_unit)
+        dw.set_source(*self._widget_source_text(fc))
+
+    def _widget_source_text(self, fc: Forecast) -> tuple[str, str]:
+        """The desktop widget's small provider line (2.1.2): who supplied this weather."""
+        name = fc.source or "the weather service"
+        if fc.from_cache:
+            return f"{name} · saved copy", f"Last forecast from {name}, saved on this computer (offline)"
+        if fc.provider_id != self.client.primary:
+            return f"{name} (backup)", (f"Weather from {name}, because the main provider "
+                                         f"couldn't be reached")
+        return name, f"Weather from {name}"
 
     def set_animations(self, on: bool) -> None:
         self.settings.animations = bool(on)

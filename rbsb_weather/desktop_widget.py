@@ -57,23 +57,30 @@ class DesktopWidget(QWidget):
         self.cond = QLabel()
         self.hilo = QLabel()
         self.updated = QLabel()                 # "↻ 19:30" - when the weather was last updated
+        self.source = QLabel()                  # small line under the place: the weather provider (2.1.2)
         self.updated.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         top = QHBoxLayout()                     # place on the left, last update top right
-        top.addWidget(self.place)
+        left = QVBoxLayout()                    # the place, with its provider underneath
+        left.setSpacing(0)
+        left.addWidget(self.place)
+        left.addWidget(self.source)
+        top.addLayout(left)
         top.addStretch(1)
-        top.addWidget(self.updated)
+        top.addWidget(self.updated, 0, Qt.AlignmentFlag.AlignTop)
         lay.addLayout(top)
         lay.addStretch(1)
         lay.addWidget(self.temp)
         lay.addWidget(self.cond)
         lay.addWidget(self.hilo)
-        for lbl in (self.place, self.temp, self.cond, self.hilo, self.updated):
-            if lbl is not self.updated:
+        for lbl in (self.place, self.temp, self.cond, self.hilo, self.updated, self.source):
+            if lbl is self.source:
+                lbl.setStyleSheet("color: rgba(255,255,255,200); background: transparent;")
+            elif lbl is not self.updated:
                 lbl.setStyleSheet("color: white; background: transparent;")
             lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.scene.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         # the mini forecast (bottom right) keeps clear of this text
-        self.scene.avoid_widgets = [self.place, self.temp, self.cond, self.hilo, self.updated]
+        self.scene.avoid_widgets = [self.place, self.source, self.temp, self.cond, self.hilo, self.updated]
         self._apply_size()
         self.set_empty()
 
@@ -88,8 +95,15 @@ class DesktopWidget(QWidget):
         self.updated.setVisible(bool(text))
         self.updated_warn = warn
 
+    def set_source(self, text: str, tooltip: str = "") -> None:
+        """The small provider line under the place, e.g. "Open-Meteo" or "MET Norway (backup)"."""
+        self.source.setText(text)
+        self.source.setToolTip(tooltip)
+        self.source.setVisible(bool(text))
+
     def set_empty(self) -> None:
         self.set_updated("")
+        self.set_source("")
         self.scene.set_forecast([], None, "C")
         self.place.setText(APP_NAME)
         self.temp.setText("–")
@@ -116,9 +130,10 @@ class DesktopWidget(QWidget):
         base = h / 170.0
         for lbl, pts, bold in ((self.place, 10.5, True), (self.temp, 30, True),
                                (self.cond, 11, False), (self.hilo, 9.5, False),
-                               (self.updated, 8.5, False)):
+                               (self.updated, 8.5, False), (self.source, 7.5, False)):
             f = QFont(self.font())
-            f.setPointSizeF(max(7.5, pts * base) if lbl is self.updated else pts * base)
+            f.setPointSizeF(max(7.0 if lbl is self.source else 7.5, pts * base)
+                            if lbl in (self.updated, self.source) else pts * base)
             f.setBold(bold)
             lbl.setFont(f)
 
