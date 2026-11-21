@@ -4,6 +4,42 @@ Created By Shane BlackbuRn
 
 Entries before 2.0.0 use the app's old name, WeatherDesk, as they were written.
 
+## 2.1.1 – 2026-11-21 (on branch claude/rbsb-weather-2.1.1; not released)
+
+Requested by Shane: "add to the about and user guide 'If you enjoy this app
+considering buying me a coffee for a $ 0.99' and add my paypal account".
+
+### Added – buy me a coffee
+- "☕ If you enjoy this app, consider buying me a coffee for NZ$0.99" with a
+  **Buy me a coffee with PayPal** link appears in three places:
+  - **Help → About** (the link is clickable);
+  - the **User Guide** (new "Support RBSB-Weather" section);
+  - the **README** (new "Support" section).
+- New **Help → Buy Me a Coffee…** opens the PayPal page in the browser. If no
+  browser can be opened, the link is shown so it can be copied.
+- **The link:** a PayPal payment link for NZ$0.99 ("Coffee for RBSB-Weather"),
+  paid to Shane's account and identified by its PayPal Merchant ID. That ID is
+  public by design, and no email address or other personal details are in
+  the app or on GitHub.
+  - PayPal.Me isn't available for this account (the page bounces back to the
+    Summary).
+  - PayPal's Donate button needs a registered charity.
+- Wording tidied from "considering ... for a $ 0.99" to "consider ... for
+  NZ$0.99" (Shane: "I'll go with your recommendation"). The currency is shown
+  because PayPal charges in the account's currency.
+
+### Tests
+- New `tests/test_support.py` (6 tests). It checks:
+  - the exact link (https, paypal.com, Merchant ID, NZ$0.99, no email);
+  - the text and link in the User Guide and README;
+  - no Gmail address anywhere in the app or README;
+  - the Help menu opening the link;
+  - the real About box showing a clickable link;
+  - the fallback when no browser opens.
+- **Not tested here:** PayPal refuses automated visits to its payment page,
+  so whether the link opens the right PayPal page can only be checked in a
+  browser.
+
 ## 2.1.0 – 2026-11-21 (on branch claude/rbsb-weather-2.1.0; not released)
 
 Requested by Shane: "Is it possible to add a check for updates", with the

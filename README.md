@@ -1,4 +1,4 @@
-# RBSB-Weather 2.1.0
+# RBSB-Weather 2.1.1
 
 *Formerly **WeatherDesk**. Renamed in 2.0.0 because "WeatherDesk" is used by many
 other apps; nothing else changed, and your settings come with you (see
@@ -24,6 +24,13 @@ design; Claude (Anthropic's AI) wrote the code and the tests to his spec.
 (afternoon showers and a thunderstorm, a clear night with stars and the Moon,
 dawn fog, then sunshine). Recorded from RBSB-Weather itself with sample forecast
 data.*
+
+## Support
+
+☕ If you enjoy this app, consider buying me a coffee for NZ$0.99: [Buy me a coffee with PayPal](https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=M4EDN77T6EEPJ&item_name=Coffee+for+RBSB-Weather&amount=0.99&currency_code=NZD)
+
+RBSB-Weather is free and stays free. The same link is in the app under
+**Help → Buy Me a Coffee…** and **Help → About**.
 
 ## Features
 
@@ -74,7 +81,7 @@ data.*
 ## Install
 
 ```bash
-sudo apt install ./rbsb-weather_2.1.0_all.deb
+sudo apt install ./rbsb-weather_2.1.1_all.deb
 ```
 
 `apt` pulls in `python3-pyqt6` automatically. Launch **RBSB-Weather** from the
