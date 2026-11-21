@@ -1,0 +1,209 @@
+{
+ "gfs_2p5_wind10m.grib2": [
+  {
+   "ni": 144,
+   "nj": 73,
+   "category": 2,
+   "number": 2,
+   "packing": "grid_complex_spatial_differencing",
+   "scan": 0,
+   "samples": {
+    "0": -7.11,
+    "1": -7.1,
+    "3504": -0.06,
+    "5256": -9.17,
+    "10511": -3.03
+   },
+   "sha256_3dp": "d8ad56f2167309c53733a879f63db14396b5ad2963fc65ac2d4c717a5f1e91e4",
+   "missing": 0
+  },
+  {
+   "ni": 144,
+   "nj": 73,
+   "category": 2,
+   "number": 3,
+   "packing": "grid_complex_spatial_differencing",
+   "scan": 0,
+   "samples": {
+    "0": 0.13,
+    "1": 0.44,
+    "3504": -2.48,
+    "5256": -1.85,
+    "10511": -1.12
+   },
+   "sha256_3dp": "9f13ffb1030cb1926c0f029802cfa2d782c570ad4d9a84a580d71835b959b5c9",
+   "missing": 0
+  }
+ ],
+ "syn_1deg_csd2.grib2": [
+  {
+   "ni": 360,
+   "nj": 181,
+   "category": 2,
+   "number": 2,
+   "packing": "grid_complex_spatial_differencing",
+   "scan": 0,
+   "samples": {
+    "0": 14.548541,
+    "1": 13.861041,
+    "21720": 2.410357,
+    "32580": 2.006061,
+    "65159": -13.239545
+   },
+   "sha256_3dp": "467afb8c3827007b3ee1ae887620b801f79d72229aacb0853af8449a3178e7d4",
+   "missing": 0
+  }
+ ],
+ "syn_1deg_csd2_v.grib2": [
+  {
+   "ni": 360,
+   "nj": 181,
+   "category": 2,
+   "number": 3,
+   "packing": "grid_complex_spatial_differencing",
+   "scan": 0,
+   "samples": {
+    "0": 2.258111,
+    "1": 1.021783,
+    "21720": 1.383111,
+    "32580": 8.027642,
+    "65159": -0.220893
+   },
+   "sha256_3dp": "e79807eb6829f09758801c7e75a6d943ea8acb9ae16084f75921783e241d9eea",
+   "missing": 0
+  }
+ ],
+ "syn_small_csd1.grib2": [
+  {
+   "ni": 37,
+   "nj": 19,
+   "category": 2,
+   "number": 2,
+   "packing": "grid_complex_spatial_differencing",
+   "scan": 0,
+   "samples": {
+    "0": 14.548965,
+    "1": 13.244278,
+    "234": 8.252579,
+    "351": 6.160294,
+    "702": -12.24791
+   },
+   "sha256_3dp": "5452429aa95069bd33ad5c9414c86d5927a4656ea758422c3c82b0fd0d9dfee4",
+   "missing": 0
+  }
+ ],
+ "syn_small_complex.grib2": [
+  {
+   "ni": 37,
+   "nj": 19,
+   "category": 2,
+   "number": 2,
+   "packing": "grid_complex",
+   "scan": 0,
+   "samples": {
+    "0": 14.548965,
+    "1": 13.244278,
+    "234": 8.252579,
+    "351": 6.160294,
+    "702": -12.24791
+   },
+   "sha256_3dp": "5452429aa95069bd33ad5c9414c86d5927a4656ea758422c3c82b0fd0d9dfee4",
+   "missing": 0
+  }
+ ],
+ "syn_small_simple.grib2": [
+  {
+   "ni": 37,
+   "nj": 19,
+   "category": 2,
+   "number": 2,
+   "packing": "grid_simple",
+   "scan": 0,
+   "samples": {
+    "0": 14.548965,
+    "1": 13.244278,
+    "234": 8.252579,
+    "351": 6.160294,
+    "702": -12.24791
+   },
+   "sha256_3dp": "5452429aa95069bd33ad5c9414c86d5927a4656ea758422c3c82b0fd0d9dfee4",
+   "missing": 0
+  }
+ ],
+ "syn_small_bitmap.grib2": [
+  {
+   "ni": 37,
+   "nj": 19,
+   "category": 2,
+   "number": 2,
+   "packing": "grid_simple",
+   "scan": 0,
+   "samples": {
+    "0": null,
+    "1": 13.244278,
+    "234": 8.252579,
+    "351": 6.160294,
+    "702": -12.24791
+   },
+   "sha256_3dp": "41603d1e1bd90556d327a6955d2d1e4ba961d945010fca782d7b7df8410db838",
+   "missing": 143
+  }
+ ],
+ "syn_small_bitmap_csd2.grib2": [
+  {
+   "ni": 37,
+   "nj": 19,
+   "category": 2,
+   "number": 2,
+   "packing": "grid_complex_spatial_differencing",
+   "scan": 0,
+   "samples": {
+    "0": null,
+    "1": 13.244278,
+    "234": 8.252579,
+    "351": 6.160294,
+    "702": -12.24791
+   },
+   "sha256_3dp": "41603d1e1bd90556d327a6955d2d1e4ba961d945010fca782d7b7df8410db838",
+   "missing": 143
+  }
+ ],
+ "syn_small_south_first.grib2": [
+  {
+   "ni": 37,
+   "nj": 19,
+   "category": 2,
+   "number": 2,
+   "packing": "grid_complex_spatial_differencing",
+   "scan": 64,
+   "samples": {
+    "0": 14.548965,
+    "1": 13.244278,
+    "234": 8.252579,
+    "351": 6.160294,
+    "702": -12.24791
+   },
+   "sha256_3dp": "5452429aa95069bd33ad5c9414c86d5927a4656ea758422c3c82b0fd0d9dfee4",
+   "missing": 0
+  }
+ ],
+ "syn_small_constant.grib2": [
+  {
+   "ni": 37,
+   "nj": 19,
+   "category": 2,
+   "number": 2,
+   "packing": "grid_complex_spatial_differencing",
+   "scan": 0,
+   "samples": {
+    "0": 7.25,
+    "1": 7.25,
+    "234": 7.25,
+    "351": 7.25,
+    "702": 7.25
+   },
+   "sha256_3dp": "e96584a554ed7ce5ba13ae245c4b1b7cba08e9ee801806ff3a796af504a75466",
+   "missing": 0
+  }
+ ]
+}

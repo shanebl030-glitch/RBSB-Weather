@@ -48,6 +48,9 @@ https://www.solarsystemscope.com/textures/, licensed CC BY 4.0
 Live clouds (downloaded at run time, not included in this package): Live Cloud
 Maps by Matt Eason, https://github.com/matteason/live-cloud-maps, CC0 1.0.
 Contains modified EUMETSAT data.
+World wind (Wind tab; downloaded at run time, not included in this package): NOAA
+Global Forecast System (GFS), via NOAA NOMADS or the NOAA Open Data Dissemination
+copy on AWS; public domain (https://www.ncei.noaa.gov/).
 EOF
 
 SIZE=$(du -sk "$ROOT/usr" | cut -f1)

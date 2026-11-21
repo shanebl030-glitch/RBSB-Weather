@@ -21,6 +21,9 @@ if not os.environ.get("XDG_RUNTIME_DIR"):
 # Never contact GitHub from tests: the update check (2.1) goes to a closed local port
 # unless a test points it at its own fake GitHub.
 os.environ["RBSB_WEATHER_UPDATE_URL"] = "http://127.0.0.1:9/releases/latest"
+# ...and the Wind tab (2.2) never reaches NOAA either
+os.environ["RBSB_WEATHER_WIND_NOMADS"] = "http://127.0.0.1:9/nomads"
+os.environ["RBSB_WEATHER_WIND_AWS"] = "http://127.0.0.1:9/aws"
 # Never touch the desktop's real keyring from tests: keys go to the temp config dir.
 os.environ["RBSB_WEATHER_KEYRING"] = "0"
 # Tests talk only to the local fake server; never route them through a proxy.

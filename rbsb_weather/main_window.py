@@ -31,6 +31,7 @@ from .desktop_widget import DesktopWidget
 from .moon_panel import MoonPanel, MoonReport
 from .earth_panel import EarthPanel, Marker
 from .globe_panel import GlobePanel
+from .wind_panel import WindPanel
 from .widgets import HourlyChart, app_icon, render_tray_icon
 from .workers import Bridge, Worker, retire
 from . import forecast_strip
@@ -83,7 +84,7 @@ class MainWindow(QMainWindow):
     def __init__(self, client: Optional[OpenMeteoClient] = None,
                  store: Optional[SettingsStore] = None,
                  cache: Optional[ForecastCache] = None,
-                 enable_tray: bool = True, update_client=None):
+                 enable_tray: bool = True, update_client=None, wind_client=None):
         super().__init__()
         self.store = store or SettingsStore()
         self.cache = cache or ForecastCache()
@@ -172,6 +173,11 @@ class MainWindow(QMainWindow):
         self.open_file = self._open_with_desktop   # replaced in tests (never launches anything)
         self.open_url = self._open_url_in_browser  # likewise (Help → Buy Me a Coffee)
         self.bridge.update_checked.connect(self._on_update_checked)
+        self.bridge.wind_ok.connect(self._on_wind_ok)
+        self._wind_store = None
+        self._wind_client = wind_client
+        self._wind_busy = False
+        self._wind_token = 0
         self.bridge.update_progress.connect(self._on_update_progress)
         self.bridge.update_downloaded.connect(self._on_update_downloaded)
 
@@ -372,6 +378,16 @@ class MainWindow(QMainWindow):
         self.globe_panel.location_clicked.connect(self._on_earth_location_clicked)
         self.globe_panel.compose_requested.connect(self.request_earth)
         self.tabs.addTab(self.globe_panel, "🌐 Earth Globe")
+        self.wind_panel = WindPanel()                       # world wind on the globe (2.2)
+        self.wind_panel.location_clicked.connect(self._on_earth_location_clicked)
+        self.wind_panel.refresh_requested.connect(self.request_wind)
+        self.wind_panel.set_wind_unit(self.settings.wind_unit)
+        # streaks move only when both View → Animations and the tab's "Moving streaks" are on
+        self.wind_panel.streaks_box.toggled.disconnect()
+        self.wind_panel.streaks_box.toggled.connect(
+            lambda on: self.wind_panel.view.set_animate(on and self.settings.animations))
+        self.wind_panel.view.set_animate(self.settings.animations)
+        self.tabs.addTab(self.wind_panel, "🌬 Wind")
         from .clouds import CloudStore
         self.cloud_store = CloudStore(self.cache.dir)
         for panel in (self.earth_panel, self.globe_panel):
@@ -1014,6 +1030,7 @@ class MainWindow(QMainWindow):
         sel = self.settings.selected_location()
         self.earth_panel.set_markers(markers, sel.key if sel else None, self.settings.temp_unit)
         self.globe_panel.set_markers(markers, sel.key if sel else None, self.settings.temp_unit)
+        self.wind_panel.set_markers(markers, sel.key if sel else None, self.settings.temp_unit)
 
     def request_earth(self) -> None:
         # one shared day/night image for both the flat map and the globe
@@ -1023,6 +1040,37 @@ class MainWindow(QMainWindow):
         self.worker.earth_compose(self._earth_token,
                                   self.cloud_store if self.settings.earth_clouds else None,
                                   clouds.CLOUD_URL)
+
+    def request_wind(self) -> None:
+        """Wind tab shown (and every 5 minutes while it is): the saved world wind straight
+        away, and a newer one from NOAA when one is due (every 3 hours)."""
+        if self._wind_busy or getattr(self, "_quitting", False):
+            return
+        if self._wind_store is None:
+            from . import wind
+            from .storage import cache_dir
+            self._wind_store = wind.WindStore(cache_dir() / "wind")
+            self._wind_client = self._wind_client or wind.WindClient()
+        if self.wind_panel.view.field is None:
+            fld = self._wind_store.load()               # instant, even offline
+            if fld is not None:
+                self.wind_panel.set_field(fld)
+        if self.wind_panel.view.field is not None and not self._wind_store.due():
+            return
+        self._wind_busy = True
+        self._wind_token += 1
+        self.worker.wind_update(self._wind_token, self._wind_store, self._wind_client)
+
+    def _on_wind_ok(self, token: int, fld, note: str) -> None:
+        if token != self._wind_token:
+            return
+        self._wind_busy = False
+        if fld is None:
+            if self.wind_panel.view.field is None:
+                self.wind_panel.set_field(None, note)
+            return
+        if fld is not self.wind_panel.view.field:
+            self.wind_panel.set_field(fld, note)
 
     def set_earth_clouds(self, on: bool) -> None:
         """Live clouds on/off (shared by both Earth tabs); redraws the Earth."""
@@ -1174,11 +1222,23 @@ class MainWindow(QMainWindow):
                        weather_codes.describe(c.weather_code), hilo, conditions_from_forecast(fc))
         dw.scene.set_forecast(forecast_strip.days_from_forecast(fc), forecast_strip.location_today(fc),
                               s.temp_unit)
+        dw.set_source(*self._widget_source_text(fc))
+
+    def _widget_source_text(self, fc: Forecast) -> tuple[str, str]:
+        """The desktop widget's small provider line (2.1.2): who supplied this weather."""
+        name = fc.source or "the weather service"
+        if fc.from_cache:
+            return f"{name} · saved copy", f"Last forecast from {name}, saved on this computer (offline)"
+        if fc.provider_id != self.client.primary:
+            return f"{name} (backup)", (f"Weather from {name}, because the main provider "
+                                         f"couldn't be reached")
+        return name, f"Weather from {name}"
 
     def set_animations(self, on: bool) -> None:
         self.settings.animations = bool(on)
         self.act_anim.setChecked(self.settings.animations)
         AnimationClock.instance().set_enabled(self.settings.animations)
+        self.wind_panel.view.set_animate(self.settings.animations and self.wind_panel.streaks_box.isChecked())
         self.save_settings()
 
     def set_desktop_widget(self, on: bool) -> None:
@@ -1244,6 +1304,8 @@ class MainWindow(QMainWindow):
         self.save_settings()
         if attr == "time_format":
             units.set_time_format(value)
+        if attr == "wind_unit":
+            self.wind_panel.set_wind_unit(value)
         self._refresh_location_texts()
         self.render()
         if attr == "time_format":
@@ -1254,7 +1316,7 @@ class MainWindow(QMainWindow):
         except the Earth tab's cloud line, which is redrawn in the background)."""
         if self.moon_panel.report is not None:
             self.moon_panel.show_report(self.moon_panel.report)
-        for panel in (self.earth_panel, self.globe_panel):
+        for panel in (self.earth_panel, self.globe_panel, self.wind_panel):
             panel.retime()
         if self.tabs.currentWidget() in (self.earth_panel, self.globe_panel):
             self.request_earth()
@@ -1497,8 +1559,10 @@ class MainWindow(QMainWindow):
         from .earth import CREDIT as EARTH_CREDIT, SOURCE_URL
         base = "Moon phases and rise/set times calculated on this computer."
         from .clouds import CREDIT as CLOUD_CREDIT, PROJECT_URL
+        from .wind import CREDIT as WIND_CREDIT, PROJECT_URL as WIND_URL
         earth = (f"<br>{EARTH_CREDIT} – <a href='{SOURCE_URL}'>solarsystemscope.com/textures</a>"
-                 f"<br>{CLOUD_CREDIT} – <a href='{PROJECT_URL}'>github.com/matteason/live-cloud-maps</a>")
+                 f"<br>{CLOUD_CREDIT} – <a href='{PROJECT_URL}'>github.com/matteason/live-cloud-maps</a>"
+                 f"<br>{WIND_CREDIT} – <a href='{WIND_URL}'>ncei.noaa.gov</a>")
         return (f"{base}<br>{credit}" if credit else base) + earth
 
     def buy_coffee(self) -> None:

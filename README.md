@@ -1,4 +1,4 @@
-# RBSB-Weather 2.1.1
+# RBSB-Weather 2.2.0
 
 *Formerly **WeatherDesk**. Renamed in 2.0.0 because "WeatherDesk" is used by many
 other apps; nothing else changed, and your settings come with you (see
@@ -45,8 +45,8 @@ RBSB-Weather is free and stays free. The same link is in the app under
 * A mini forecast of 1–7 days, with animated icons, high/low and rain chance,
   in the bottom-right of the animated sky. It adapts to the space and stays
   put, with the setting sun or moon passing behind it.
-* A floating desktop widget with the same animated sky, the temperature and
-  when it was last updated.
+* A floating desktop widget with the same animated sky, the temperature,
+  when it was last updated, and which weather provider it came from.
 * A Moon tab with a high-resolution picture of the current phase (correct
   for your hemisphere), moonrise and moonset, upcoming phases, and the next
   7 days. It's calculated on your computer, so it works offline, and you can
@@ -57,6 +57,9 @@ RBSB-Weather is free and stays free. The same link is in the app under
   weather icon. Click a marker to select that place; the globe turns to face it.
   The globe zooms (wheel, +/−), and the real Sun, Moon (with its phase) and
   stars sit behind it, moving as it turns.
+* A Wind tab: the wind over the whole world on a globe, coloured by speed,
+  with moving streaks that follow it, coastlines, and the wind at any point
+  when you hover. From NOAA's free GFS forecast, updated every 3 hours.
 * Live satellite clouds on both Earth tabs, updated every 3 hours: white over
   the day side, hiding city lights at night.
 * A 24-hour chart of temperature with the chance of precipitation.
@@ -81,7 +84,7 @@ RBSB-Weather is free and stays free. The same link is in the app under
 ## Install
 
 ```bash
-sudo apt install ./rbsb-weather_2.1.1_all.deb
+sudo apt install ./rbsb-weather_2.2.0_all.deb
 ```
 
 `apt` pulls in `python3-pyqt6` automatically. Launch **RBSB-Weather** from the
@@ -198,6 +201,8 @@ sends it. The full log is written to
 | `rbsb_weather/globe.py`, `globe_panel.py` | Globe projection and drawing (numpy or pure Python), Earth Globe tab |
 | `rbsb_weather/net.py` | Fast IPv4/IPv6 connection racing |
 | `rbsb_weather/diagnostics.py` | Help → Test connection |
+| `rbsb_weather/wind.py`, `wind_panel.py` | World wind for the Wind tab: NOAA GFS download (NOMADS, or NOAA's copy on AWS), cache, the globe with colours and moving streaks |
+| `rbsb_weather/grib2.py` | A small GRIB2 reader for the GFS wind (checked against ecCodes) |
 | `rbsb_weather/updates.py`, `update_dialog.py` | Check for updates: GitHub's latest release, verified download, the update window |
 | `rbsb_weather/migrate.py` | Carrying a WeatherDesk user's settings, keys and login entry over to RBSB-Weather (2.0.0) |
 | `rbsb_weather/units.py`, `weather_codes.py` | Unit conversion and weather descriptions |
@@ -234,11 +239,16 @@ Weather Providers). API keys you add are sent only to their own provider and
 are stored in the system keyring or a private file, never in the settings,
 logs or reports. While an Earth tab is open with **Live clouds** on,
 it also downloads the global cloud map from clouds.matteason.co.uk (at most
-once an hour; nothing about you or your locations is sent). There's no
+once an hour; nothing about you or your locations is sent). While the Wind
+tab is open it downloads the world wind from NOAA (nomads.ncep.noaa.gov, or
+NOAA's copy on Amazon) at most every 3 hours; again, nothing about you is
+sent. There's no
 tracking or analytics. Weather data
 comes from [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0) and
 [MET Norway](https://api.met.no/) (CC BY 4.0). Earth maps
 come from [Solar System Scope](https://www.solarsystemscope.com/textures/)
 (CC BY 4.0). Moon imagery comes from NASA's Scientific Visualization Studio
 (public domain). Live clouds come from [Live Cloud Maps](https://github.com/matteason/live-cloud-maps)
-by Matt Eason (CC0) and contain modified EUMETSAT data.
+by Matt Eason (CC0) and contain modified EUMETSAT data. World wind comes from
+NOAA's [Global Forecast System](https://www.ncei.noaa.gov/products/weather-climate-models/global-forecast)
+(public domain).

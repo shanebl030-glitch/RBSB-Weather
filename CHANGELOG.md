@@ -4,7 +4,145 @@ Created By Shane BlackbuRn
 
 Entries before 2.0.0 use the app's old name, WeatherDesk, as they were written.
 
-## 2.1.1 – 2026-11-21 (on branch claude/rbsb-weather-2.1.1; not released)
+## 2.2.0 – 2026-11-21 (on branch claude/rbsb-weather-2.2.0; not released)
+
+Requested by Shane: "I'd like to add new tab for wind etc... as attached as a
+globe" (with a screenshot of a world wind map). He chose NOAA GFS as the data
+source and "wind only" for this first version. Built on 2.1.2, which isn't
+merged yet either.
+
+### Added – the 🌬 Wind tab
+- **The whole world's wind on a globe**, 10 m above the ground:
+  - colours by speed (calm blue → green → yellow → red → purple);
+  - about 2,200 moving streaks with fading trails that follow the wind;
+  - coastlines;
+  - your saved places.
+
+  Drag to turn it, use the wheel or + / − to zoom, and **Centre on selected**
+  turns to your place.
+- **Hover readout:** hovering shows the wind at that point, in your wind unit
+  with the direction it comes *from*. Over a saved place, it shows that
+  place's wind.
+- **Colour key** in your wind unit, which changes instantly with
+  View → Units.
+- **Moving streaks** checkbox:
+  - The streaks also stop when View → Animations is off, and whenever
+    another tab is showing (measured: 0 frames drawn).
+  - Turning or zooming the globe clears them, so they never smear.
+- **The line above the globe** says which time the map is for (your time),
+  from which NOAA run.
+
+### Wind data – NOAA Global Forecast System (GFS)
+- **Grid and timing:** a 1° grid (360 × 181 points), with a forecast every 3
+  hours. The forecast closest to now is shown, from the newest run
+  published. Runs start every 6 hours and are out about 4 hours later; if
+  the newest isn't there yet, the one before is used.
+- **Download size:** only the 10 m U and V wind fields, about 200 KB.
+  - First from **NOMADS** (NOAA's "grib filter", which cuts them out for us).
+  - If that fails, from **NOAA's copy of GFS on AWS**: the run's .idx index
+    gives the byte ranges, and only those bytes are fetched.
+- **When it downloads:** only when the tab is opened, then when a newer
+  forecast hour is due (every 3 hours) while it's open.
+  - It's saved in `~/.cache/rbsb-weather/wind/`, so the tab shows the last
+    map straight away, and offline.
+  - A failed download keeps the saved map, says so, and retries after 20
+    minutes.
+  - A damaged download never replaces the saved map.
+- Public domain; credited in the tab, Help → About, the User Guide, the
+  README and the package's copyright file.
+
+### Added – GRIB2 reader (`rbsb_weather/grib2.py`)
+- GFS data comes in GRIB2, the WMO's binary weather format. RBSB-Weather now
+  reads it itself, so there's no new dependency.
+  - Grids: latitude/longitude grids (template 3.0), any row direction.
+  - Products: template 4.0.
+  - Packing: simple (5.0), complex (5.2), and complex with 1st/2nd order
+    spatial differencing (5.3, what GFS uses).
+  - Bitmaps of missing points are handled.
+  - With or without numpy.
+- Damaged or unexpected files raise a clear error. A file claiming an
+  absurd grid size is refused rather than allocating memory.
+- JPEG2000 and PNG packing aren't supported (GFS doesn't use them), and say
+  so if met.
+
+### How it was checked
+- **Against ecCodes**, ECMWF's reference GRIB library (installed on the build
+  machine only), on a real NOAA GFS file from the pygrib project's samples:
+  - **All 343 fields decode identically**, including 45 with missing
+    points, both with numpy and without.
+  - The 10 m U and V winds from that file are now in `tests/data`.
+- **Synthetic files** written by ecCodes with every supported packing, plus
+  ecCodes' answers, are in `tests/data`, so the tests run on any machine
+  without ecCodes. `tools/make_grib2_fixtures.py` rebuilds them.
+- New `tests/test_grib2.py` (13 tests: every file in both modes, damaged
+  files, huge grids, sign-magnitude integers).
+- New `tests/test_wind.py` (26 tests). A fake NOAA answers like NOMADS and
+  like the AWS copy (index plus byte ranges). They cover:
+  - which run and hour to use, the URLs, and the index byte ranges;
+  - the wind direction convention and interpolation, including the
+    date-line wrap and the poles;
+  - the numpy and pure-Python paths;
+  - NOMADS down (falls back to AWS), the newest run missing (uses the older
+    run), nothing reachable;
+  - the cache, reuse without the network, refreshing after 3 hours, keeping
+    the saved map on failure, a damaged download, and a damaged saved file;
+  - the tab: nothing downloaded until it's opened, frames only while shown
+    and on, the hover readout in knots, streaks cleared on turning, offline
+    with nothing saved, and offline with a saved map;
+  - the frame cost.
+- **Measured** on the build machine (2 CPUs, no GPU):
+  - about 31 frames a second with 2,200 streaks;
+  - about 9.5 ms of CPU per frame (budget 33 ms);
+  - the whole app uses about 34% of one core with streaks moving, and 9%
+    with them off or another tab showing.
+- **Visual:** screenshots of the tab with the real NOAA wind (zoomed in and
+  out), during which the streak density, trail length and the land's
+  visibility were tuned, and coastlines added.
+- **Not tested here:** the build machine can't reach NOAA, so the live
+  download, and whether today's 1° files use the same packing as the sample,
+  can only be checked on Shane's Mint.
+
+## 2.1.2 – 2026-11-21 (on branch claude/rbsb-weather-2.1.2; not released)
+
+Requested by Shane: "one more update for the widget, under the city location
+list the weather provider in small font".
+
+### Added – provider name on the desktop widget
+- Under the place name, in small, slightly dimmer text, the widget shows the
+  weather provider that supplied what's on screen. For example:
+  - `Open-Meteo`;
+  - `MET Norway (backup)` when the main provider couldn't be reached;
+  - `Open-Meteo · saved copy` when offline.
+
+  Hovering over it explains which case it is.
+- The text scales with the widget size, but is never below 7 pt. It fits
+  "Weather Underground (backup)" on the small widget, and the mini forecast
+  keeps clear of it.
+- The line is hidden when no location is selected.
+
+### Tests
+- New `tests/test_widget_source.py` (4 tests). It checks:
+  - the provider is shown under the place, smaller than the place name;
+  - the backup and saved-copy wording;
+  - the line is cleared when there's no location;
+  - the longest name fits every widget size without overlapping the
+    temperature or the update time.
+- Also checked visually at all three sizes.
+
+### Test fix – `test_net` "catches a real leak" check
+- It failed once in a full run ("18 != 16"). It compared every file open in
+  the whole test process before and after opening 5 deliberately "leaked"
+  connections, so anything else opening 2 files at that moment failed it.
+  It didn't happen again in 36 more runs.
+- It now checks that each of the 5 leaked connections is counted, which is
+  what it's meant to prove. A failure message names any other new files.
+- Confirmed it still has teeth: with the leak counter deliberately broken to
+  ignore connections, the test fails.
+
+### Confirmed by Shane on Linux Mint
+- The update checker (2.1.0) found the published 2.1.1 on the real GitHub.
+
+## 2.1.1 – 2026-11-21 (released as v2.1.1)
 
 Requested by Shane: "add to the about and user guide 'If you enjoy this app
 considering buying me a coffee for a $ 0.99' and add my paypal account".
@@ -40,7 +178,7 @@ considering buying me a coffee for a $ 0.99' and add my paypal account".
   so whether the link opens the right PayPal page can only be checked in a
   browser.
 
-## 2.1.0 – 2026-11-21 (on branch claude/rbsb-weather-2.1.0; not released)
+## 2.1.0 – 2026-11-21 (released as v2.1.0)
 
 Requested by Shane: "Is it possible to add a check for updates", with the
 daily check "turned on by default".
@@ -134,7 +272,7 @@ daily check "turned on by default".
 - User Guide: new "Updates" section, and `updates.json` under Files.
 - README: feature line, Update section and module table.
 
-## 2.0.0 – 2026-11-21 (on branch claude/rbsb-weather-2.0.0; not released)
+## 2.0.0 – 2026-11-21 (released as v2.0.0)
 
 Requested by Shane: "WeatherDesk is too common". The app is now
 **RBSB-Weather**. There are no feature changes; existing users' data comes with

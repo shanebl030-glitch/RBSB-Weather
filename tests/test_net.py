@@ -59,6 +59,10 @@ def fd_count():
 
 
 def client_fd_count(server_port: int) -> int:
+    return len(counted_fds(server_port))
+
+
+def counted_fds(server_port: int) -> dict:
     """Open descriptors, leaving out the in-process fake server's own side of its
     connections (and its listener): those are TCP sockets whose LOCAL port is the
     server's port. The fake server closes them from its own thread a moment after the
@@ -76,7 +80,7 @@ def client_fd_count(server_port: int) -> int:
             f = row.split()
             if int(f[1].rsplit(":", 1)[1], 16) == server_port:
                 server_inodes.add(f[9])
-    n = 0
+    counted = {}                                    # fd number -> what it is
     for fd in os.listdir("/proc/self/fd"):
         try:
             target = os.readlink(f"/proc/self/fd/{fd}")
@@ -84,8 +88,8 @@ def client_fd_count(server_port: int) -> int:
             continue                                # closed while we looked
         if target.startswith("socket:[") and target[8:-1] in server_inodes:
             continue
-        n += 1
-    return n
+        counted[int(fd)] = target
+    return counted
 
 
 class NetCase(TempEnvTestCase):
@@ -188,10 +192,20 @@ class TestFastConnect(NetCase):
         """The check above must still fail for a leak on RBSB-Weather's side."""
         self.addrs = [_ai(self.server.port)]
         port = self.server.port
-        before = client_fd_count(port)
+        before = counted_fds(port)
         kept = [net.fast_create_connection(("weather.test", 1), 5) for _ in range(5)]   # "leaked"
         try:
-            self.assertEqual(client_fd_count(port), before + 5)
+            after = counted_fds(port)
+            # Each leaked connection must be counted. (2.1.2: this used to compare the
+            # process's total, which failed once in ~25 full runs when something else
+            # in the test process opened 2 files at that moment; checking the leaked
+            # sockets themselves is exact, and still fails if the check missed a leak.)
+            mine = {k.fileno() for k in kept}
+            missed = mine - set(after)
+            self.assertEqual(missed, set(), f"leaked sockets not counted: {missed}")
+            self.assertFalse(mine & set(before))
+            self.assertGreaterEqual(len(after) - len(before), 5,
+                                    f"new: {[after[f] for f in set(after) - set(before)]}")
         finally:
             for s in kept:
                 s.close()
