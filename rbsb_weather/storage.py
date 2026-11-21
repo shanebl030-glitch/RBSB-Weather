@@ -122,6 +122,16 @@ class Settings:
     alerts_beep_red: bool = False             # beep for Red warnings
     alerts_selected_only: bool = False        # notify only for the selected place
     alerts_muted: list = field(default_factory=list)    # alert ids the user muted
+    # Earthquakes (2.5, see quakes.py)
+    quakes_show: bool = True                  # dots on the Earth tabs
+    quakes_period: str = "day"                # day | week
+    quakes_min_mag: float = 2.5               # 2.5 | 4.5 on the maps
+    quakes_interval: int = 5                  # minutes between checks
+    quakes_notify_near: bool = True           # a quake near a saved place
+    quakes_near_mag: float = 4.5
+    quakes_near_km: int = 300
+    quakes_notify_major: bool = True          # a major quake anywhere
+    quakes_major_mag: float = 7.0
     weather_source: str = "open-meteo"        # 1.12 setting; kept in step with provider_chain[0]
     # Weather Providers (1.13): primary first, then backups in order; and when to go back
     # to the primary after it failed (see providers/manager.py RECOVERY)
@@ -209,6 +219,15 @@ class Settings:
             "alerts_beep_red": self.alerts_beep_red,
             "alerts_selected_only": self.alerts_selected_only,
             "alerts_muted": list(self.alerts_muted),
+            "quakes_show": self.quakes_show,
+            "quakes_period": self.quakes_period,
+            "quakes_min_mag": self.quakes_min_mag,
+            "quakes_interval": self.quakes_interval,
+            "quakes_notify_near": self.quakes_notify_near,
+            "quakes_near_mag": self.quakes_near_mag,
+            "quakes_near_km": self.quakes_near_km,
+            "quakes_notify_major": self.quakes_notify_major,
+            "quakes_major_mag": self.quakes_major_mag,
             "weather_source": self.weather_source,
             "provider_chain": list(self.provider_chain),
             "provider_recovery": self.provider_recovery,
@@ -246,7 +265,8 @@ class Settings:
             s.refresh_minutes = d["refresh_minutes"]
         for k in ("show_tray", "close_to_tray", "animations", "desktop_widget", "widget_on_top", "widget_locked", "earth_clouds",
                   "startup_update_all", "update_check", "alerts_official", "alerts_own", "alerts_banner",
-                  "alerts_notify", "alerts_tray_dot", "alerts_beep_red", "alerts_selected_only"):
+                  "alerts_notify", "alerts_tray_dot", "alerts_beep_red", "alerts_selected_only",
+                  "quakes_show", "quakes_notify_near", "quakes_notify_major"):
             if isinstance(d.get(k), bool):
                 setattr(s, k, d[k])
         for k in ("widget_x", "widget_y"):
@@ -284,6 +304,17 @@ class Settings:
             s.alerts_limits = limits_to_dict(limits_from_dict(d["alerts_limits"]))
         if isinstance(d.get("alerts_muted"), list):
             s.alerts_muted = [str(x)[:300] for x in d["alerts_muted"] if isinstance(x, str)][-200:]
+        if d.get("quakes_period") in ("day", "week"):
+            s.quakes_period = d["quakes_period"]
+        if d.get("quakes_min_mag") in (2.5, 4.5) and not isinstance(d.get("quakes_min_mag"), bool):
+            s.quakes_min_mag = float(d["quakes_min_mag"])
+        if d.get("quakes_interval") in (5, 10, 30) and not isinstance(d.get("quakes_interval"), bool):
+            s.quakes_interval = d["quakes_interval"]
+        for k, lo, hi in (("quakes_near_mag", 2.5, 9.0), ("quakes_major_mag", 5.0, 9.5), ("quakes_near_km", 10, 2000)):
+            v = d.get(k)
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                v = min(hi, max(lo, v))
+                setattr(s, k, int(v) if k == "quakes_near_km" else round(float(v), 1))
         if d.get("wind_layer") in ("wind", "temp", "rain"):
             s.wind_layer = d["wind_layer"]
         if d.get("widget_size") in WIDGET_SIZES:

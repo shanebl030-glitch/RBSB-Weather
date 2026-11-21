@@ -36,6 +36,7 @@ from .widgets import HourlyChart, app_icon, render_tray_icon
 from .workers import Bridge, Worker, retire
 from . import forecast_strip
 from .alerts_ui import AlertsMixin
+from .quakes_ui import QuakesMixin
 
 log = logging.getLogger(__name__)
 
@@ -81,11 +82,12 @@ def _age_text(seconds: float) -> str:
     return f"{seconds // 86400} days ago"
 
 
-class MainWindow(AlertsMixin, QMainWindow):
+class MainWindow(AlertsMixin, QuakesMixin, QMainWindow):
     def __init__(self, client: Optional[OpenMeteoClient] = None,
                  store: Optional[SettingsStore] = None,
                  cache: Optional[ForecastCache] = None,
-                 enable_tray: bool = True, update_client=None, wind_client=None, alert_client=None):
+                 enable_tray: bool = True, update_client=None, wind_client=None, alert_client=None,
+                 quake_client=None):
         super().__init__()
         self.store = store or SettingsStore()
         self.cache = cache or ForecastCache()
@@ -192,6 +194,7 @@ class MainWindow(AlertsMixin, QMainWindow):
         self.bridge.update_progress.connect(self._on_update_progress)
         self.bridge.update_downloaded.connect(self._on_update_downloaded)
         self._init_alerts(alert_client)           # weather warnings (2.4, alerts_ui.py)
+        self._init_quakes_ui(quake_client)        # earthquakes (2.5, quakes_ui.py)
 
         if self.settings.window_geometry:
             try:
@@ -218,6 +221,7 @@ class MainWindow(AlertsMixin, QMainWindow):
         QTimer.singleShot(0, self.start_startup_round)
         QTimer.singleShot(0, self._restore_known_update)
         QTimer.singleShot(0, self.check_alerts)
+        QTimer.singleShot(0, self.check_quakes)
 
     # ================================================================ UI
     def _build_ui(self) -> None:
@@ -514,6 +518,8 @@ class MainWindow(AlertsMixin, QMainWindow):
         sm.addSeparator()
         self.act_alerts = QAction("Weather &Alerts…", self, triggered=self.show_alerts_settings)
         sm.addAction(self.act_alerts)
+        self.act_quakes = QAction("&Earthquakes…", self, triggered=self.show_quake_settings)
+        sm.addAction(self.act_quakes)
         self.act_update_auto = QAction("Check for &updates automatically", self, checkable=True,
                                        checked=self.settings.update_check,
                                        triggered=self.set_update_check)
@@ -1618,7 +1624,8 @@ class MainWindow(AlertsMixin, QMainWindow):
                  f"<br>{CLOUD_CREDIT} – <a href='{PROJECT_URL}'>github.com/matteason/live-cloud-maps</a>"
                  f"<br>{WIND_CREDIT} – <a href='{WIND_URL}'>ncei.noaa.gov</a>")
         from .alerts import CREDIT as ALERT_CREDIT
-        earth += f"<br>{ALERT_CREDIT}"
+        from .quakes import CREDIT as QUAKE_CREDIT
+        earth += f"<br>{ALERT_CREDIT}<br>{QUAKE_CREDIT}"
         return (f"{base}<br>{credit}" if credit else base) + earth
 
     def buy_coffee(self) -> None:
@@ -1784,6 +1791,8 @@ class MainWindow(AlertsMixin, QMainWindow):
     def _on_tray_message_clicked(self) -> None:
         if self._tray_click == "alerts":
             self._on_alert_notice_clicked()
+        elif self._tray_click == "quake":
+            self._on_quake_notice_clicked()
         elif self._tray_click == "restart" and self._installed_newer:
             self.restart_into_new_version()
         elif self._update_info is not None:

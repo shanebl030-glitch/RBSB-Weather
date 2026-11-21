@@ -1584,4 +1584,38 @@ design canvas) → "I'd keep all. Approved and proceed"
 - Not tested live (no access from here); see the test report's "Still needs
   your Mint".
 
+## 2.5.0: earthquakes (2026-11-22, branch claude/rbsb-weather-2.5.0)
+
+**Shane:** "I think one more to add is earth quake notification on the globe
+with a pulsing dote etc.."
+
+**Decided (no questions needed):**
+- **Data:** USGS worldwide (feeds updated every minute, public domain) and
+  GeoNet for New Zealand felt quakes (CC BY 3.0 NZ). GeoNet wins when both
+  report the same quake.
+- **Map:** both Earth tabs. Dots are sized by magnitude and coloured by age;
+  pulsing rings for the last hour; a card on click.
+- **Notifications:**
+  - M4.5+ within 300 km of a saved place, or M7+ anywhere;
+  - only within 2 hours of the quake, once each;
+  - clicking one turns the globe to the quake.
+- **Tsunami wording:** a careful reminder to check official tsunami advice.
+  The app says it isn't a warning service.
+
+**Problems found while testing:**
+1. **Duplicate quakes.** If GeoNet failed, its kept quakes and USGS's copy
+   both showed. The store now re-merges.
+2. **The Earth Globe tab got wider.** The new box pushed its minimum width up
+   102 px, which made an existing layout test fail (the top card showed 6
+   days, not 3–5). The legend now wraps, and the tab is narrower than in
+   2.4.0. A test guards it.
+3. **From the screenshot review:** the quake card covered the place card, and
+   its link was hard to read. Both fixed.
+
+**Tested:**
+- Full suite: 678 run, 676 passed, 2 skipped (environment-only), 0 failed.
+- Real `.deb` installed and run against the fake feeds.
+- Two mutation checks were caught by the tests.
+- Not tested live (no access from here).
+
 Created By Shane BlackbuRn

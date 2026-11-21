@@ -4,15 +4,15 @@ Created By Shane BlackbuRn
 
 | Item | Result |
 |---|---|
-| Version | 2.4.0 (weather warnings: official warnings and your own limits) |
+| Version | 2.5.0 (earthquakes on the Earth tabs, with notifications) |
 | Date | 2026-11-22 |
 | Environment | Ubuntu 24.04.5 (Linux Mint 22 base), Python 3.12, PyQt6 6.6.1 / Qt 6.4.2, headless (offscreen), 2 CPUs, `python3-keyring` installed (no D-Bus, so keys use the private file) |
-| Suites | as 1.18.0, plus **`test_migrate`** (new in 2.0.0) **`test_updates`** (new in 2.1.0) **`test_support`** (new in 2.1.1) **`test_widget_source`** (new in 2.1.2), **`test_grib2`** and **`test_wind`** (new in 2.2.0), **`test_restart`** (new in 2.3.1), **`test_screenshots`** (README pictures), **`test_alerts`** and **`test_alerts_gui`** (new in 2.4.0) |
-| Tests run | 655 |
-| Passed | 653 |
+| Suites | as 1.18.0, plus **`test_migrate`** (new in 2.0.0) **`test_updates`** (new in 2.1.0) **`test_support`** (new in 2.1.1) **`test_widget_source`** (new in 2.1.2), **`test_grib2`** and **`test_wind`** (new in 2.2.0), **`test_restart`** (new in 2.3.1), **`test_screenshots`** (README pictures), **`test_alerts`** and **`test_alerts_gui`** (new in 2.4.0), **`test_quakes`** and **`test_quakes_gui`** (new in 2.5.0) |
+| Tests run | 678 |
+| Passed | 676 |
 | Failed / errors | 0 / 0 |
 | Skipped | 2: `test_readonly_dir_raises_oserror` (root ignores directory permissions; it passed as the `nobody` user in 1.11), and the NASA-converter test (needs build-time numpy + tifffile). Neither is an app fault. On a machine without the ecCodes Python package (normal on Mint), `test_grib2`'s ecCodes cross-check also skips |
-| Run time | about 550 s (2 CPUs), including the 60 s soak |
+| Run time | about 546 s (2 CPUs), including the 60 s soak |
 | Command | `PYTHON=/usr/bin/python3.12 ./run_tests.sh` (full log in `test-results.log`) |
 
 **Mocks and simulations.** Every provider test runs against a local fake
@@ -20,6 +20,53 @@ server sending replies in each service's documented format. That proves
 WeatherDesk handles those formats, failures and recoveries. It does **not**
 prove the live services still send them. None of the weather services could
 be reached from the build machine (all blocked, HTTP 403 from its proxy).
+
+## 2.5.0: earthquakes
+
+**What the tests use.** The USGS and GeoNet fixtures in
+`tests/quake_fixtures.py` follow each feed's documented format:
+
+* USGS: summary GeoJSON, with coordinates as [lon, lat, depth] and time in ms;
+* GeoNet: /quake GeoJSON version 2, with ISO times and its versioned Accept
+  header.
+
+They weren't captured live; the services can't be reached from here.
+
+| Check | Result |
+|---|---|
+| Parsing | USGS and GeoNet read correctly (coordinate order, depth, time, tsunami flag, PAGER level); quarry blasts, deleted quakes and broken entries dropped; non-web links dropped |
+| Merging | The Seddon quake reported by both appears once, as GeoNet's |
+| Filters | Past day 5, past week 7; M4.5+ leaves the bigger ones |
+| Notifications | M7.3 in Japan (major) and M5.3 near Wellington (near); rule changes respected; once only; nothing older than 2 hours; nothing again after a restart |
+| Map | All 5 quakes drawn on Earth Flat; on the globe, quakes on the far side aren't drawn; the 2 from the last hour pulse (the overlay animates only then) |
+| Hover and click | Tooltip; card with magnitude, place, depth, distance to Wellington, tsunami advice and a link that opens the quake's page; a click elsewhere closes it |
+| Earthquakes box | Hides and shows on both tabs together; saved |
+| Settings | Past week and M4.5+ fetch the right USGS feed; the interval is applied; values validated and clamped |
+| Notification click | Opens Earth Globe turned to the quake with its card |
+| Failures | Both feeds failing keeps the dots; one failing keeps that source's quakes without duplicates |
+| Nothing wanted | With the map and both notifications off, nothing is downloaded |
+| Window width | The Earthquakes box first pushed the Earth Globe's minimum width from 765 to 867 px. Fixed: the legend now wraps, and the tab is narrower than before (481 px). A test guards this |
+| Mutation checks | Notifying again every check fails a test; drawing quakes from round the back of the globe fails a test |
+
+**Real package.** `rbsb-weather_2.5.0_all.deb` was installed over 2.4.0 with
+`apt`, then run as `/usr/bin/rbsb-weather` with the feeds pointed at the fake
+server and Wellington saved. It:
+
+* fetched `2.5_day` from USGS and GeoNet (with its Accept header);
+* saved 7 quakes;
+* notified the Japan and Seddon quakes;
+* exited cleanly (exit 0).
+
+**Screenshots** 19 and 20 were checked by eye. That led to two fixes:
+
+* the quake card now keeps clear of the place card;
+* the card's link was dark blue on the dark card, and is now light blue.
+
+**Still needs your Mint:**
+
+* the live USGS and GeoNet feeds;
+* the pulsing on a real screen;
+* a real notification, and clicking it.
 
 ## 2.4.0: weather warnings
 

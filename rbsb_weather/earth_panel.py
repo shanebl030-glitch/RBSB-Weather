@@ -26,6 +26,7 @@ from .clouds import CREDIT as CLOUD_CREDIT
 from . import units
 from .moon import tz_for
 from .scene import WeatherIcon, _Animated
+from .quakes_view import QuakeHost
 
 RECOMPOSE_S = 300           # refresh the day/night blend every 5 minutes
 STATE_SYMBOL = {"Day": "☀", "Twilight": "◐", "Night": "☾"}
@@ -166,8 +167,9 @@ class LocationCard(QFrame):
         self.adjustSize()
 
 
-class EarthMap(QWidget):
+class EarthMap(QuakeHost, QWidget):
     location_clicked = pyqtSignal(str)
+    quake_link = pyqtSignal(str)                  # a quake card's "Details on …" link (2.5)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -184,6 +186,7 @@ class EarthMap(QWidget):
         self.card = LocationCard(self)
         self.card.hide()
         self.setMouseTracking(True)
+        self._init_quakes()                       # earthquakes overlay (2.5)
 
     # ------------------------------------------------------------ geometry
     def map_rect(self) -> QRectF:
@@ -250,18 +253,24 @@ class EarthMap(QWidget):
     def resizeEvent(self, e):
         super().resizeEvent(e)
         self._place_overlays()
+        self._quakes_resized()
 
     # --------------------------------------------------------------- input
     def mousePressEvent(self, e):
+        if e.button() != Qt.MouseButton.LeftButton:
+            return
         key = self.marker_at(e.position())
-        if key and e.button() == Qt.MouseButton.LeftButton:
+        if key:
             self.location_clicked.emit(key)
+        else:
+            self._quake_click(e.position())
 
     def mouseMoveEvent(self, e):
         key = self.marker_at(e.position())
-        self.setCursor(Qt.CursorShape.PointingHandCursor if key else Qt.CursorShape.ArrowCursor)
+        tip = "" if key else self._quake_tip(e.position())
+        self.setCursor(Qt.CursorShape.PointingHandCursor if key or tip else Qt.CursorShape.ArrowCursor)
         m = next((x for x in self.markers if x.key == key), None)
-        self.setToolTip(f"{m.name} – click to select" if m else "")
+        self.setToolTip(f"{m.name} – click to select" if m else tip)
 
     # ------------------------------------------------------------ painting
     def paintEvent(self, _e):
@@ -319,6 +328,8 @@ class EarthPanel(QWidget):
     location_clicked = pyqtSignal(str)
     compose_requested = pyqtSignal()
     clouds_toggled = pyqtSignal(bool)
+    quakes_toggled = pyqtSignal(bool)             # the "Earthquakes" box (2.5)
+    quake_link = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -329,18 +340,27 @@ class EarthPanel(QWidget):
         lay.addWidget(self.info)
         self.map = EarthMap()
         self.map.location_clicked.connect(self.location_clicked.emit)
+        self.map.quake_link.connect(self.quake_link.emit)
         lay.addWidget(self.map, 1)
         row = QHBoxLayout()
         self.clouds_box = QCheckBox("Live clouds")
         self.clouds_box.setToolTip("Show near real-time satellite clouds (updated every 3 hours)")
         self.clouds_box.toggled.connect(self.clouds_toggled.emit)
         row.addWidget(self.clouds_box)
-        row.addStretch(1)
+        self.quakes_box = QCheckBox("Earthquakes")
+        self.quakes_box.setToolTip("Recent earthquakes: red in the last hour (pulsing), orange in the last 6 hours, "
+                                   "yellow in the last day. Bigger dots are bigger quakes. Click one for details.")
+        self.quakes_box.setChecked(True)
+        self.quakes_box.toggled.connect(self.quakes_toggled.emit)
+        row.addWidget(self.quakes_box)
         legend = QLabel("☀ Sun overhead  ·  ● Moon overhead")
         legend.setStyleSheet("color: palette(placeholder-text);")
-        row.addWidget(legend)
+        legend.setWordWrap(True)              # wraps instead of widening the window (2.5)
+        legend.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        row.addWidget(legend, 1)
         lay.addLayout(row)
-        self.credit = QLabel(E.CREDIT + "\n" + CLOUD_CREDIT)
+        from .quakes import CREDIT as QUAKE_CREDIT
+        self.credit = QLabel(E.CREDIT + "\n" + CLOUD_CREDIT + "\n" + QUAKE_CREDIT)
         self.credit.setWordWrap(True)
         self.credit.setStyleSheet("color: palette(placeholder-text);")
         lay.addWidget(self.credit)

@@ -1,4 +1,4 @@
-# RBSB-Weather 2.4.0
+# RBSB-Weather 2.5.0
 
 *Formerly **WeatherDesk**. Renamed in 2.0.0 because "WeatherDesk" is used by many
 other apps; nothing else changed, and your settings come with you (see
@@ -90,6 +90,10 @@ RBSB-Weather is free and stays free. The same link is in the app under
   the tray temperature and a desktop notification. You can also set your own
   limits (wind gusts, rain, heat, frost, snow, thunderstorms), which are
   clearly marked as not official.
+* Earthquakes on the Earth tabs (2.5): recent quakes worldwide (USGS) and in
+  New Zealand (GeoNet), sized by magnitude and coloured by age, with pulsing
+  rings for the last hour. Click one for its details. Get notified of a quake
+  near your places, or a major one anywhere.
 * Checks for updates once a day (Settings to turn it off; Help → Check for
   Updates to check now). A new version is downloaded, checked against its
   checksum and opened in your package installer; nothing installs without you.
@@ -99,7 +103,7 @@ RBSB-Weather is free and stays free. The same link is in the app under
 
 ## Screenshots
 
-Taken from the real app with `tools/make_screenshots.py`. The forecasts and warnings are
+Taken from the real app with `tools/make_screenshots.py`. The forecasts, warnings and quakes are
 sample data (the build machine can't reach the weather services), but the
 sky, Sun, Moon and day/night are the real ones for when they were taken, and
 the Wind tab shows a real NOAA GFS forecast saved for the tests.
@@ -177,8 +181,16 @@ the Wind tab shows a real NOAA GFS forecast saved for the tests.
 
 *The desktop widget with a warning. Click it for the full warning.*
 
+![Earthquakes on the Earth Globe](docs/media/screenshots/19-earthquakes-globe.png)
+
+*Earthquakes (2.5) on the Earth Globe: red for the last hour, with pulsing rings; click one for its card. Sample quakes.*
+
+![Earthquakes on the Earth Flat map](docs/media/screenshots/20-earthquakes-map.png)
+
+*The same on Earth Flat, with the card for a large undersea quake.*
+
 ```bash
-sudo apt install ./rbsb-weather_2.4.0_all.deb
+sudo apt install ./rbsb-weather_2.5.0_all.deb
 ```
 
 `apt` pulls in `python3-pyqt6` automatically. Launch **RBSB-Weather** from the
@@ -304,6 +316,7 @@ sends it. The full log is written to
 | `rbsb_weather/grib2.py` | A small GRIB2 reader for the GFS wind, temperature and rain (checked against ecCodes) |
 | `rbsb_weather/alerts.py` | Weather warnings: reading each service's warnings (CAP, GeoJSON), matching them to places, levels, your own limits, the saved state |
 | `rbsb_weather/alerts_ui.py`, `alerts_panel.py`, `alerts_dialog.py` | Warnings in the window: banner, badges, the Warnings tab, notifications, Settings → Weather Alerts |
+| `rbsb_weather/quakes.py`, `quakes_view.py`, `quakes_ui.py` | Earthquakes: USGS and GeoNet feeds, the dots and card on the Earth tabs, notifications, Settings → Earthquakes |
 | `rbsb_weather/updates.py`, `update_dialog.py` | Check for updates: GitHub's latest release, verified download, the update window |
 | `rbsb_weather/migrate.py` | Carrying a WeatherDesk user's settings, keys and login entry over to RBSB-Weather (2.0.0) |
 | `rbsb_weather/units.py`, `weather_codes.py` | Unit conversion and weather descriptions |
@@ -348,7 +361,9 @@ sent. Weather warnings (2.4) are checked every 15 minutes by default: the
 whole New Zealand (MetService) or country (MeteoAlarm) warning feed is
 downloaded and matched on your computer, while the US National Weather
 Service and MET Norway are asked for the warnings at a saved place's
-coordinates. There's no
+coordinates. Earthquakes (2.5) are checked every 5 minutes by default: the same
+USGS and GeoNet feeds are downloaded whoever asks, and distances to your places
+are worked out on your computer. There's no
 tracking or analytics. Weather data
 comes from [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0) and
 [MET Norway](https://api.met.no/) (CC BY 4.0). Earth maps
@@ -361,4 +376,6 @@ NOAA's [Global Forecast System](https://www.ncei.noaa.gov/products/weather-clima
 (CC BY 4.0), the [US National Weather Service](https://www.weather.gov/)
 (public domain), [MET Norway](https://www.met.no/en) (CC BY 4.0) and
 [MeteoAlarm](https://meteoalarm.org/) (EUMETNET, with each country's national
-weather service; UK warnings © Crown copyright, Met Office).
+weather service; UK warnings © Crown copyright, Met Office). Earthquakes come
+from the [USGS](https://earthquake.usgs.gov/) (public domain) and
+[GeoNet](https://www.geonet.org.nz/) (CC BY 3.0 NZ).

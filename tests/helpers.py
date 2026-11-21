@@ -27,6 +27,9 @@ os.environ["RBSB_WEATHER_WIND_AWS"] = "http://127.0.0.1:9/aws"
 # ...nor any weather warning service (2.4)
 for _k in ("METSERVICE", "NWS", "METNO", "METEOALARM"):
     os.environ[f"RBSB_WEATHER_ALERTS_{_k}"] = "http://127.0.0.1:9/alerts-" + _k.lower() + ("/{slug}" if _k == "METEOALARM" else "")
+# ...nor the earthquake feeds (2.5)
+os.environ["RBSB_WEATHER_QUAKES_USGS"] = "http://127.0.0.1:9/usgs/{feed}"
+os.environ["RBSB_WEATHER_QUAKES_GEONET"] = "http://127.0.0.1:9/geonet"
 # Never touch the desktop's real keyring from tests: keys go to the temp config dir.
 os.environ["RBSB_WEATHER_KEYRING"] = "0"
 # Tests talk only to the local fake server; never route them through a proxy.
