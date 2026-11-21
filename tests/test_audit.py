@@ -21,12 +21,12 @@ import provider_fixtures as PF
 from fake_server import make_forecast, make_metno
 from helpers import PLACES, TempEnvTestCase, qapp, wait_until
 
-from weatherdesk.api import DataError, WeatherError, _num, parse_forecast
-from weatherdesk.keystore import MASK, KeyStore, RedactingFilter, remember_secret
-from weatherdesk.models import CurrentWeather, DailyPoint, Forecast, HourlyPoint, Location
-from weatherdesk.providers.base import Provider, ProviderInfo
-from weatherdesk.providers.manager import ProviderManager
-from weatherdesk.providers.normalise import normalise
+from rbsb_weather.api import DataError, WeatherError, _num, parse_forecast
+from rbsb_weather.keystore import MASK, KeyStore, RedactingFilter, remember_secret
+from rbsb_weather.models import CurrentWeather, DailyPoint, Forecast, HourlyPoint, Location
+from rbsb_weather.providers.base import Provider, ProviderInfo
+from rbsb_weather.providers.manager import ProviderManager
+from rbsb_weather.providers.normalise import normalise
 
 LOC = Location.from_dict(PLACES[0])
 
@@ -63,7 +63,7 @@ class TestNoCrashes(TempEnvTestCase):
 
     def test_unexpected_exception_still_falls_back(self):
         """Audit #2: only WeatherError was caught, so a bug in one provider skipped the backups."""
-        from weatherdesk.keystore import KeyStore
+        from rbsb_weather.keystore import KeyStore
         for exc in (RuntimeError("bug"), OverflowError("x"), ZeroDivisionError("y"), RecursionError()):
             m = ProviderManager(chain=["open-meteo", "met.no"],
                                 keystore=KeyStore(self.tmp / "k", use_keyring=False),
@@ -144,7 +144,7 @@ class TestImplausibleValues(unittest.TestCase):
         self.assertEqual(f.current.weather_code, 3)
 
     def test_metno_unknown_symbol_not_shown_as_clear(self):
-        from weatherdesk.metno import parse_metno
+        from rbsb_weather.metno import parse_metno
         d = make_metno(LOC.latitude, LOC.longitude)
         for step in d["properties"]["timeseries"][:3]:
             for k in ("next_1_hours", "next_6_hours"):
@@ -154,7 +154,7 @@ class TestImplausibleValues(unittest.TestCase):
         fc = parse_metno(d, LOC)
         self.assertIsNone(fc.current.weather_code)          # was 0 (clear sky) before 1.15
         # worked out from what was measured (the fixture has rain falling, so 61; else cloud → 3)
-        from weatherdesk.weather_codes import KNOWN_CODES
+        from rbsb_weather.weather_codes import KNOWN_CODES
         code = normalise(fc, LOC).current.weather_code
         self.assertIn(code, KNOWN_CODES)
         self.assertNotEqual(code, 0)
@@ -182,12 +182,12 @@ class TestProviderRequests(TempEnvTestCase):
 
     def test_openweather_free_drops_partial_last_day(self):
         """Audit #6: the 5-day/3-hour list ends part-way through a day; its high/low were shown."""
-        from weatherdesk.providers.openweather import parse_free
+        from rbsb_weather.providers.openweather import parse_free
         cur, fc = PF.owm_weather(LOC.latitude, LOC.longitude), PF.owm_forecast(LOC.latitude, LOC.longitude)
         fc["list"] = fc["list"][:-5]                      # make the last local day short
         out = parse_free(cur, fc, LOC)
         from collections import Counter
-        from weatherdesk.providers.base import from_unix, location_tz
+        from rbsb_weather.providers.base import from_unix, location_tz
         tz, _ = location_tz(LOC)
         per_day = Counter(from_unix(s["dt"]).astimezone(tz).date().isoformat() for s in fc["list"])
         today = out.daily[0].date
@@ -243,7 +243,7 @@ class TestKeyStoreAudit(TempEnvTestCase):
         self.assertIsNone(ks.get("tomorrow"))
         self.assertEqual(kr.gets, 2)                       # asked again: the keyring may be unlocked later
         kr.fail = False
-        kr.store[("WeatherDesk", "tomorrow")] = "after-unlock-123"
+        kr.store[("RBSB-Weather", "tomorrow")] = "after-unlock-123"
         self.assertEqual(ks.get("tomorrow"), "after-unlock-123")
 
     def test_no_keyring_module_uses_private_file(self):
@@ -264,7 +264,7 @@ class TestKeyStoreAudit(TempEnvTestCase):
     def test_keys_survive_reinstall_style_restart(self):
         """Keys and options live in ~/.config (not in the package): a fresh KeyStore and
         Settings load after an upgrade still find them."""
-        from weatherdesk.storage import Settings, SettingsStore
+        from rbsb_weather.storage import Settings, SettingsStore
         ks = KeyStore(self.tmp / "cfg3", use_keyring=False)
         ks.set("wunderground", "0123456789abcdef0123456789abcdef")
         st = SettingsStore(self.tmp / "cfg3")
@@ -282,7 +282,7 @@ class TestKeyStoreAudit(TempEnvTestCase):
         Station ID (found in the real dpkg rollback test). 1.11.1 can't be changed, but from
         1.15 on, settings a newer version wrote are kept and written back unchanged."""
         import json as _json
-        from weatherdesk.storage import SettingsStore
+        from rbsb_weather.storage import SettingsStore
         st = SettingsStore(self.tmp / "cfg4")
         st.path.parent.mkdir(parents=True, exist_ok=True)
         st.path.write_text(_json.dumps({
@@ -310,7 +310,7 @@ class TestNoKeyLeaks(TempEnvTestCase):
     def test_unexpected_worker_error_is_redacted(self):
         """Audit #8: an unexpected exception's text went to the window unredacted."""
         qapp()
-        from weatherdesk.workers import Bridge, Worker
+        from rbsb_weather.workers import Bridge, Worker
         remember_secret("WORKER-SECRET-55555")
 
         class Client:
@@ -326,15 +326,15 @@ class TestNoKeyLeaks(TempEnvTestCase):
 
     def test_diagnose_mode_redacts_warnings(self):
         """Audit #9: --diagnose printed warnings without the key filter."""
-        from weatherdesk import app
+        from rbsb_weather import app
         remember_secret("DIAG-SECRET-424242")
         root = logging.getLogger()
         before, level = list(root.handlers), root.level
         buf = io.StringIO()
         try:
             root.handlers = []
-            with mock.patch("weatherdesk.diagnostics.run_diagnostics",
-                            side_effect=lambda: logging.getLogger("weatherdesk.x").warning(
+            with mock.patch("rbsb_weather.diagnostics.run_diagnostics",
+                            side_effect=lambda: logging.getLogger("rbsb_weather.x").warning(
                                 "failed for DIAG-SECRET-424242") or "report"), \
                     mock.patch("sys.stderr", buf), mock.patch("builtins.print"):
                 app.main(["--diagnose"])
@@ -349,8 +349,8 @@ class TestNoKeyLeaks(TempEnvTestCase):
         """Audit #10: error text from a weather service was shown as rich text (it could add
         formatting or a clickable link to the dialog)."""
         qapp()
-        from weatherdesk.main_window import MainWindow
-        from weatherdesk.providers_dialog import ProvidersDialog
+        from rbsb_weather.main_window import MainWindow
+        from rbsb_weather.providers_dialog import ProvidersDialog
         PF.install(self.server)
         keys = KeyStore(self.tmp / "keys", use_keyring=False)
         m = ProviderManager(chain=["open-meteo", "met.no"], keystore=keys,

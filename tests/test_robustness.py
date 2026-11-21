@@ -26,15 +26,15 @@ import provider_fixtures as PF
 from fake_server import make_forecast, make_metno
 from helpers import PLACES
 
-from weatherdesk.api import WeatherError, parse_forecast
-from weatherdesk.metno import parse_metno
-from weatherdesk.models import Location
-from weatherdesk.providers.base import Provider, ProviderInfo
-from weatherdesk.providers.openweather import parse_free, parse_onecall
-from weatherdesk.providers.tomorrow import parse_tomorrow
-from weatherdesk.providers.visualcrossing import parse_visualcrossing
-from weatherdesk.providers.weatherapi import parse_weatherapi
-from weatherdesk.providers.wunderground import parse_wunderground
+from rbsb_weather.api import WeatherError, parse_forecast
+from rbsb_weather.metno import parse_metno
+from rbsb_weather.models import Location
+from rbsb_weather.providers.base import Provider, ProviderInfo
+from rbsb_weather.providers.openweather import parse_free, parse_onecall
+from rbsb_weather.providers.tomorrow import parse_tomorrow
+from rbsb_weather.providers.visualcrossing import parse_visualcrossing
+from rbsb_weather.providers.weatherapi import parse_weatherapi
+from rbsb_weather.providers.wunderground import parse_wunderground
 
 REPORT: list[str] = []
 LOC = Location.from_dict(PLACES[0])

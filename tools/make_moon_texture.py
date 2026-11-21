@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Generate WeatherDesk's high-resolution moon textures (build-time tool).
+"""Generate RBSB-Weather's high-resolution moon textures (build-time tool).
 
 Creates an orthographic view of the Moon's near side, north up, as seen from
 the northern hemisphere:
 
-  weatherdesk/assets/moon_albedo.jpg  – surface brightness (2048 x 2048)
-  weatherdesk/assets/moon_height.jpg  – relief (craters/rims) for terminator shading
+  rbsb_weather/assets/moon_albedo.jpg  – surface brightness (2048 x 2048)
+  rbsb_weather/assets/moon_height.jpg  – relief (craters/rims) for terminator shading
 
 The major features are placed at their real selenographic coordinates: the
 maria (Imbrium, Serenitatis, Tranquillitatis, Crisium, Fecunditatis,
@@ -31,7 +31,7 @@ from pathlib import Path
 import numpy as np
 
 SIZE = int(sys.argv[1]) if len(sys.argv) > 1 else 2048
-OUT = Path(__file__).resolve().parents[1] / "weatherdesk" / "assets"
+OUT = Path(__file__).resolve().parents[1] / "rbsb_weather" / "assets"
 rng = np.random.default_rng(20261115)
 
 # ---------------------------------------------------------------- geometry

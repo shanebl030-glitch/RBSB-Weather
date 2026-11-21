@@ -12,9 +12,9 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QLabel
 
-from weatherdesk import AUTHOR_CREDIT
-from weatherdesk.main_window import MainWindow, _age_text, _day_label, autostart_path
-from weatherdesk.storage import ForecastCache, SettingsStore
+from rbsb_weather import AUTHOR_CREDIT
+from rbsb_weather.main_window import MainWindow, _age_text, _day_label, autostart_path
+from rbsb_weather.storage import ForecastCache, SettingsStore
 
 
 class GuiCase(TempEnvTestCase):
@@ -100,7 +100,7 @@ class TestWorkflow(GuiCase):
         self.assertEqual(w.day_rows[0][0].text(), "Today")
         self.assertEqual(w.day_rows[1][0].text(), "Tomorrow")
         self.assertIn("Updated", w.status_label.text())
-        self.assertIn("WeatherDesk — Hamilton", w.windowTitle())
+        self.assertIn("RBSB-Weather — Hamilton", w.windowTitle())
         # persisted to disk
         saved = json.loads(SettingsStore().path.read_text())
         self.assertEqual(saved["selected"], key)
@@ -236,7 +236,7 @@ class TestWorkflow(GuiCase):
         self.add(w)
         key = self.place(0).key
         before = w.forecasts[key]
-        from weatherdesk.api import parse_forecast
+        from rbsb_weather.api import parse_forecast
         from fake_server import make_forecast
         old = parse_forecast(make_forecast(0, 0), self.place(0))
         w._on_forecast_ok(999, old)                       # unknown token

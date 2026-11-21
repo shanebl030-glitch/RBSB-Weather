@@ -23,7 +23,7 @@ from helpers import TempEnvTestCase, qapp, wait_until
 
 from PyQt6.QtTest import QTest
 
-from weatherdesk.main_window import MainWindow
+from rbsb_weather.main_window import MainWindow
 
 SECONDS = float(os.environ.get("WD_SOAK_SECONDS", "60"))
 

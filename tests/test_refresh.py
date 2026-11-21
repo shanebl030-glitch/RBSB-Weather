@@ -16,7 +16,7 @@ from PyQt6.QtTest import QTest
 
 from test_gui import GuiCase
 
-from weatherdesk import main_window as MW
+from rbsb_weather import main_window as MW
 
 REPORT: list[str] = []
 

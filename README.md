@@ -1,4 +1,8 @@
-# WeatherDesk 1.18.0
+# RBSB-Weather 2.0.0
+
+*Formerly **WeatherDesk**. Renamed in 2.0.0 because "WeatherDesk" is used by many
+other apps; nothing else changed, and your settings come with you (see
+[Coming from WeatherDesk](#coming-from-weatherdesk)).*
 
 A desktop weather app for Linux Mint (and other Ubuntu 24.04-based systems).
 It shows current conditions, a 24-hour chart, a 7-day forecast, and the
@@ -14,11 +18,11 @@ or as backups.
 *Shane's design and Claude's coding.* Every feature started as Shane's idea and
 design; Claude (Anthropic's AI) wrote the code and the tests to his spec.
 
-![Forecast playback: the next 24 hours of weather played in WeatherDesk's animated sky](docs/media/weatherdesk-playback.gif)
+![Forecast playback: the next 24 hours of weather played in RBSB-Weather's animated sky](docs/media/rbsb-weather-playback.gif)
 
 *Forecast playback: press play and the next 24 hours run in the animated sky
 (afternoon showers and a thunderstorm, a clear night with stars and the Moon,
-dawn fog, then sunshine). Recorded from WeatherDesk itself with sample forecast
+dawn fog, then sunshine). Recorded from RBSB-Weather itself with sample forecast
 data.*
 
 ## Features
@@ -55,7 +59,7 @@ data.*
 * Auto-refresh every 10–120 minutes, or turned off.
 * Forecast playback: play or scrub the next 24 hours in the animated sky,
   with that hour's weather, Sun and Moon.
-* Every saved location updates when WeatherDesk starts (including at login),
+* Every saved location updates when RBSB-Weather starts (including at login),
   one at a time, with retries if the network isn't up yet after a boot.
 * A tray icon showing the live temperature, with optional close-to-tray and
   start at login.
@@ -67,11 +71,11 @@ data.*
 ## Install
 
 ```bash
-sudo apt install ./weatherdesk_1.18.0_all.deb
+sudo apt install ./rbsb-weather_2.0.0_all.deb
 ```
 
-`apt` pulls in `python3-pyqt6` automatically. Launch **WeatherDesk** from the
-menu (it's under Accessories), or run `weatherdesk` from a terminal.
+`apt` pulls in `python3-pyqt6` automatically. Launch **RBSB-Weather** from the
+menu (it's under Accessories), or run `rbsb-weather` from a terminal.
 
 To verify the download first:
 
@@ -82,19 +86,42 @@ sha256sum -c SHA256SUMS
 ## Update
 
 Install the newer .deb the same way. Your settings and saved forecasts in
-`~/.config/weatherdesk` and `~/.cache/weatherdesk` are kept, and so are API
-keys (in the keyring, or `~/.config/weatherdesk/keys.json`). Then open
-WeatherDesk: if an older copy is still running (for example in the tray), it
+`~/.config/rbsb-weather` and `~/.cache/rbsb-weather` are kept, and so are API
+keys (in the keyring, or `~/.config/rbsb-weather/keys.json`). Then open
+RBSB-Weather: if an older copy is still running (for example in the tray), it
 closes itself cleanly and the new version takes over. From 1.1.1 on this is
 automatic; before that you had to quit the old copy first.
+
+## Coming from WeatherDesk
+
+Install the 2.0.0 package as above. It replaces the old `weatherdesk` package
+(apt removes it for you) and the first time RBSB-Weather starts it carries over:
+
+* settings and saved locations (`~/.config/weatherdesk` → `~/.config/rbsb-weather`)
+* saved forecasts (`~/.cache/weatherdesk` → `~/.cache/rbsb-weather`)
+* API keys, whether they're in the system keyring or in `keys.json`
+* "Start at login", if you had it on
+* a WeatherDesk that's still running in the tray closes itself and RBSB-Weather
+  takes over
+
+Everything is copied, not moved: the old folders are left as they were, so you
+can go back to a WeatherDesk package if you want to. The `weatherdesk` command
+still works (it starts RBSB-Weather), and searching the menu for "weatherdesk"
+still finds it. Once you're happy, you can delete the old folders:
+`rm -rf ~/.config/weatherdesk ~/.cache/weatherdesk`.
+
+To go back to WeatherDesk: `sudo apt install ./weatherdesk_1.18.0_all.deb` (this
+removes rbsb-weather). Your WeatherDesk settings are as they were before the
+upgrade; changes made in RBSB-Weather since then stay in RBSB-Weather's folder.
+If you use "Start at login", turn it on again in WeatherDesk.
 
 ## Roll back / uninstall
 
 ```bash
-sudo apt install ./weatherdesk_<older-version>_all.deb   # roll back
-sudo apt remove weatherdesk                                # uninstall
-rm -rf ~/.config/weatherdesk ~/.cache/weatherdesk          # optional: remove your data
-rm -f ~/.config/autostart/weatherdesk.desktop              # if "Start at login" was on
+sudo apt install ./rbsb-weather_<older-version>_all.deb   # roll back
+sudo apt remove rbsb-weather                                # uninstall
+rm -rf ~/.config/rbsb-weather ~/.cache/rbsb-weather          # optional: remove your data
+rm -f ~/.config/autostart/rbsb-weather.desktop              # if "Start at login" was on
 ```
 
 Rolling back keeps your locations, units and API keys. Versions before 1.13
@@ -106,7 +133,7 @@ upgrading. From 1.15.0 on, settings a newer version added are kept.
 
 ```bash
 sudo apt install python3-pyqt6
-python3 -m weatherdesk            # from the project folder
+python3 -m rbsb_weather            # from the project folder
 ```
 
 Options: `--minimized` starts in the tray, `--verbose` turns on debug
@@ -122,7 +149,7 @@ The tests run fully offline against local fake weather servers. They
 cover parsing for all seven providers (including damaged and hostile replies),
 fallback and recovery, API-key safety, network error paths, settings and cache
 safety, complete GUI workflows, packaging, and stress, leak and soak checks.
-They don't contact the real weather services, so they show that WeatherDesk
+They don't contact the real weather services, so they show that RBSB-Weather
 handles each service's documented format, not that the live service still
 sends it. The full log is written to
 `test-results.log`. See `TEST_REPORT.md` for the latest results.
@@ -130,43 +157,44 @@ sends it. The full log is written to
 ## Build the package
 
 ```bash
-./build_deb.sh     # -> dist/weatherdesk_<ver>_all.deb, source tar.gz, SHA256SUMS
+./build_deb.sh     # -> dist/rbsb-weather_<ver>_all.deb, source tar.gz, SHA256SUMS
 ```
 
 ## Project layout
 
 | Path | Purpose |
 |---|---|
-| `weatherdesk/api.py` | Open-Meteo client, response parsing, retries and the automatic backup (standard library only) |
-| `weatherdesk/metno.py` | MET Norway client: the second weather source |
-| `weatherdesk/providers/` | Weather providers: one module per service, the registry, the common-format normaliser and the ProviderManager (fallback chain, recovery, quota guards, status) |
-| `weatherdesk/providers_dialog.py` | Settings → Weather Providers |
-| `weatherdesk/keystore.py` | API key storage (system keyring or a 0600 file) and log redaction |
-| `weatherdesk/sun.py` | Sunrise/sunset, day/night and "feels like" for providers that don't supply them |
-| `weatherdesk/storage.py` | Settings and forecast cache (atomic JSON writes) |
-| `weatherdesk/workers.py` | Background network threads |
-| `weatherdesk/main_window.py` | The main window, tray, and menus |
-| `weatherdesk/widgets.py` | 24-hour chart and tray icon drawing |
-| `weatherdesk/scene.py` | Animated weather scenes, icons, and the shared animation clock |
-| `weatherdesk/desktop_widget.py` | Floating desktop widget |
-| `weatherdesk/moon.py` | Moon phase, illumination, rise/set (Meeus) |
-| `weatherdesk/moon_render.py`, `moon_panel.py` | Moon images and the Moon tab |
+| `rbsb_weather/api.py` | Open-Meteo client, response parsing, retries and the automatic backup (standard library only) |
+| `rbsb_weather/metno.py` | MET Norway client: the second weather source |
+| `rbsb_weather/providers/` | Weather providers: one module per service, the registry, the common-format normaliser and the ProviderManager (fallback chain, recovery, quota guards, status) |
+| `rbsb_weather/providers_dialog.py` | Settings → Weather Providers |
+| `rbsb_weather/keystore.py` | API key storage (system keyring or a 0600 file) and log redaction |
+| `rbsb_weather/sun.py` | Sunrise/sunset, day/night and "feels like" for providers that don't supply them |
+| `rbsb_weather/storage.py` | Settings and forecast cache (atomic JSON writes) |
+| `rbsb_weather/workers.py` | Background network threads |
+| `rbsb_weather/main_window.py` | The main window, tray, and menus |
+| `rbsb_weather/widgets.py` | 24-hour chart and tray icon drawing |
+| `rbsb_weather/scene.py` | Animated weather scenes, icons, and the shared animation clock |
+| `rbsb_weather/desktop_widget.py` | Floating desktop widget |
+| `rbsb_weather/moon.py` | Moon phase, illumination, rise/set (Meeus) |
+| `rbsb_weather/moon_render.py`, `moon_panel.py` | Moon images and the Moon tab |
 | `tools/make_moon_texture_nasa.py` | Build moon images from NASA's CGI Moon Kit |
 | `tools/make_moon_texture.py` | Generated fallback moon images |
-| `weatherdesk/earth.py`, `earth_panel.py` | Sun position, day/night map blending, Earth Flat tab |
-| `weatherdesk/clouds.py` | Live cloud map download, cache and blending |
-| `weatherdesk/forecast_strip.py` | The mini forecast in the sky: adaptive layout, keeping clear of text and the Sun/Moon, drawing |
-| `weatherdesk/sky.py` | Sun, Moon and stars behind the globe (positions, Moon orientation) |
-| `weatherdesk/globe.py`, `globe_panel.py` | Globe projection and drawing (numpy or pure Python), Earth Globe tab |
-| `weatherdesk/net.py` | Fast IPv4/IPv6 connection racing |
-| `weatherdesk/diagnostics.py` | Help → Test connection |
-| `weatherdesk/units.py`, `weather_codes.py` | Unit conversion and weather descriptions |
+| `rbsb_weather/earth.py`, `earth_panel.py` | Sun position, day/night map blending, Earth Flat tab |
+| `rbsb_weather/clouds.py` | Live cloud map download, cache and blending |
+| `rbsb_weather/forecast_strip.py` | The mini forecast in the sky: adaptive layout, keeping clear of text and the Sun/Moon, drawing |
+| `rbsb_weather/sky.py` | Sun, Moon and stars behind the globe (positions, Moon orientation) |
+| `rbsb_weather/globe.py`, `globe_panel.py` | Globe projection and drawing (numpy or pure Python), Earth Globe tab |
+| `rbsb_weather/net.py` | Fast IPv4/IPv6 connection racing |
+| `rbsb_weather/diagnostics.py` | Help → Test connection |
+| `rbsb_weather/migrate.py` | Carrying a WeatherDesk user's settings, keys and login entry over to RBSB-Weather (2.0.0) |
+| `rbsb_weather/units.py`, `weather_codes.py` | Unit conversion and weather descriptions |
 | `tests/` | Test suite and fake server |
 | `packaging/` | Launcher, .desktop file, and icon |
 
 ## Adding a weather provider
 
-1. Create `weatherdesk/providers/<name>.py` with a class derived from
+1. Create `rbsb_weather/providers/<name>.py` with a class derived from
    `Provider` and decorated with `@register`:
    * `info = ProviderInfo(...)`: id, name, whether it needs a key, website,
      credit, coverage, forecast days, hourly, limits, the features it supplies,
@@ -178,7 +206,7 @@ sends it. The full log is written to
      local times as `YYYY-MM-DDTHH:MM`. Leave anything the service doesn't
      supply as `None`;
    * optionally `_error_reason(body)` and `usage()`.
-2. Import the module in `weatherdesk/providers/__init__.py`.
+2. Import the module in `rbsb_weather/providers/__init__.py`.
 3. Add its documented response shape to `tests/provider_fixtures.py` and its
    tests to `tests/test_providers.py`.
 

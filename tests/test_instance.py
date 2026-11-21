@@ -1,8 +1,8 @@
-"""Single-instance hand-over tests using real WeatherDesk processes.
+"""Single-instance hand-over tests using real RBSB-Weather processes.
 
 Each scenario runs real app processes (headless) with their own config
-directories and a private instance name (WEATHERDESK_INSTANCE), so running
-these tests never touches a WeatherDesk you have open. No locations are
+directories and a private instance name (RBSB_WEATHER_INSTANCE), so running
+these tests never touches an RBSB-Weather you have open. No locations are
 saved, so no network requests are made.
 """
 
@@ -22,8 +22,8 @@ from pathlib import Path
 
 from helpers import ROOT, TempEnvTestCase
 
-from weatherdesk import __version__
-from weatherdesk.instance import compare_versions, decide, parse_version, socket_owner_pids
+from rbsb_weather import __version__
+from rbsb_weather.instance import compare_versions, decide, parse_version, socket_owner_pids
 
 
 class TestVersionLogic(unittest.TestCase):
@@ -46,8 +46,8 @@ class TestVersionLogic(unittest.TestCase):
 def _make_copy(dest: Path, version: str, legacy: bool = False) -> Path:
     """Copy the package with a different version (and optionally the pre-1.1.1
     behaviour of never answering the version question)."""
-    pkg = dest / "weatherdesk"
-    shutil.copytree(ROOT / "weatherdesk", pkg, ignore=shutil.ignore_patterns("__pycache__"))
+    pkg = dest / "rbsb_weather"
+    shutil.copytree(ROOT / "rbsb_weather", pkg, ignore=shutil.ignore_patterns("__pycache__"))
     init = pkg / "__init__.py"
     init.write_text(re.sub(r'__version__ = ".*?"', f'__version__ = "{version}"', init.read_text()))
     if legacy:
@@ -61,7 +61,7 @@ def _make_copy(dest: Path, version: str, legacy: bool = False) -> Path:
 class InstanceCase(TempEnvTestCase):
     def setUp(self):
         super().setUp()
-        self.name = f"weatherdesk-test-{uuid.uuid4().hex[:8]}"
+        self.name = f"rbsb_weather-test-{uuid.uuid4().hex[:8]}"
         self.procs: list[subprocess.Popen] = []
         self.copies = Path(tempfile.mkdtemp(prefix="wd-copies-"))
 
@@ -80,8 +80,8 @@ class InstanceCase(TempEnvTestCase):
     def launch(self, pythonpath: Path = ROOT) -> subprocess.Popen:
         env = dict(os.environ)
         env.update(PYTHONPATH=str(pythonpath), QT_QPA_PLATFORM="offscreen",
-                   WEATHERDESK_INSTANCE=self.name)
-        p = subprocess.Popen([sys.executable, "-X", "faulthandler", "-m", "weatherdesk"], env=env, cwd=str(self.tmp),
+                   RBSB_WEATHER_INSTANCE=self.name)
+        p = subprocess.Popen([sys.executable, "-X", "faulthandler", "-m", "rbsb_weather"], env=env, cwd=str(self.tmp),
                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         self.procs.append(p)
         return p
@@ -181,7 +181,7 @@ class TestHandOver(InstanceCase):
         older = self.launch()
         out, _ = older.communicate(timeout=15)
         self.assertEqual(older.returncode, 0)
-        self.assertIn("newer WeatherDesk (9.0.0)", out)
+        self.assertIn("newer RBSB-Weather (9.0.0)", out)
         self.assertIsNone(newer.poll())
         self.assertEqual(self.owner(path), [newer.pid])
 
@@ -198,9 +198,9 @@ class TestHandOver(InstanceCase):
         self.assertLess(time.monotonic() - t0, 10)
 
     def test_unrelated_processes_never_signalled(self):
-        # A process that merely *looks* like WeatherDesk but doesn't own the
+        # A process that merely *looks* like RBSB-Weather but doesn't own the
         # socket must be left alone.
-        decoy = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)", "weatherdesk"])
+        decoy = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)", "rbsb_weather"])
         try:
             legacy = self.launch(_make_copy(self.copies / "legacy", "1.0.0", legacy=True))
             self.wait_listening()

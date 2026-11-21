@@ -15,8 +15,8 @@ from PyQt6.QtTest import QTest
 
 from test_gui import GuiCase
 
-from weatherdesk import units
-from weatherdesk.storage import Settings
+from rbsb_weather import units
+from rbsb_weather.storage import Settings
 
 H12 = re.compile(r"\b(1[0-2]|[1-9]):[0-5]\d (am|pm)\b")
 H24 = re.compile(r"\b([01]\d|2[0-3]):[0-5]\d\b")
@@ -108,7 +108,7 @@ class TestTimeFormatInApp(GuiCase):
         self.assertTrue(w.unit_actions["time_format"]["12"].isChecked())
         # the 24-hour chart's hour labels follow too
         from unittest import mock
-        from weatherdesk import widgets
+        from rbsb_weather import widgets
         seen = []
         real = units.fmt_hour_label
         with mock.patch.object(widgets.units, "fmt_hour_label", side_effect=lambda iso: seen.append(real(iso)) or seen[-1]):

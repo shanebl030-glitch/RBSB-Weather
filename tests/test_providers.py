@@ -24,14 +24,14 @@ from unittest import mock
 from helpers import TempEnvTestCase, qapp, wait_until
 import provider_fixtures as PF
 
-from weatherdesk import providers, weather_codes
-from weatherdesk.api import ApiError, DataError, NetworkError, WeatherError
-from weatherdesk.keystore import MASK, KeyStore, RedactingFilter, redact, remember_secret
-from weatherdesk.models import CurrentWeather, DailyPoint, Forecast, HourlyPoint, Location
-from weatherdesk.providers import REGISTRY
-from weatherdesk.providers.base import KeyMissing
-from weatherdesk.providers.manager import ProviderManager, valid_chain
-from weatherdesk.providers.normalise import code_from, normalise
+from rbsb_weather import providers, weather_codes
+from rbsb_weather.api import ApiError, DataError, NetworkError, WeatherError
+from rbsb_weather.keystore import MASK, KeyStore, RedactingFilter, redact, remember_secret
+from rbsb_weather.models import CurrentWeather, DailyPoint, Forecast, HourlyPoint, Location
+from rbsb_weather.providers import REGISTRY
+from rbsb_weather.providers.base import KeyMissing
+from rbsb_weather.providers.manager import ProviderManager, valid_chain
+from rbsb_weather.providers.normalise import code_from, normalise
 
 KEYED = list(PF.KEYS)
 ALL = ["open-meteo", "met.no"] + KEYED
@@ -83,7 +83,7 @@ class TestRegistry(unittest.TestCase):
         self.assertEqual(valid_chain(None), ["open-meteo", "met.no"])
 
     def test_every_mapped_code_is_known_to_the_app(self):
-        from weatherdesk.providers import openweather, tomorrow, visualcrossing, weatherapi
+        from rbsb_weather.providers import openweather, tomorrow, visualcrossing, weatherapi
         known = set(weather_codes.all_codes())
         codes = [openweather.owm_code(c) for c in range(200, 805)]
         codes += list(weatherapi._CODES.values()) + list(tomorrow._CODES.values())
@@ -221,7 +221,7 @@ class TestIntegrations(ProviderCase):
         self.assertEqual(sum(1 for r in self.server.wu_requests if r.endswith("/location/near")), near)  # cached
 
     def test_wunderground_rain_at_station(self):
-        from weatherdesk.providers import wunderground as WU
+        from rbsb_weather.providers import wunderground as WU
         ob = PF.wu_obs("IX")["observations"][0]
         ob["metric"]["precipRate"] = 4.2
         fcd = PF.wu_5day(0, 0)
@@ -268,8 +268,8 @@ class TestIntegrations(ProviderCase):
             self.assertIn("current condition (from cloud and rain)", fc.calculated)
 
     def test_scene_and_widget_work_for_every_provider(self):
-        from weatherdesk import forecast_strip
-        from weatherdesk.scene import conditions_from_forecast
+        from rbsb_weather import forecast_strip
+        from rbsb_weather.scene import conditions_from_forecast
         for pid in ALL:
             fc = self.fetch(pid)
             cond = conditions_from_forecast(fc)
@@ -568,7 +568,7 @@ class TestKeyStore(TempEnvTestCase):
             ks = KeyStore(self.tmp, use_keyring=True)
             self.assertIn("system keyring", ks.backend)
             ks.set("tomorrow", "kr-secret-123456")
-            self.assertEqual(Memory.store[("WeatherDesk", "tomorrow")], "kr-secret-123456")
+            self.assertEqual(Memory.store[("RBSB-Weather", "tomorrow")], "kr-secret-123456")
             self.assertFalse(ks.path.exists())                  # nothing on disk
             self.assertEqual(ks.get("tomorrow"), "kr-secret-123456")
             ks.delete("tomorrow")
@@ -588,7 +588,7 @@ class TestKeyStore(TempEnvTestCase):
             keyring.set_keyring(old)
 
     def test_keys_never_in_settings_or_cache(self):
-        from weatherdesk.storage import Settings, SettingsStore
+        from rbsb_weather.storage import Settings, SettingsStore
         ks = KeyStore(self.tmp / "cfg", use_keyring=False)
         ks.set("tomorrow", "SETTINGS-LEAK-CHECK-123")
         store = SettingsStore(self.tmp / "cfg")
@@ -615,7 +615,7 @@ class TestRedaction(unittest.TestCase):
         buf = io.StringIO()
         h = logging.StreamHandler(buf)
         h.addFilter(RedactingFilter())
-        lg = logging.getLogger("weatherdesk.test.redact")
+        lg = logging.getLogger("rbsb_weather.test.redact")
         lg.addHandler(h)
         lg.propagate = False
         try:
@@ -633,11 +633,11 @@ class TestRedaction(unittest.TestCase):
         self.assertIn("ValueError", out)
 
     def test_app_installs_filter(self):
-        from weatherdesk import app
+        from rbsb_weather import app
         root = logging.getLogger()
         before = list(root.handlers)
         try:
-            with mock.patch("weatherdesk.storage.cache_dir", side_effect=OSError):
+            with mock.patch("rbsb_weather.storage.cache_dir", side_effect=OSError):
                 root.handlers = []
                 app._setup_logging(False)
             self.assertTrue(all(any(isinstance(f, RedactingFilter) for f in h.filters) for h in root.handlers))
@@ -647,7 +647,7 @@ class TestRedaction(unittest.TestCase):
 
 class TestSettingsMigration(unittest.TestCase):
     def test_from_1_12(self):
-        from weatherdesk.storage import Settings
+        from rbsb_weather.storage import Settings
         self.assertEqual(Settings.from_dict({"weather_source": "met.no"}).provider_chain, ["met.no", "open-meteo"])
         self.assertEqual(Settings.from_dict({}).provider_chain, ["open-meteo", "met.no"])
         s = Settings.from_dict({"provider_chain": ["tomorrow", "../evil", 5, "tomorrow", "met.no"],
@@ -666,7 +666,7 @@ class TestSettingsMigration(unittest.TestCase):
 
 class TestDiagnostics(ProviderCase):
     def test_report_lists_chain_without_keys(self):
-        from weatherdesk import diagnostics
+        from rbsb_weather import diagnostics
         self.server.provider_mode["tomorrow"] = "http500"
         self.keys.delete("weatherapi")
         m = self.manager(["tomorrow", "weatherapi", "visualcrossing"])
@@ -697,7 +697,7 @@ class WindowCase(ProviderCase):
         super().tearDown()
 
     def make(self, chain, recovery="30"):
-        from weatherdesk.main_window import MainWindow
+        from rbsb_weather.main_window import MainWindow
         m = ProviderManager(chain=chain, recovery=recovery, keystore=self.keys,
                             factories=PF.factories(self.server), status_file=self.tmp / "providers.json")
         w = MainWindow(client=m, enable_tray=False)

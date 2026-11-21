@@ -18,7 +18,7 @@ from helpers import TempEnvTestCase, qapp, wait_until
 from PyQt6.QtCore import QObject
 from PyQt6.QtTest import QTest
 
-from weatherdesk.main_window import MainWindow
+from rbsb_weather.main_window import MainWindow
 
 REPORT: list[str] = []
 
@@ -170,7 +170,7 @@ class TestCloseRace(StressCase):
         Bridge was being destroyed. Here, 40 windows are closed while their forecast
         and Earth results are landing, at slightly different moments each time."""
         import random
-        from weatherdesk import workers
+        from rbsb_weather import workers
         rng = random.Random(5)
         for i in range(40):
             w = MainWindow(client=self.client(), enable_tray=False)
@@ -196,7 +196,7 @@ class TestCloseRace(StressCase):
         by the window (before 1.8.1) this crashes the process; now the Bridge outlives
         the window until the thread is done."""
         import threading
-        from weatherdesk import workers
+        from rbsb_weather import workers
         for i in range(15):
             w = MainWindow(client=self.client(), enable_tray=False)
             w.show()

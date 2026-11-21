@@ -6,8 +6,8 @@ __pycache__/
 *.pyc
 *.tmp
 
-# API keys and secrets must never be committed (WeatherDesk keeps them in the
-# system keyring or ~/.config/weatherdesk/keys.json, outside the repository)
+# API keys and secrets must never be committed (RBSB-Weather keeps them in the
+# system keyring or ~/.config/rbsb-weather/keys.json, outside the repository)
 keys.json
 *.key
 .env

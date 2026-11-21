@@ -1,4 +1,4 @@
-# WeatherDesk – Development Session Transcript
+# RBSB-Weather (formerly WeatherDesk) – Development Session Transcript
 
 Created By Shane BlackbuRn
 
@@ -1157,5 +1157,64 @@ forum posts.
     (exact GIF timing, 7.1 MB, 760 px).
   - The bar shows the pause icon throughout (the first re-take showed ▶,
     because the script drove the slider itself).
+
+Created By Shane BlackbuRn
+
+## Session 2a – 2026-11-21 – v2.0.0 (renamed to RBSB-Weather)
+
+**Request:** "I need to change the name of my app. WeatherDesk is too common."
+Shane first chose Weatherglass from my suggestions, then found that common too:
+"I'd like to change the name to RBSB-Weather". The Weatherglass work was
+discarded before anything was committed, and the branch reset to the released
+1.18.0 and renamed `claude/rbsb-weather-2.0.0`. Nothing is merged or released.
+
+### Decisions (with reasons)
+| Decision | Reason |
+|---|---|
+| "RBSB-Weather" for everything shown; `rbsb-weather` for the command, package, folders, menu file and icon; `rbsb_weather` only for the Python package folder | Debian package names and Linux commands are lower case; Python module names can't contain `-` |
+| Version 2.0.0 | The package, command and folders changed: a big step for users even with no new features |
+| Copy WeatherDesk's settings, cache, keyring keys and login entry on first start; never move or delete | Nobody loses anything; going back to WeatherDesk still works |
+| Only copy into a folder with no data of its own; marker file; retry on failure | Can never overwrite RBSB-Weather data; can't run twice; a full disk doesn't lose the chance |
+| Rename the old login entry to `.migrated` instead of deleting it | It would otherwise start a second time (the `weatherdesk` link starts RBSB-Weather), and nothing of Shane's is deleted |
+| Ask a running WeatherDesk to hand over through its old socket, then copy | It saves its settings as it quits, so the copy includes its latest state |
+| Debian `Replaces`/`Conflicts: weatherdesk` plus a `/usr/bin/weatherdesk` link | One `apt install` swaps the packages; old shortcuts and habits keep working |
+| Historical CHANGELOG, TRANSCRIPT and TEST_REPORT entries keep the old name | They record what happened under that name |
+
+### Problems found while building and testing
+1. **My blanket rename made every lower-case "weatherdesk" the module name.**
+   Command, folders, menu file and icon names were then corrected one by one
+   to `rbsb-weather`, and `build_deb.sh` got separate package and module
+   variables. A grep afterwards found no leftovers.
+2. **The log is created in the cache folder before the copy,** so the new
+   cache folder is never empty. The copy treats a folder holding only logs as
+   empty and merges into it without replacing anything (tested).
+3. **A test of the "interrupted copy" did nothing at first:** `shutil.copytree`
+   binds its copy function when Python starts, so patching it had no effect.
+   The migration now calls its own copy function, and the test really breaks
+   the copy part-way.
+4. **apt error during the real upgrade test:** "Pathname to install is not
+   absolute". It came from the `--no-download` flag I added, not the package
+   (apt had already removed weatherdesk). Re-run as Shane would type it, it
+   installed cleanly; the whole upgrade was then repeated from scratch.
+
+### Tested for real (in this sandbox)
+- Full suite: 503 run, 501 passed, 2 skipped (environment-only), 0 failed.
+- Real dpkg: installed WeatherDesk 1.18.0 running in the tray →
+  `apt install ./rbsb-weather_2.0.0_all.deb` removed weatherdesk and installed
+  rbsb-weather → launching `rbsb-weather` made the running WeatherDesk quit
+  cleanly (exit 0) and took over; settings, both locations, °F, 12-hour,
+  provider order, Station ID and both keys came across byte-identical; the
+  login entry was swapped; the old folders are unchanged.
+- Rollback to WeatherDesk 1.18.0 with apt, and a second one-step upgrade.
+
+### Still needs your desktop (Linux Mint)
+- The upgrade on your real profile, including keys in GNOME Keyring (the
+  sandbox has no keyring, so that path was tested with a fake keyring only).
+- The menu entry and icon under the new name, and the panel grouping.
+- "Start at login" after a real reboot.
+
+### For you to do on GitHub
+- Rename the repository to `RBSB-Weather` (Settings → General → Repository
+  name). GitHub redirects the old address.
 
 Created By Shane BlackbuRn

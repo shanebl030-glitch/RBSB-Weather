@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=RBSB-Weather
+GenericName=Weather Forecast
+Comment=Current weather, 24-hour chart and 7-day forecast (Created By Shane BlackbuRn)
+Exec=rbsb-weather
+Icon=rbsb-weather
+Terminal=false
+Categories=Utility;
+Keywords=weather;forecast;temperature;rain;weatherdesk;
+StartupNotify=true
+StartupWMClass=rbsb-weather

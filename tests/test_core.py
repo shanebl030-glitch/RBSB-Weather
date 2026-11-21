@@ -11,11 +11,11 @@ import unittest
 from helpers import PLACES, TempEnvTestCase
 
 from fake_server import make_forecast
-from weatherdesk import AUTHOR_CREDIT, units, weather_codes
-from weatherdesk.api import (ApiError, DataError, NetworkError, OpenMeteoClient, forecast_from_dict,
+from rbsb_weather import AUTHOR_CREDIT, units, weather_codes
+from rbsb_weather.api import (ApiError, DataError, NetworkError, OpenMeteoClient, forecast_from_dict,
                              forecast_to_dict, parse_forecast, parse_geocode)
-from weatherdesk.models import Location
-from weatherdesk.storage import MAX_LOCATIONS, ForecastCache, Settings, SettingsStore, atomic_write_json
+from rbsb_weather.models import Location
+from rbsb_weather.storage import MAX_LOCATIONS, ForecastCache, Settings, SettingsStore, atomic_write_json
 
 
 class TestCredit(unittest.TestCase):

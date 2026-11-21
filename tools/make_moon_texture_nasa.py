@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build WeatherDesk's moon textures from NASA's CGI Moon Kit (build-time tool).
+"""Build RBSB-Weather's moon textures from NASA's CGI Moon Kit (build-time tool).
 
 Source data (public domain, NASA's Scientific Visualization Studio):
     https://svs.gsfc.nasa.gov/4720
@@ -8,9 +8,9 @@ Source data (public domain, NASA's Scientific Visualization Studio):
   * height map  : ldem_16_uint.tif  (16 px/degree, unsigned 16-bit, half-metres)
 
 Output (replaces the generated textures; the app picks them up automatically):
-    weatherdesk/assets/moon_albedo.jpg   near-side colour, orthographic, north up
-    weatherdesk/assets/moon_height.jpg   crater-scale relief (large slopes removed)
-    weatherdesk/assets/moon_textures.json
+    rbsb_weather/assets/moon_albedo.jpg   near-side colour, orthographic, north up
+    rbsb_weather/assets/moon_height.jpg   crater-scale relief (large slopes removed)
+    rbsb_weather/assets/moon_textures.json
 
 Usage:
     python3 tools/make_moon_texture_nasa.py COLOUR.tif HEIGHT.tif [--size 2048] [--exaggeration 3]
@@ -30,7 +30,7 @@ from pathlib import Path
 
 import numpy as np
 
-OUT = Path(__file__).resolve().parents[1] / "weatherdesk" / "assets"
+OUT = Path(__file__).resolve().parents[1] / "rbsb_weather" / "assets"
 MOON_RADIUS_M = 1737400.0
 CREDIT = ("Moon imagery: NASA's Scientific Visualization Studio, CGI Moon Kit "
           "(LRO LROC WAC and LOLA data)")
