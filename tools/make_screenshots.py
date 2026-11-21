@@ -116,6 +116,15 @@ class Server:
             def do_GET(self):
                 if self.path.startswith("/alerts-"):
                     return self._alerts()
+                if self.path.startswith(("/usgs/", "/geonet")):
+                    sys.path.insert(0, str(ROOT / "tests"))
+                    import quake_fixtures as QF                 # sample quakes (2.5), timed around now
+                    body = json.dumps(QF.usgs() if self.path.startswith("/usgs/") else QF.geonet()).encode()
+                    self.send_response(200)
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
                 q = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query))
                 body = json.dumps(sample(float(q.get("latitude", 0)), float(q.get("longitude", 0)))).encode()
                 self.send_response(200)
@@ -174,11 +183,14 @@ def main() -> int:
     base = srv.url.rsplit("/v1/", 1)[0]
     ac = A.AlertClient(metservice_url=f"{base}/alerts-metservice/cap/rss", nws_url=f"{base}/alerts-nws",
                        metno_url=f"{base}/alerts-metno", meteoalarm_url=base + "/alerts-meteoalarm/{slug}")
+    from rbsb_weather import quakes as Q
+    qc = Q.QuakeClient(usgs_url=base + "/usgs/{feed}", geonet_url=base + "/geonet")
     w = MainWindow(client=OpenMeteoClient(forecast_url=srv.url, geocode_url=srv.url), enable_tray=False,
-                   alert_client=ac)
+                   alert_client=ac, quake_client=qc)
     w.set_earth_clouds(False)                           # the Earth tabs stay offline
     # warnings (2.4) have their own screenshots at the end; the others are taken without them
     w.apply_alert_settings({"alerts_official": False, "alerts_own": False})
+    w.apply_quake_settings({"quakes_show": False, "quakes_notify_near": False, "quakes_notify_major": False})
     w.resize(1240, 860)
     w.show()
     keys = {}
@@ -300,6 +312,26 @@ def main() -> int:
     img.save(str(OUT / "18-widget-warning.png"))
     print("saved 18-widget-warning.png")
     w.set_desktop_widget(False)
+
+    # ---- earthquakes (2.5), with sample quakes
+    w.apply_alert_settings({"alerts_official": False, "alerts_own": False})
+    w.apply_quake_settings({"quakes_show": True, "quakes_notify_near": True, "quakes_notify_major": True})
+    end = time.time() + 15
+    while time.time() < end and (not w.quake_store.checked or w._quakes_busy):
+        wait(200)
+    w.tabs.setCurrentWidget(w.globe_panel)
+    g = w.globe_panel.view
+    g.set_zoom(1.25, animate=False)
+    g.set_center(-25, 160)
+    wait(2500)
+    g.show_quake("geonet:2026p881001")
+    shot(w, "19-earthquakes-globe.png", 2500)
+    g.hide_quake()
+    w.tabs.setCurrentWidget(w.earth_panel)
+    wait(1500)
+    jp = next(q for q in w.earth_panel.map.quake_layer.quakes if q.mag >= 7)
+    w.earth_panel.map.show_quake(jp.id)
+    shot(w, "20-earthquakes-map.png", 2500)
     w._quitting = True
     w.close()
     srv.httpd.shutdown()

@@ -4,7 +4,52 @@ Created By Shane BlackbuRn
 
 Entries before 2.0.0 use the app's old name, WeatherDesk, as they were written.
 
-## 2.4.0 – 2026-11-22 (on branch claude/rbsb-weather-2.4.0; not released)
+## 2.5.0 – 2026-11-22 (on branch claude/rbsb-weather-2.5.0; not released)
+
+Requested by Shane: "earth quake notification on the globe with a pulsing dot etc."
+
+### Added – earthquakes
+- **On the Earth Flat and Earth Globe tabs**, recent quakes show as dots:
+  - sized by magnitude;
+  - coloured by age: red in the last hour, orange within 6 hours, yellow
+    within a day, grey if older;
+  - quakes from the last hour have pulsing rings;
+  - on the globe, quakes round the back are hidden;
+  - hover for the details; click for a card with the magnitude, place, depth,
+    how long ago, the distance to the nearest saved place, and a link to the
+    quake's GeoNet or USGS page.
+- **An "Earthquakes (n)" box** under each map shows or hides them. The two
+  tabs follow each other.
+- **Notifications** for:
+  - a quake of magnitude 4.5 or more within 300 km of a saved place;
+  - a major quake (7 or more) anywhere.
+
+  Each quake is notified once, even across a restart, and only within 2 hours
+  of it happening. Clicking the notification turns the globe to the quake and
+  opens its card.
+- **Large undersea quakes** (the USGS tsunami flag, M6.5+) remind you to check
+  official tsunami advice. RBSB-Weather says it isn't a warning service.
+- **Settings → Earthquakes:**
+  - show quakes from the past day or week;
+  - magnitude 2.5 and up, or 4.5 and up;
+  - the notification magnitude and distance, and major quakes;
+  - check every 5, 10 or 30 minutes.
+- **Sources:** USGS feeds worldwide (public domain) and GeoNet for New Zealand
+  (CC BY 3.0 NZ, using its required versioned Accept header). When both report
+  the same quake, GeoNet's is kept.
+- **Failures:** if a source fails, its last quakes stay on the map. Nothing is
+  downloaded when the map and both kinds of notification are off.
+- **Animation:** only quakes from the last hour (or the one whose card is
+  open) animate. With none, the quake overlay adds no animation work.
+
+### Changed
+- The credits (About and both Earth tabs), the User Guide ("Earthquakes"), and
+  the README (screenshots 19–20) now cover earthquakes.
+
+### Tests
+- New `test_quakes` (15) and `test_quakes_gui` (7).
+
+## 2.4.0 – 2026-11-22 (released)
 
 Requested by Shane: weather alerts and extreme weather events. He approved the
 five design concepts (main window, warning details, widget and notification,

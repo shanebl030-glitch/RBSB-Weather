@@ -27,6 +27,7 @@ from PyQt6.QtWidgets import (QCheckBox, QHBoxLayout, QLabel, QPushButton, QSizeP
 
 from . import earth as E
 from .clouds import CREDIT as CLOUD_CREDIT
+from .quakes_view import QuakeHost
 from .earth_panel import (RECOMPOSE_S, LocationCard, Marker, PulseMarker, draw_label, info_text,
                           place_card)
 from .globe import GlobeRenderer, has_numpy, project
@@ -48,8 +49,9 @@ def _ease(t: float) -> float:
     return t * t * (3 - 2 * t)
 
 
-class GlobeView(QWidget):
+class GlobeView(QuakeHost, QWidget):
     location_clicked = pyqtSignal(str)
+    quake_link = pyqtSignal(str)                  # a quake card's "Details on …" link (2.5)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -110,6 +112,7 @@ class GlobeView(QWidget):
                                       "border-radius: 4px; padding: 2px 6px;")
         self.zoom_label.setToolTip("Zoom (0 resets)")
         self.zoom_in_btn = self._tool_button("+", "Zoom in (mouse wheel or +)", self.zoom_in)
+        self._init_quakes()                       # earthquakes overlay (2.5)
 
     def _tool_button(self, text: str, tip: str, slot) -> QToolButton:
         b = QToolButton(self)
@@ -309,6 +312,8 @@ class GlobeView(QWidget):
         self._place_overlays()
 
     def _place_overlays(self) -> None:
+        if hasattr(self, "quake_layer"):
+            self._quakes_resized()            # the quake overlay and card follow the globe (2.5)
         m = self.selected_marker()
         p = self.point_for(m.lat, m.lon) if m else None
         if p is not None and not QRectF(self.rect()).contains(p):
@@ -372,6 +377,7 @@ class GlobeView(QWidget):
                         else Qt.CursorShape.ArrowCursor))
         m = next((x for x in self.markers if x.key == key), None)
         hint = next((ind[1] for ind in self._indicators if ind[0].contains(e.position())), "")
+        hint = hint or ("" if key else self._quake_tip(e.position()))
         self.setToolTip(f"{m.name} – click to select" if m else hint or
                         ("Drag to spin · wheel to zoom" if self.globe_rect().contains(e.position()) else ""))
 
@@ -383,6 +389,8 @@ class GlobeView(QWidget):
                 self.set_center(self.c_lat, self.c_lon)               # full-resolution frame
             elif self._press_key:
                 self.location_clicked.emit(self._press_key)
+            else:
+                self._quake_click(e.position())
 
     def mouseDoubleClickEvent(self, e):
         m = self.selected_marker()
@@ -670,6 +678,8 @@ class GlobePanel(QWidget):
     location_clicked = pyqtSignal(str)
     compose_requested = pyqtSignal()
     clouds_toggled = pyqtSignal(bool)
+    quakes_toggled = pyqtSignal(bool)             # the "Earthquakes" box (2.5)
+    quake_link = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -680,6 +690,7 @@ class GlobePanel(QWidget):
         lay.addWidget(self.info)
         self.view = GlobeView()
         self.view.location_clicked.connect(self.location_clicked.emit)
+        self.view.quake_link.connect(self.quake_link.emit)
         lay.addWidget(self.view, 1)
         row = QHBoxLayout()
         self.spin_box = QCheckBox("Rotate slowly")
@@ -693,14 +704,22 @@ class GlobePanel(QWidget):
         self.clouds_box.setToolTip("Show near real-time satellite clouds (updated every 3 hours)")
         self.clouds_box.toggled.connect(self.clouds_toggled.emit)
         row.addWidget(self.clouds_box)
+        self.quakes_box = QCheckBox("Earthquakes")
+        self.quakes_box.setToolTip("Recent earthquakes: red in the last hour (pulsing), orange in the last 6 hours, "
+                                   "yellow in the last day. Bigger dots are bigger quakes. Click one for details.")
+        self.quakes_box.setChecked(True)
+        self.quakes_box.toggled.connect(self.quakes_toggled.emit)
+        row.addWidget(self.quakes_box)
         row.addWidget(self.spin_box)
         row.addWidget(self.centre_btn)
-        row.addStretch(1)
         legend = QLabel("Drag to spin  ·  wheel or +/− to zoom  ·  ☀ Sun overhead  ·  ● Moon overhead")
         legend.setStyleSheet("color: palette(placeholder-text);")
-        row.addWidget(legend)
+        legend.setWordWrap(True)              # wraps instead of widening the window (2.5)
+        legend.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        row.addWidget(legend, 1)
         lay.addLayout(row)
-        self.credit = QLabel(E.CREDIT + "\n" + CLOUD_CREDIT)
+        from .quakes import CREDIT as QUAKE_CREDIT
+        self.credit = QLabel(E.CREDIT + "\n" + CLOUD_CREDIT + "\n" + QUAKE_CREDIT)
         self.credit.setWordWrap(True)
         self.credit.setStyleSheet("color: palette(placeholder-text);")
         lay.addWidget(self.credit)

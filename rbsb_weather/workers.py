@@ -40,6 +40,7 @@ class Bridge(QObject):
     update_downloaded = pyqtSignal(int, str, str)         # token, path, error ("" = ok)
     wind_ok = pyqtSignal(int, object, str)                # token, WindField|None, note or error
     alerts_ok = pyqtSignal(int, object, object)           # token, {key: [Alert]}, {source: error} (2.4)
+    quakes_ok = pyqtSignal(int, object, object)           # token, [Quake], {source: error} (2.5)
 
 
 # Bridges are never destroyed while a worker thread might still emit on them.
@@ -203,6 +204,17 @@ class Worker:
                 got, errors = {}, {"all": f"Unexpected error: {e}"}
             self.bridge.alerts_ok.emit(token, got, errors)
         self._spawn("alerts", job)
+
+    def quakes_update(self, token: int, client, period: str, min_mag: float) -> None:
+        """Recent earthquakes (quakes.py)."""
+        def job():
+            try:
+                got, errors = client.fetch(period, min_mag)
+            except Exception as e:
+                log.exception("quake check crashed")
+                got, errors = [], {"USGS": f"Unexpected error: {e}", "GeoNet": f"Unexpected error: {e}"}
+            self.bridge.quakes_ok.emit(token, got, errors)
+        self._spawn("quakes", job)
 
     def search(self, token: int, query: str) -> None:
         def job():

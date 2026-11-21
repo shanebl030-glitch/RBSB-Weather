@@ -219,6 +219,51 @@ Both tabs share the same day/night picture, so the globe adds no extra
 background work. Without python3-numpy the globe is a little less sharp,
 and Rotate slowly is unavailable.
 
+## Earthquakes
+
+Recent earthquakes show on the **Earth Flat** and **Earth Globe** tabs as dots:
+
+* **Colour** shows how recent it was: red in the last hour (with pulsing rings),
+  orange in the last 6 hours, yellow in the last day, grey if older.
+* **Size** shows the magnitude: bigger dots are bigger quakes.
+* **Hover** over a dot for its magnitude, where it was, its depth and when.
+* **Click** a dot for a card with the same details, how far it was from your
+  nearest saved place, and a link to the quake's page on GeoNet or USGS.
+  Click anywhere else to close it.
+* Untick **Earthquakes** under either map to hide them. The box shows how many
+  there are.
+
+**Notifications.** You get a desktop notification for:
+
+* a quake of magnitude 4.5 or more within 300 km of one of your saved places;
+* a major quake (magnitude 7 or more) anywhere.
+
+Each quake is notified once, even across a restart, and only if it happened in
+the last 2 hours. Click the notification to turn the globe to the quake.
+
+For a large quake under the sea, the card and notification remind you to check
+your official tsunami advice. **RBSB-Weather is not an earthquake or tsunami
+warning service.** In New Zealand, follow Civil Defence (civildefence.govt.nz)
+and emergency mobile alerts. A long or strong quake near the coast is itself
+the warning: move to high ground straight away.
+
+**Settings → Earthquakes** lets you:
+
+* show quakes from the past day or week;
+* show magnitude 2.5 and up (many small quakes), or 4.5 and up;
+* change the notification magnitude and distance, or turn notifications off;
+* check every 5, 10 or 30 minutes.
+
+**Where quakes come from:**
+
+* USGS for the whole world. It's updated every minute.
+* GeoNet for New Zealand quakes likely to have been felt. When both report the
+  same quake, GeoNet's version is shown.
+
+Both feeds are the same for everyone, and distances to your places are worked
+out on your computer, so nothing about you is sent. If a feed can't be
+reached, the last quakes stay on the map.
+
 ## Wind
 
 The **🌬 Wind** tab shows the weather over the whole world on a globe. Choose
@@ -597,6 +642,7 @@ antivirus that inspects HTTPS are the usual suspects.
 * When updates were last checked: `~/.cache/rbsb-weather/updates.json`
 * The world wind map (Wind tab): `~/.cache/rbsb-weather/wind/`
 * The last weather warnings, and which have been notified: `~/.cache/rbsb-weather/alerts.json`
+* Recent earthquakes, and which have been notified: `~/.cache/rbsb-weather/quakes.json`
 
 Installing a newer RBSB-Weather never touches these files, so your locations,
 settings and API keys carry over. Removing the package leaves them too.
@@ -652,7 +698,9 @@ System (GFS), public domain. Weather warnings from
 [US National Weather Service](https://www.weather.gov/) (public domain),
 [MET Norway](https://www.met.no/en) (CC BY 4.0) and
 [MeteoAlarm](https://meteoalarm.org/) (EUMETNET, with each country's national
-weather service; UK warnings © Crown copyright, Met Office). Live clouds by
+weather service; UK warnings © Crown copyright, Met Office). Earthquakes from the
+[USGS](https://earthquake.usgs.gov/) (public domain) and
+[GeoNet](https://www.geonet.org.nz/) (CC BY 3.0 NZ). Live clouds by
 [Live Cloud Maps](https://github.com/matteason/live-cloud-maps) (Matt Eason,
 CC0); contains modified EUMETSAT data.
 
