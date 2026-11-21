@@ -1281,3 +1281,40 @@ Work is on branch `claude/rbsb-weather-2.1.0`. Nothing is merged or released.
   from 2.0.0 to 2.1.0 is a normal manual install.
 
 Created By Shane BlackbuRn
+
+## Session 2c – 2026-11-21 – v2.1.1 (buy me a coffee)
+
+**Context:** Shane published 2.1.0 (with help to attach its files), filled in
+the repository's About box and topics, and set up a daily scheduled task that
+checks whether RBSB-Weather shows in web searches. He mentioned a possible
+trial version later, "but not at the moment". He then asked for a "buy me a
+coffee for $0.99" line with his PayPal account in the About box and User Guide.
+
+### Finding a PayPal link that works for his account
+1. **PayPal.Me:** `paypal.me/my/settings` bounced back to his Summary page.
+   That's the known sign PayPal.Me isn't offered for his account or country.
+2. **Ko-fi** (pays into PayPal): Shane didn't want it. He wants a direct
+   PayPal link.
+3. **PayPal Donate button:** needs a confirmed charity.
+4. **PayPal payment link with his Merchant ID:** this works without PayPal.Me,
+   a charity or an email address. The Merchant ID is meant to be public.
+
+When Shane pasted his account page it also showed his address, phone and ID
+details. Only the Merchant ID is used. Nothing else was stored, and a test
+makes sure no Gmail address is ever shipped.
+
+### Fees, as told to Shane
+PayPal takes a fixed fee per payment (NZ$0.45 for NZD donations, per PayPal's
+fee page) plus a percentage. So on NZ$0.99 he keeps only about half. I
+suggested $3 or "any amount"; he kept NZ$0.99.
+
+### Tested
+- Full suite: 545 run, 543 passed, 2 skipped (environment-only), 0 failed.
+- 6 new tests. The About box and menu item were checked visually in a
+  screenshot.
+- PayPal refuses automated visits to its payment page, so Shane needs to
+  check the link opens the right page in his browser. It should show "RBSB
+  Brothers" and NZ$0.99. He shouldn't complete the payment, since PayPal won't
+  let him pay himself.
+
+Created By Shane BlackbuRn

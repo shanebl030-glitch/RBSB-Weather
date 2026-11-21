@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
     QFileDialog, QScrollArea, QSplitter, QSystemTrayIcon, QTabWidget, QTextBrowser, QToolButton, QVBoxLayout, QWidget,
 )
 
-from . import APP_NAME, AUTHOR_CREDIT, DATA_CREDIT, __version__, units, weather_codes
+from . import APP_NAME, AUTHOR_CREDIT, COFFEE_TEXT, COFFEE_URL, DATA_CREDIT, __version__, units, weather_codes
 from .storage import AUTOSTART_ENTRY, autostart_path   # noqa: F401  (autostart_path is used by tests too)
 from .api import OpenMeteoClient
 from . import providers
@@ -170,6 +170,7 @@ class MainWindow(QMainWindow):
         self._update_cancel = None            # threading.Event of a download in progress
         self._started_mono = time.monotonic()
         self.open_file = self._open_with_desktop   # replaced in tests (never launches anything)
+        self.open_url = self._open_url_in_browser  # likewise (Help → Buy Me a Coffee)
         self.bridge.update_checked.connect(self._on_update_checked)
         self.bridge.update_progress.connect(self._on_update_progress)
         self.bridge.update_downloaded.connect(self._on_update_downloaded)
@@ -480,6 +481,7 @@ class MainWindow(QMainWindow):
         hm.addAction(QAction("&Test connection…", self, triggered=self.show_connection_test))
         hm.addAction(QAction("Check for &Updates…", self, triggered=self.check_for_updates))
         hm.addSeparator()
+        hm.addAction(QAction("☕ Buy Me a &Coffee…", self, triggered=self.buy_coffee))
         hm.addAction(QAction("&About RBSB-Weather", self, triggered=self.show_about))
 
     def _build_tray(self) -> None:
@@ -1470,6 +1472,7 @@ class MainWindow(QMainWindow):
         return (f"<h2>{APP_NAME} {__version__}</h2>"
                 f"<p>A desktop weather app for Linux (formerly WeatherDesk).</p>"
                 f"<p><b>{AUTHOR_CREDIT}</b></p>"
+                f"<p>☕ {COFFEE_TEXT}: <a href='{COFFEE_URL}'>Buy me a coffee with PayPal</a></p>"
                 f"<p>{self._credits_html()}</p>"
                 f"<p>{self._moon_credit()}</p>"
                 f"<p>Settings: {self.store.path}<br>Cache: {self.cache.dir}</p>")
@@ -1497,6 +1500,17 @@ class MainWindow(QMainWindow):
         earth = (f"<br>{EARTH_CREDIT} – <a href='{SOURCE_URL}'>solarsystemscope.com/textures</a>"
                  f"<br>{CLOUD_CREDIT} – <a href='{PROJECT_URL}'>github.com/matteason/live-cloud-maps</a>")
         return (f"{base}<br>{credit}" if credit else base) + earth
+
+    def buy_coffee(self) -> None:
+        """Help → Buy Me a Coffee: opens the PayPal payment page in the browser (2.1.1)."""
+        if not self.open_url(COFFEE_URL):
+            QMessageBox.information(self, APP_NAME, f"{COFFEE_TEXT}:\n\n{COFFEE_URL}")
+
+    @staticmethod
+    def _open_url_in_browser(url: str) -> bool:
+        from PyQt6.QtCore import QUrl
+        from PyQt6.QtGui import QDesktopServices
+        return QDesktopServices.openUrl(QUrl(url))
 
     def show_about(self) -> None:
         QMessageBox.about(self, f"About {APP_NAME}", self.about_html())
