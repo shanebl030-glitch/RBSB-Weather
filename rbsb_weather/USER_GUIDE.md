@@ -301,6 +301,34 @@ settings and closes, and the new version opens in its place. The status bar
 confirms the update. Copies older than 1.1.1 take about 6 seconds to be
 recognised and replaced.
 
+## Updates
+
+RBSB-Weather checks GitHub once a day for a newer version. The first check is
+a minute after it starts, so opening the app is never slowed down. If there's
+a newer version:
+
+* **⬆ Update available** appears at the bottom right of the window. Click it
+  to see what's new.
+* The tray shows a notice once (not every day).
+
+Nothing is installed without you. In the update window:
+
+* **Download and Install** downloads the new package to your Downloads
+  folder and checks it against the release's checksum. A download that doesn't
+  match is deleted, never installed. Then your package installer opens: click
+  **Install** and enter your password. Start RBSB-Weather again afterwards and
+  the new version takes over.
+* **View on GitHub** opens the release page.
+* **Skip This Version** stops reminders about that version. A later version is
+  still announced, and **Help → Check for Updates…** still shows it.
+
+**Help → Check for Updates…** checks straight away. To turn the daily check
+off, untick **Settings → Check for updates automatically**.
+
+The check only contacts GitHub (github.com and its download servers). It sends
+nothing about you except the app's version, which every web request includes.
+If GitHub can't be reached, the app tries again 3 hours later.
+
 ## Working offline
 
 The last successful forecast for each location is saved. If the internet is
@@ -432,6 +460,7 @@ antivirus that inspects HTTPS are the usual suspects.
 * API keys (only if your desktop has no keyring): `~/.config/rbsb-weather/keys.json`, readable only by you
 * Provider status (last success, last error, usage; never keys): `~/.cache/rbsb-weather/providers.json`
 * Saved forecasts, the cloud map and log: `~/.cache/rbsb-weather/`
+* When updates were last checked: `~/.cache/rbsb-weather/updates.json`
 
 Installing a newer RBSB-Weather never touches these files, so your locations,
 settings and API keys carry over. Removing the package leaves them too.

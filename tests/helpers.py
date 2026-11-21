@@ -18,6 +18,9 @@ if not os.environ.get("XDG_RUNTIME_DIR"):
     _rt = Path(tempfile.gettempdir()) / f"rbsb_weather-test-runtime-{os.getuid()}"
     _rt.mkdir(mode=0o700, exist_ok=True)
     os.environ["XDG_RUNTIME_DIR"] = str(_rt)
+# Never contact GitHub from tests: the update check (2.1) goes to a closed local port
+# unless a test points it at its own fake GitHub.
+os.environ["RBSB_WEATHER_UPDATE_URL"] = "http://127.0.0.1:9/releases/latest"
 # Never touch the desktop's real keyring from tests: keys go to the temp config dir.
 os.environ["RBSB_WEATHER_KEYRING"] = "0"
 # Tests talk only to the local fake server; never route them through a proxy.

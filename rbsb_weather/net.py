@@ -356,7 +356,10 @@ class _FastHTTPSHandler(urllib.request.HTTPSHandler):
         return self.do_open(FastHTTPSConnection, req, context=self._context)
 
 
-def build_opener(ssl_context=None) -> urllib.request.OpenerDirector:
+def build_opener(ssl_context=None, *extra_handlers) -> urllib.request.OpenerDirector:
     """urllib opener using fast connections; still honours system proxy settings.
-    `ssl_context` defaults to the system's normal certificate checks."""
-    return urllib.request.build_opener(_FastHTTPHandler(), _FastHTTPSHandler(context=ssl_context))
+    `ssl_context` defaults to the system's normal certificate checks. `extra_handlers`
+    replace urllib's defaults of the same kind (the update checker uses its own
+    redirect handler, which only follows redirects to GitHub)."""
+    return urllib.request.build_opener(_FastHTTPHandler(), _FastHTTPSHandler(context=ssl_context),
+                                       *extra_handlers)

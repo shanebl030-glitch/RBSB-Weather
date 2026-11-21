@@ -1218,3 +1218,66 @@ discarded before anything was committed, and the branch reset to the released
   name). GitHub redirects the old address.
 
 Created By Shane BlackbuRn
+
+## Session 2b – 2026-11-21 – v2.1.0 (check for updates)
+
+**Context:** Shane tested 2.0.0 on Mint ("Working perfectly"), merged PR #3,
+renamed the GitHub repository to RBSB-Weather and published the v2.0.0
+release himself (this session isn't allowed to create releases; GitHub refused
+with "not permitted for this session type"). He then asked "Is it possible to
+add a check for updates", and chose "daily check turned on by default".
+
+Work is on branch `claude/rbsb-weather-2.1.0`. Nothing is merged or released.
+
+### Decisions (with reasons)
+| Decision | Reason |
+|---|---|
+| Ask GitHub's "latest release" address; compare versions | The releases are already published there; no server of our own to run |
+| Once a day, not in the first minute, using the existing minute timer and wall clock | Startup stays quick; works across sleep; no extra timers |
+| Retry 3 hours after a failed check; a clock that went backwards counts as due | A short outage doesn't mean a day's wait; a bad clock can't block checks forever |
+| Status-bar button, plus a tray notice once per version; never a pop-up window for an automatic check | Noticeable without nagging |
+| Download to Downloads, verify against the release's SHA256SUMS, then open in the package installer | The user sees and approves the install; the app never runs as root; a damaged or tampered file is never offered |
+| No checksum file, or the file not listed: refuse to download | An unverifiable package shouldn't be installed through the app |
+| https and GitHub's own addresses only, also after redirects; size limits; strict file name | Nothing else can be fetched or written even if a reply is wrong |
+| Never overwrite a file in Downloads; reuse an identical one | Shane's rule about user files |
+| Last-check times in the cache folder, not settings.json | Settings shouldn't be rewritten every day just for a time stamp |
+| Tests point the check at a closed local port | The test suite must never contact GitHub |
+
+### Problems found while building and testing
+1. **An older bug, found by the new tests:** at every start, the clean-up of
+   forecasts for removed locations deleted every `.json` in the cache folder.
+   That included provider status, the network-route memory, the cloud map's
+   download record (so the cloud map was downloaded again each start) and the
+   new update record. Present since at least 1.11.1. It now only removes
+   forecast files, with a regression test.
+2. **A segmentation fault in the update window tests** (intermittent). The
+   update window deleted itself on close, and its "deleted" callback ran into
+   a main window that was being destroyed. The window is now kept and reused.
+   The window tests then ran 20 times in a row with no failure, plus 3 full
+   runs of the update and core tests.
+3. **Layout:** with no release notes to show, the text was spread down the
+   window (seen in a screenshot). Fixed with a filler.
+
+### Tested
+- Full suite: 539 run, 537 passed, 2 skipped (environment-only), 0 failed.
+- Against the **real GitHub**: the check found RBSB-Weather 2.0.0 (so 2.0.0
+  users will be told about 2.1.0 once it's published). The download followed
+  GitHub's redirect, passed the checksum, and is byte-identical to the
+  2.0.0 package Shane tested.
+- Screenshots of the update window: available, downloaded, up to date, error;
+  and the status-bar button.
+- Real package: installed 2.0.0 running → `apt install` 2.1.0 → 2.0.0 handed
+  over cleanly. The installed 2.1.0 made its first automatic check 61 s after
+  starting, against the real GitHub ("latest release is 2.0.0 (this is
+  2.1.0)", nothing announced). After a restart, `updates.json` and
+  `providers.json` were still there.
+
+### Still needs your desktop (Linux Mint)
+- Opening the downloaded .deb in Mint's package installer (the build machine
+  has no desktop to open it in).
+- The tray notice on your panel.
+- The full path 2.1.0 → a later version can only be seen once a newer
+  release than 2.1.0 is published. 2.0.0 has no update checker, so going
+  from 2.0.0 to 2.1.0 is a normal manual install.
+
+Created By Shane BlackbuRn

@@ -4,6 +4,100 @@ Created By Shane BlackbuRn
 
 Entries before 2.0.0 use the app's old name, WeatherDesk, as they were written.
 
+## 2.1.0 – 2026-11-21 (on branch claude/rbsb-weather-2.1.0; not released)
+
+Requested by Shane: "Is it possible to add a check for updates", with the
+daily check "turned on by default".
+
+### Added – check for updates
+- **Once a day**, RBSB-Weather asks GitHub for the latest published release
+  of shanebl030-glitch/RBSB-Weather. It's on by default, and off with
+  **Settings → Check for updates automatically**.
+  - Never in the first minute after starting, so startup isn't slowed.
+  - Driven by the existing once-a-minute timer and the wall clock, so it
+    still happens after the computer sleeps.
+  - A failed check is retried 3 hours later. A clock that jumped backwards
+    counts as due.
+- **When there's a newer version:**
+  - **⬆ Update available: x.y.z** appears in the status bar and opens the
+    update window.
+  - The tray shows a notice once per version, not every day.
+  - An automatic check never pops up a window.
+  - A newer version found earlier is shown again at the next start, without
+    using the network.
+- **Help → Check for Updates…** checks now and shows the answer: up to date,
+  a new version with its release notes, or why it couldn't check.
+- **Download and Install:**
+  - The .deb goes to the Downloads folder and is checked against the
+    release's SHA256SUMS. A file that doesn't match, isn't a Debian package,
+    is incomplete or is too large is deleted.
+  - Then it opens in the desktop's package installer, which asks for the
+    password. The app never runs anything as root.
+  - If the installer can't be opened, the window shows the `apt` command
+    with a Copy button.
+  - A file already downloaded and verified is reused. A different file with
+    the same name is never overwritten (`-2` is added to the new name).
+  - Closing the window cancels the download and deletes the partial file.
+- **Skip This Version** stops reminders for that version only.
+  **Help → Check for Updates** still offers it.
+- **Safety:** https only, and only GitHub's own addresses (including after
+  redirects). There are size limits on every reply, the release's file name
+  must be `rbsb-weather_<version>_all.deb`, and only finished releases count
+  (not drafts or pre-releases).
+- **Errors in plain English:** no release found, GitHub's rate limit
+  reached, GitHub errors, no network, timeouts (one retry), a damaged reply.
+- Settings: `update_check` (default on) and `update_skip`. The check times
+  are kept in `~/.cache/rbsb-weather/updates.json`.
+- New modules `rbsb_weather/updates.py` (no Qt: check, download, verify) and
+  `rbsb_weather/update_dialog.py` (the window).
+  `net.build_opener` accepts extra handlers, for the GitHub-only redirect
+  check.
+
+### Fixed – startup deleted files from the cache folder (present since at least 1.11.1)
+- At every start, the app's clean-up of forecasts for removed locations
+  deleted *every* `.json` file in `~/.cache/rbsb-weather`, not just forecast
+  files. That included:
+  - `providers.json` (provider status and usage);
+  - `network.json` (remembering a slow or broken network route);
+  - `clouds.json` (when the cloud map was last downloaded, so it was fetched
+    again after each start);
+  - the new `updates.json`.
+- It now removes only forecast files (named like `m36.8500_174.7600.json`).
+  Found by a new update test. A regression test was added to `test_core`.
+
+### Fixed during development (never released)
+- **A crash (segmentation fault) when a window closed with the update window
+  open.** The update window deleted itself on close, and its "deleted" signal
+  called back into a main window that was itself being destroyed. The
+  update window is now kept and reused instead. The window tests then ran
+  20 times in a row without a failure.
+
+### Tests
+- New `tests/test_updates.py` (35 tests) against a local fake GitHub that
+  answers in GitHub's format and redirects downloads to a second host. It
+  covers:
+  - reading releases and comparing versions;
+  - when a check is due;
+  - only allowing GitHub's addresses;
+  - errors and the retry;
+  - a verified download, a wrong checksum, a missing checksum, a file that
+    isn't a package, an incomplete download, a too-large download, a
+    redirect away from GitHub, cancelling, and reuse without overwriting;
+  - the window: the menu items, a manual check, install, a bad download
+    never being opened, up to date and errors, the daily automatic check and
+    turning it off, nothing in the first minute, skipping a version, an
+    update shown again at startup without the network, and closing during
+    a download.
+- The test suite's update checks go to a closed local port, so tests never
+  contact GitHub.
+- **Against the real GitHub** (from the build machine): the check found
+  RBSB-Weather 2.0.0, and the download followed GitHub's redirect, passed the
+  checksum, and is byte-identical to the tested 2.0.0 package.
+
+### Docs
+- User Guide: new "Updates" section, and `updates.json` under Files.
+- README: feature line, Update section and module table.
+
 ## 2.0.0 – 2026-11-21 (on branch claude/rbsb-weather-2.0.0; not released)
 
 Requested by Shane: "WeatherDesk is too common". The app is now
