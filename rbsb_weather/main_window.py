@@ -172,6 +172,16 @@ class MainWindow(QMainWindow):
         self._started_mono = time.monotonic()
         self.open_file = self._open_with_desktop   # replaced in tests (never launches anything)
         self.open_url = self._open_url_in_browser  # likewise (Help → Buy Me a Coffee)
+        # ---- a newer version installed while this one runs (2.3.1): offer a restart into it
+        import rbsb_weather as _pkg
+        self._install_file = Path(_pkg.__file__).with_name("__init__.py")
+        self._install_mtime = self._file_mtime(self._install_file)
+        self._installed_newer: Optional[str] = None
+        self._tray_click = "update"                    # what clicking the last tray notice does
+        self.install_timer = QTimer(self)
+        self.install_timer.setInterval(int(float(os.environ.get("RBSB_WEATHER_INSTALL_CHECK_S", "30")) * 1000))
+        self.install_timer.timeout.connect(self._check_installed)
+        self.install_timer.start()
         self.bridge.update_checked.connect(self._on_update_checked)
         self.bridge.wind_ok.connect(self._on_wind_ok)
         self._wind_store = None
@@ -409,6 +419,14 @@ class MainWindow(QMainWindow):
         self.update_button.clicked.connect(lambda: self.show_update_dialog(self._update_info))
         self.update_button.setVisible(False)
         self.statusBar().addPermanentWidget(self.update_button)
+        self.restart_button = QPushButton()     # "⬆ RBSB-Weather x.y.z was installed: click to restart" (2.3.1)
+        self.restart_button.setFlat(True)
+        self.restart_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.restart_button.setToolTip("A newer RBSB-Weather has been installed. Click to switch to it now; "
+                                       "your places and settings are kept.")
+        self.restart_button.clicked.connect(self.restart_into_new_version)
+        self.restart_button.setVisible(False)
+        self.statusBar().addPermanentWidget(self.restart_button)
         credit = QLabel(AUTHOR_CREDIT)
         credit.setStyleSheet("color: palette(placeholder-text); padding-right: 6px;")
         self.statusBar().addPermanentWidget(credit)
@@ -513,7 +531,7 @@ class MainWindow(QMainWindow):
         menu.addAction("Quit", self.quit_app)
         self.tray.setContextMenu(menu)
         self.tray.activated.connect(self._on_tray_activated)
-        self.tray.messageClicked.connect(lambda: self._update_info and self.show_update_dialog(self._update_info))
+        self.tray.messageClicked.connect(self._on_tray_message_clicked)
         self.tray.setVisible(self.settings.show_tray)
 
     # ======================================================= Locations
@@ -1688,6 +1706,95 @@ class MainWindow(QMainWindow):
             self._update_info = info
             self._announce_update(info, popup=False)
 
+    # ------------------------------------------- newer version installed (2.3.1)
+    @staticmethod
+    def _file_mtime(path: Path) -> Optional[float]:
+        try:
+            return path.stat().st_mtime
+        except OSError:
+            return None
+
+    @staticmethod
+    def installed_version(path: Path) -> Optional[str]:
+        """The version in the program files on disk now (apt may have replaced them)."""
+        import re
+        try:
+            m = re.search(r'^__version__ = "([0-9.]+)"', path.read_text(encoding="utf-8"), re.M)
+        except OSError:
+            return None
+        return m.group(1) if m else None
+
+    def _check_installed(self) -> None:
+        """Every 30 s: has a newer RBSB-Weather been installed underneath this running copy?
+        Only the file's time is checked until it changes, so this costs nothing."""
+        mtime = self._file_mtime(self._install_file)
+        if mtime is None or mtime == self._install_mtime:
+            return
+        self._install_mtime = mtime
+        from .instance import compare_versions
+        ver = self.installed_version(self._install_file)
+        if not ver or compare_versions(ver, __version__) <= 0 or ver == self._installed_newer:
+            return
+        self._installed_newer = ver
+        log.info("RBSB-Weather %s has been installed (this copy is %s); offering a restart", ver, __version__)
+        self.restart_button.setText(f"⬆ RBSB-Weather {ver} was installed: click to restart")
+        self.restart_button.setVisible(True)
+        if self._update_info is not None and compare_versions(self._update_info.version, ver) <= 0:
+            self.update_button.setVisible(False)          # that update is the one now installed
+        self.statusBar().showMessage(f"RBSB-Weather {ver} has been installed. Click the button on the right "
+                                     "to switch to it.", 30000)
+        if self.tray is not None and self.tray.isVisible():
+            self._tray_click = "restart"
+            self.tray.showMessage(f"{APP_NAME} {ver} installed", "Click to restart into the new version.",
+                                  QSystemTrayIcon.MessageIcon.Information, 15000)
+        if os.environ.get("RBSB_WEATHER_RESTART_ON_INSTALL") == "1":     # tests only
+            QTimer.singleShot(200, self.restart_into_new_version)
+
+    def _on_tray_message_clicked(self) -> None:
+        if self._tray_click == "restart" and self._installed_newer:
+            self.restart_into_new_version()
+        elif self._update_info is not None:
+            self.show_update_dialog(self._update_info)
+
+    def restart_command(self) -> list:
+        """How to start the newly installed version: the same Python and module this copy
+        was started with (the launcher's PYTHONPATH is passed on), hidden if this one is."""
+        import sys
+        cmd = [sys.executable, "-m", "rbsb_weather"]
+        if not self.isVisible():
+            cmd.append("--minimized")
+        return cmd
+
+    def restart_into_new_version(self) -> None:
+        """Start the new version; it asks this copy to hand over (this copy saves its settings
+        and closes) and takes its place. If that doesn't happen, say so."""
+        import subprocess
+        self.save_settings()
+        try:
+            self.spawn(self.restart_command())
+        except OSError as e:
+            QMessageBox.warning(self, APP_NAME, f"RBSB-Weather couldn't restart by itself ({e}).\n\n"
+                                "Quit it from the tray menu and start it again from the menu.")
+            return
+        self.restart_button.setText("Restarting…")
+        self.restart_button.setEnabled(False)
+        QTimer.singleShot(20000, self._restart_not_done)
+
+    def _restart_not_done(self) -> None:
+        if getattr(self, "_quitting", False):
+            return
+        self.restart_button.setEnabled(True)
+        self.restart_button.setText(f"⬆ RBSB-Weather {self._installed_newer} was installed: click to restart")
+        self.statusBar().showMessage("The new version didn't start. Quit RBSB-Weather from the tray menu and "
+                                     "start it again from the menu.", 30000)
+
+    @staticmethod
+    def spawn(cmd: list) -> None:
+        """Start a process that outlives this one (replaced in tests)."""
+        import subprocess
+        subprocess.Popen(cmd, start_new_session=True, stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True)
+
     def _announce_update(self, info, popup: bool) -> None:
         from . import updates
         self.update_button.setText(f"⬆ Update available: {info.version}")
@@ -1699,6 +1806,7 @@ class MainWindow(QMainWindow):
             return
         self.statusBar().showMessage(f"{info.title} is available. Click \"Update available\" to see what's new.", 30000)
         if self.tray is not None and self.tray.isVisible():
+            self._tray_click = "update"
             self.tray.showMessage(f"{APP_NAME} update", f"{info.title} is available. Click to see what's new.",
                                   QSystemTrayIcon.MessageIcon.Information, 15000)
         st["notified"] = info.version
@@ -1825,6 +1933,7 @@ class MainWindow(QMainWindow):
             self._update_dialog.close()
         retire(self.bridge, self.worker)   # worker threads may still be running
         self.refresh_timer.stop()
+        self.install_timer.stop()
         self.age_timer.stop()
         self.search_timer.stop()
         self.startup_timer.stop()

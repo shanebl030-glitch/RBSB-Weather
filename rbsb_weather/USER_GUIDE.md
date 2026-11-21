@@ -373,6 +373,14 @@ Nothing is installed without you. In the update window:
 * **Skip This Version** stops reminders about that version. A later version is
   still announced, and **Help → Check for Updates…** still shows it.
 
+**After installing a new version** (from the update window or with `apt`),
+the copy that's already open notices within half a minute and shows
+**⬆ RBSB-Weather x.y.z was installed: click to restart** in the status bar,
+plus a notice from the tray icon. Click either to switch to the new version:
+your places and settings are saved first, and it comes back the way it was
+(in the tray if it was hidden). Or just start RBSB-Weather again from the menu;
+that does the same.
+
 **Help → Check for Updates…** checks straight away. To turn the daily check
 off, untick **Settings → Check for updates automatically**.
 

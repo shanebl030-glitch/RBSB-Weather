@@ -1,4 +1,4 @@
-# RBSB-Weather 2.3.0
+# RBSB-Weather 2.3.1
 
 *Formerly **WeatherDesk**. Renamed in 2.0.0 because "WeatherDesk" is used by many
 other apps; nothing else changed, and your settings come with you (see
@@ -85,7 +85,7 @@ RBSB-Weather is free and stays free. The same link is in the app under
 ## Install
 
 ```bash
-sudo apt install ./rbsb-weather_2.3.0_all.deb
+sudo apt install ./rbsb-weather_2.3.1_all.deb
 ```
 
 `apt` pulls in `python3-pyqt6` automatically. Launch **RBSB-Weather** from the
@@ -104,7 +104,9 @@ for you (Help → Check for Updates). Or install the newer .deb the same way. Yo
 `~/.config/rbsb-weather` and `~/.cache/rbsb-weather` are kept, and so are API
 keys (in the keyring, or `~/.config/rbsb-weather/keys.json`). Then open
 RBSB-Weather: if an older copy is still running (for example in the tray), it
-closes itself cleanly and the new version takes over. From 1.1.1 on this is
+closes itself cleanly and the new version takes over. From 2.3.1, a copy that's
+already open notices the new version within half a minute and offers
+"⬆ RBSB-Weather x.y.z was installed: click to restart" in its status bar. From 1.1.1 on this is
 automatic; before that you had to quit the old copy first.
 
 ## Coming from WeatherDesk
