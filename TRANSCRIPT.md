@@ -1407,3 +1407,53 @@ the wind, and coastlines.
 - How it looks and how smooth it is on your screen, and CPU on your machine.
 
 Created By Shane BlackbuRn
+
+## Session 2f – 2026-11-21/22 – after 2.2.0: Windows (dropped), PayPal test, Discussions
+
+- **2.2.0 published** by Shane (PRs #6 and #7 merged; release with two Wind tab
+  screenshots). Checked: files byte-identical, tag on the merge, the live update
+  check offers 2.2.0 to 2.1.x.
+- **Windows:** Shane asked about Windows support, then a portable build.
+  - Work started on branch `claude/rbsb-weather-3.0.0`: a Linux/Windows
+    module, a PyInstaller build, and a GitHub Actions Windows workflow. Its
+    first run failed, as expected.
+  - Shane then decided "RBSB-Weather will be only for Linux distros".
+  - That work is left unmerged on that branch; local test edits are stashed.
+    Nothing reached `main` or a release.
+- **Other distros:** I suggested an AppImage as the next step for "every
+  compatible distro". Not started.
+- **Buy me a coffee:** Shane's own test gave PayPal's `CANNOT_PAY_SELF`
+  (decoded from the error code). That shows the link reaches his account with
+  the right amount. A payment from someone else is the final proof.
+- **GitHub Discussions:** they were already on; drafted a welcome post. Shane
+  set its sign-off to "Designed and Created By Shane BlackbuRn / Coded By
+  Claude AI" (only in the post; the app's credit is unchanged).
+
+## Session 2g – 2026-11-22 – v2.3.0 (temperature and rain layers)
+
+**Request:** "on the wind tab can we add to Other layers (temperature, rain)".
+
+### Decisions
+| Decision | Reason |
+|---|---|
+| Same NOAA download, two more fields (TMP 2 m, PRATE surface) | One source, one refresh, about 400 KB in all |
+| Layer buttons above the globe; wind streaks on every layer | Shows how the weather moves, whatever's coloured |
+| Rain: see-through when dry, square-root scale on the key | The Earth stays visible; light rain isn't squashed against the end of the key |
+| Say rain is an average over the hours before | That's what GFS publishes; honest about what's shown |
+| A 2.2.0 saved map upgrades once; buttons greyed out until then | No surprise blank layers; the choice is kept |
+| Test against the real GFS temperature and rain fields | Same standard as the wind: ecCodes' values |
+
+### Problems found and fixed (all before release)
+1. The `&` in "Rain & snow" became an underline (Qt shortcut marker).
+2. On a short window the colour key was hidden behind the globe (seen in a
+   screenshot): the globe now gives way.
+3. My own test treated the wind direction's "°" as a temperature. The test
+   now looks for "°C".
+
+### Tested
+- Full suite: 596 run, 594 passed, 2 skipped (environment-only), 0 failed.
+
+### Still needs your Mint
+- The live NOAA download with the new fields, and how the layers look.
+
+Created By Shane BlackbuRn

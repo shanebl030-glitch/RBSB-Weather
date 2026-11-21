@@ -59,6 +59,29 @@ eccodes.codes_grib_multi_support_off()
 expected["gfs_2p5_wind10m.grib2"] = res
 
 
+# 1b) the real GFS 10 m wind, 2 m temperature and precipitation rate, one field per
+# message (2.3.0: the Wind tab's temperature and rain layers)
+eccodes.codes_grib_multi_support_on()
+layers = bytearray()
+res = []
+with open(SRC, "rb") as f:
+    while (h := eccodes.codes_grib_new_from_file(f)) is not None:
+        key = (eccodes.codes_get(h, "parameterCategory"), eccodes.codes_get(h, "parameterNumber"),
+               eccodes.codes_get(h, "typeOfFirstFixedSurface", int), eccodes.codes_get(h, "level"))
+        if key in ((2, 2, 103, 10), (2, 3, 103, 10), (0, 0, 103, 2), (1, 7, 1, 0)):
+            c = eccodes.codes_clone(h)
+            layers += eccodes.codes_get_message(c)
+            eccodes.codes_release(c)
+        eccodes.codes_release(h)
+eccodes.codes_grib_multi_support_off()
+(OUT / "gfs_2p5_layers.grib2").write_bytes(bytes(layers))
+with open(OUT / "gfs_2p5_layers.grib2", "rb") as f:
+    while (h := eccodes.codes_grib_new_from_file(f)) is not None:
+        res.append(summary(h, list(eccodes.codes_get_values(h))))
+        eccodes.codes_release(h)
+expected["gfs_2p5_layers.grib2"] = res
+
+
 # 2) synthetic: a 1 degree global wind-like field
 def field(ni, nj, k):
     return [12 * math.sin(math.radians(j * 180 / (nj - 1)) * 3 + k) * math.cos(math.radians(i * 360 / ni) * 2)

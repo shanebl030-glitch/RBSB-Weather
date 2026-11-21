@@ -48,7 +48,9 @@ class Grib2Case(unittest.TestCase):
     def test_every_file_matches_eccodes(self):
         for name, exp in EXPECTED.items():
             with self.subTest(name):
-                msgs = [m for m in self.read(name) if m.level_type == 103 or not name.startswith("gfs")]
+                msgs = self.read(name)
+                if name == "gfs_2p5_wind10m.grib2":       # those messages also hold other fields
+                    msgs = [m for m in msgs if m.level_type == 103]
                 self.assertEqual(len(msgs), len(exp))
                 for m, e in zip(msgs, exp):
                     self.assertEqual((m.grid.ni, m.grid.nj, m.category, m.number, m.grid.scan),

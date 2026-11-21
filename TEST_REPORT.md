@@ -4,15 +4,15 @@ Created By Shane BlackbuRn
 
 | Item | Result |
 |---|---|
-| Version | 2.2.0 (the Wind tab: world wind on a globe from NOAA GFS; built on 2.1.2) |
-| Date | 2026-11-21 |
+| Version | 2.3.0 (temperature and rain & snow layers on the Wind tab) |
+| Date | 2026-11-22 |
 | Environment | Ubuntu 24.04.5 (Linux Mint 22 base), Python 3.12, PyQt6 6.6.1 / Qt 6.4.2, headless (offscreen), 2 CPUs, `python3-keyring` installed (no D-Bus, so keys use the private file) |
 | Suites | as 1.18.0, plus **`test_migrate`** (new in 2.0.0) **`test_updates`** (new in 2.1.0) **`test_support`** (new in 2.1.1) **`test_widget_source`** (new in 2.1.2), **`test_grib2`** and **`test_wind`** (new in 2.2.0) |
-| Tests run | 588 |
-| Passed | 586 |
+| Tests run | 596 |
+| Passed | 594 |
 | Failed / errors | 0 / 0 |
 | Skipped | 2: `test_readonly_dir_raises_oserror` (root ignores directory permissions; it passed as the `nobody` user in 1.11), and the NASA-converter test (needs build-time numpy + tifffile). Neither is an app fault. On a machine without the ecCodes Python package (normal on Mint), `test_grib2`'s ecCodes cross-check also skips |
-| Run time | about 544 s (2 CPUs), including the 60 s soak |
+| Run time | about 514 s (2 CPUs), including the 60 s soak |
 | Command | `PYTHON=/usr/bin/python3.12 ./run_tests.sh` (full log in `test-results.log`) |
 
 **Mocks and simulations.** Every provider test runs against a local fake
@@ -20,6 +20,19 @@ server sending replies in each service's documented format. That proves
 WeatherDesk handles those formats, failures and recoveries. It does **not**
 prove the live services still send them. None of the weather services could
 be reached from the build machine (all blocked, HTTP 403 from its proxy).
+
+## 2.3.0: temperature and rain & snow layers
+
+| Check | Result |
+|---|---|
+| Real GFS 2 m temperature and precipitation rate | Decoded values equal ecCodes' (converted to °C and mm/h); plausible world ranges; most of the world dry; numpy and pure Python agree |
+| Download | NOMADS filter asks for TMP, PRATE, 2 m and surface levels; AWS index ranges pick TMP 2 m and PRATE but not surface TMP or APCP; the AWS fallback fetches exactly the four fields |
+| Saved 2.2.0 map | Shown at once (wind only), the layers fetched once, then not due |
+| Tab | Three buttons; choice remembered in settings; legend and readout follow °F / in; streaks keep moving on every layer; buttons greyed out for a wind-only map, the choice kept until the layers arrive |
+| Visual | Screenshots of each layer from the real data (Australia hot inland, rain bands around lows); colour key in °F; the key no longer hidden on a short window |
+
+**Not tested here:** the live NOAA download with the new fields (the build
+machine can't reach NOAA).
 
 ## 2.2.0: the Wind tab
 

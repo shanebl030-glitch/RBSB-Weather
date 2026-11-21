@@ -25,6 +25,7 @@ from rbsb_weather import wind as W
 
 DATA = Path(__file__).resolve().parent / "data"
 GFS = (DATA / "gfs_2p5_wind10m.grib2").read_bytes()
+LAYERS = (DATA / "gfs_2p5_layers.grib2").read_bytes()      # wind, 2 m temperature, precipitation rate (2.3)
 UTC = dt.timezone.utc
 
 
@@ -34,9 +35,17 @@ class FakeNOAA:
         self.missing_runs: set[str] = set()       # "YYYYMMDD/HH" that aren't published yet
         self.requests: list[str] = []
         self.ranges: list[str] = []
-        filler = b"GRIB" + b"\x00" * 300            # something before the wind in the "full file"
-        self.full = filler + GFS + b"GRIB-OTHER-FIELD" * 20
+        self.payload = LAYERS                     # what NOMADS returns: wind, temperature, rain (2.3)
+        filler = b"GRIB" + b"\x00" * 300            # something before our fields in the "full file"
+        self.full = filler + LAYERS + b"GRIB-OTHER-FIELD" * 20
         self.wind_at = len(filler)
+        # where each field's message starts inside LAYERS (one field per message)
+        from rbsb_weather import grib2 as _g
+        self.offsets = []
+        pos = 0
+        while pos < len(LAYERS):
+            self.offsets.append(pos)
+            pos += int.from_bytes(LAYERS[pos + 8:pos + 16], "big")
         outer = self
 
         class H(http.server.BaseHTTPRequestHandler):
@@ -61,18 +70,19 @@ class FakeNOAA:
                         return self.send(503, b"<html>busy</html>")
                     if day_hour in outer.missing_runs:
                         return self.send(404, b"<html>no such file</html>")
-                    return self.send(200, GFS)
+                    return self.send(200, outer.payload)
                 if u.path.startswith("/aws/"):
                     day_hour = u.path.split("gfs.")[1].split("/atmos")[0]
                     if day_hour in outer.missing_runs:
                         return self.send(404, b"NoSuchKey")
                     if u.path.endswith(".idx"):
-                        w0, w1 = outer.wind_at, outer.wind_at + len(GFS) // 2
-                        idx = (f"1:0:d=2026112100:PRMSL:mean sea level:6 hour fcst:\n"
-                               f"2:{w0}:d=2026112100:UGRD:10 m above ground:6 hour fcst:\n"
-                               f"3:{w1}:d=2026112100:VGRD:10 m above ground:6 hour fcst:\n"
-                               f"4:{outer.wind_at + len(GFS)}:d=2026112100:TMP:2 m above ground:6 hour fcst:\n")
-                        return self.send(200, idx.encode())
+                        o = [outer.wind_at + x for x in outer.offsets]   # file order: TMP, UGRD, VGRD, PRATE
+                        names = ["TMP:2 m above ground", "UGRD:10 m above ground", "VGRD:10 m above ground",
+                                 "PRATE:surface:0-6 hour ave"]
+                        lines = ["1:0:d=2026112100:PRMSL:mean sea level:6 hour fcst:"]
+                        lines += [f"{k + 2}:{off}:d=2026112100:{nm}:6 hour fcst:" for k, (off, nm) in enumerate(zip(o, names))]
+                        lines.append(f"6:{outer.wind_at + len(LAYERS)}:d=2026112100:APCP:surface:0-6 hour acc fcst:")
+                        return self.send(200, ("\n".join(lines) + "\n").encode())
                     rng = self.headers.get("Range", "")
                     outer.ranges.append(rng)
                     a, b = rng.split("=")[1].split("-")
@@ -111,7 +121,9 @@ class TestRunsAndUrls(unittest.TestCase):
         self.assertEqual((u.scheme, u.netloc), ("https", "nomads.ncep.noaa.gov"))
         self.assertEqual(q["dir"], "/gfs.20261121/06/atmos")
         self.assertEqual(q["file"], "gfs.t06z.pgrb2.1p00.f009")
-        self.assertEqual((q["var_UGRD"], q["var_VGRD"], q["lev_10_m_above_ground"]), ("on", "on", "on"))
+        for k in ("var_UGRD", "var_VGRD", "var_TMP", "var_PRATE", "lev_10_m_above_ground",
+                  "lev_2_m_above_ground", "lev_surface"):
+            self.assertEqual(q[k], "on", k)
         data, idx = W.aws_urls(run, 9)
         self.assertEqual(data, "https://noaa-gfs-bdp-pds.s3.amazonaws.com/gfs.20261121/06/atmos/gfs.t06z.pgrb2.1p00.f009")
         self.assertEqual(idx, data + ".idx")
@@ -120,6 +132,12 @@ class TestRunsAndUrls(unittest.TestCase):
         idx = ("1:0:d=x:PRMSL:mean sea level:anl:\n2:500:d=x:UGRD:10 m above ground:anl:\n"
                "3:900:d=x:VGRD:10 m above ground:anl:\n4:1400:d=x:UGRD:20 m above ground:anl:\n")
         self.assertEqual(W.byte_ranges_from_index(idx), [(500, 899), (900, 1399)])
+        full = ("1:0:d=x:PRMSL:mean sea level:6 hour fcst:\n2:500:d=x:TMP:surface:6 hour fcst:\n"
+                "3:800:d=x:TMP:2 m above ground:6 hour fcst:\n4:1100:d=x:UGRD:10 m above ground:6 hour fcst:\n"
+                "5:1500:d=x:VGRD:10 m above ground:6 hour fcst:\n6:1900:d=x:PRATE:surface:0-6 hour ave fcst:\n"
+                "7:2300:d=x:APCP:surface:0-6 hour acc fcst:\n")
+        self.assertEqual(W.byte_ranges_from_index(full), [(800, 1099), (1100, 1499), (1500, 1899), (1900, 2299)],
+                         "2.3: 2 m temperature and precipitation rate too, but not surface TMP or APCP")
         shared = "1:0:d=x:A:b:c:\n2.1:300:d=x:UGRD:10 m above ground:c:\n2.2:300:d=x:VGRD:10 m above ground:c:\n"
         self.assertEqual(W.byte_ranges_from_index(shared), [(300, None)])   # one message, to the end
         with self.assertRaises(W.WindError):
@@ -194,6 +212,85 @@ class TestField(unittest.TestCase):
                                                  zip(W.SPEED_COLOURS[0][1], W.SPEED_COLOURS[1][1])))
 
 
+class TestLayers(unittest.TestCase):
+    """2.3.0: temperature and rain from the real GFS sample."""
+
+    def setUp(self):
+        self.fld = W.field_from_grib(LAYERS)
+
+    def test_layers_present_and_in_the_right_units(self):
+        f = self.fld
+        self.assertEqual(f.layers, ["wind", "temp", "rain"])
+        import json
+        exp = {(e["category"], e["number"]): e for e in json.loads((DATA / "grib2_expected.json").read_text())["gfs_2p5_layers.grib2"]}
+        # ecCodes' value of the first grid point (north pole row, 0°E), converted
+        self.assertAlmostEqual(float(f.temp[0][0]), exp[(0, 0)]["samples"]["0"] - 273.15, places=3)
+        self.assertAlmostEqual(float(f.rain[0][0]), exp[(1, 7)]["samples"]["0"] * 3600, places=3)
+        temps = [float(x) for row in f.temp for x in row]
+        self.assertGreater(min(temps), -60)
+        self.assertLess(max(temps), 60)
+        rains = [float(x) for row in f.rain for x in row]
+        self.assertGreaterEqual(min(rains), 0)
+        self.assertLess(max(rains), 100, "mm/h")
+        self.assertGreater(sum(1 for r in rains if r < W.RAIN_MIN) / len(rains), 0.3, "most of the world is dry")
+        # temperature at a grid point is the grid value; rain never negative
+        self.assertAlmostEqual(f.temp_at(-35.0, 175.0), float(f.temp[50][70]), places=4)
+        self.assertGreaterEqual(f.rain_at(10, 10), 0)
+        # the wind is the same as in the wind-only file
+        w = W.field_from_grib(GFS)
+        self.assertEqual(f.at(-36.85, 174.76), w.at(-36.85, 174.76))
+
+    def test_wind_only_file(self):
+        f = W.field_from_grib(GFS)
+        self.assertEqual(f.layers, ["wind"])
+        self.assertIsNone(f.temp_at(0, 0))
+        self.assertIsNone(f.rain_at(0, 0))
+
+    def test_pure_python_layers(self):
+        from rbsb_weather import grib2
+        saved = (W._np, grib2._np)
+        W._np = grib2._np = None
+        try:
+            f = W.field_from_grib(LAYERS)
+        finally:
+            W._np, grib2._np = saved
+        for la, lo in ((-36.85, 174.76), (51.5, -0.12), (5, 100)):
+            self.assertAlmostEqual(f.temp_at(la, lo), self.fld.temp_at(la, lo), places=3)
+            self.assertAlmostEqual(f.rain_at(la, lo), self.fld.rain_at(la, lo), places=4)
+
+    def test_colour_maps(self):
+        from helpers import qapp
+        qapp()
+        for layer in ("wind", "temp", "rain"):
+            img = W.layer_map(self.fld, layer)
+            self.assertEqual((img.width(), img.height()), (144, 73))
+        rain = W.layer_map(self.fld, "rain")
+        alphas = [rain.pixelColor(i, j).alpha() for j in range(0, 73, 4) for i in range(0, 144, 4)]
+        self.assertIn(0, alphas, "dry areas are see-through")
+        self.assertTrue(any(a > 0 for a in alphas), "rainy areas are coloured")
+        self.assertEqual(W.rain_alpha(0.0), 0)
+        self.assertEqual(W.rain_alpha(5.0), 255)
+        cold, hot = W._lerp_colour(W.TEMP_COLOURS, -30), W._lerp_colour(W.TEMP_COLOURS, 35)
+        self.assertGreater(cold[2], cold[0], "cold is blue")
+        self.assertGreater(hot[0], hot[2], "hot is red")
+        # a layer the field doesn't have falls back to wind
+        wind_only = W.field_from_grib(GFS)
+        self.assertEqual(W.layer_map(wind_only, "temp").pixel(10, 10), W.layer_map(wind_only, "wind").pixel(10, 10))
+
+    def test_point_text_in_units(self):
+        from rbsb_weather.wind_panel import point_text, rain_text
+        t = point_text(self.fld, -36.85, 174.76, "kn", "F", "in")
+        self.assertIn(" kn from the ", t)
+        self.assertIn("°F", t)
+        self.assertIn("rain/snow", t)
+        self.assertEqual(rain_text(0.0, "mm"), "dry")
+        self.assertEqual(rain_text(2.54, "in"), "0.10 in/h")
+        self.assertEqual(rain_text(1.25, "mm"), "1.2 mm/h")
+        only = point_text(W.field_from_grib(GFS), 0, 0, "km/h", "C", "mm")
+        self.assertNotIn("°C", only, "wind only: no temperature shown")
+        self.assertNotIn("rain", only)
+
+
 class TestDownload(unittest.TestCase):
     def setUp(self):
         self.noaa = FakeNOAA()
@@ -205,7 +302,7 @@ class TestDownload(unittest.TestCase):
     def test_from_nomads(self):
         data, run, fh, src = self.noaa.client.fetch(self.now)
         self.assertEqual((run.hour, fh, src), (0, 9, "NOAA NOMADS"))
-        self.assertEqual(data, GFS)
+        self.assertEqual(data, LAYERS)
 
     def test_newest_run_not_out_yet(self):
         self.noaa.missing_runs.add("20261121/00")
@@ -216,11 +313,10 @@ class TestDownload(unittest.TestCase):
         self.noaa.nomads_ok = False
         data, run, fh, src = self.noaa.client.fetch(self.now)
         self.assertEqual(src, "NOAA on AWS")
-        self.assertEqual(data, GFS, "exactly the two wind fields, cut out by byte range")
-        self.assertEqual(self.noaa.ranges, [f"bytes={self.noaa.wind_at}-{self.noaa.wind_at + len(GFS) // 2 - 1}",
-                                            f"bytes={self.noaa.wind_at + len(GFS) // 2}-{self.noaa.wind_at + len(GFS) - 1}"])
+        self.assertEqual(data, LAYERS, "exactly the four fields, cut out by byte range")
+        self.assertEqual(len(self.noaa.ranges), 4)
         fld = W.field_from_grib(data, run)
-        self.assertEqual(fld.ni, 144)
+        self.assertEqual((fld.ni, fld.layers), (144, ["wind", "temp", "rain"]))
 
     def test_nothing_reachable(self):
         c = W.WindClient("http://127.0.0.1:9/nomads", "http://127.0.0.1:9/aws", timeout=2)
@@ -277,6 +373,21 @@ class TestStore(TempEnvTestCase):
                 return b"GRIB\x00\x00\x00\x02" + b"\x00" * 30, now, 0, "bad"
         W.update(self.store, Bad(), now + dt.timedelta(hours=4))
         self.assertEqual(self.store.data_path.read_bytes(), good)
+
+    def test_saved_wind_only_map_is_upgraded_once(self):
+        """A map saved by 2.2.0 has only the wind: it's shown, and the layers fetched once."""
+        now = dt.datetime.now(UTC)
+        run, fh = W.runs_to_try(now)[0]
+        self.store.save(GFS, run, fh, "2.2.0")
+        m = self.store.meta()
+        m.pop("layers")
+        from rbsb_weather.storage import atomic_write_json
+        atomic_write_json(self.store.meta_path, m)
+        self.assertEqual(self.store.load().layers, ["wind"])
+        self.assertTrue(self.store.due(now), "fetch once for the new layers")
+        fld, _ = W.update(self.store, self.noaa.client, now)
+        self.assertEqual(fld.layers, ["wind", "temp", "rain"])
+        self.assertFalse(self.store.due(now))
 
     def test_damaged_saved_file(self):
         self.store.dir.mkdir(parents=True)
@@ -384,6 +495,37 @@ class TestWindTab(TempEnvTestCase):
         self.assertIsNotNone(self.view.field, "the saved map is loaded straight away, before any download")
         self.assertTrue(wait_until(lambda: self.view.image is not None, 1.0), "and drawn on the next repaint")
         self.noaa = FakeNOAA()                      # so tearDown has something to stop
+
+    def test_layer_buttons_and_remembered_layer(self):
+        self.show_tab()
+        p = self.panel
+        self.assertEqual([b.text() for b in p.layer_buttons.values()],
+                         ["🌬 Wind", "🌡 Temperature", "🌧 Rain && snow"])     # shows "Rain & snow"
+        self.assertTrue(all(b.isEnabled() for b in p.layer_buttons.values()))
+        wind_img = self.view.image
+        p.layer_buttons["temp"].click()
+        self.assertTrue(wait_until(lambda: self.view.image is not wind_img, 3))
+        self.assertEqual(self.w.settings.wind_layer, "temp")
+        self.assertEqual(p.legend.layer, "temp")
+        self.assertIn("Air temperature", p.info.text())
+        self.assertTrue(self.view.timer.isActive(), "the wind streaks keep moving on other layers")
+        from rbsb_weather.storage import SettingsStore
+        self.assertEqual(SettingsStore().load().wind_layer, "temp", "remembered")
+        self.w.set_unit("temp_unit", "F")
+        self.assertEqual(p.legend.temp_unit, "F")
+        self.assertEqual(self.view.temp_unit, "F")
+        p.layer_buttons["rain"].click()
+        self.assertEqual(p.legend.layer, "rain")
+
+    def test_buttons_disabled_without_the_layers(self):
+        self.show_tab()
+        self.panel.set_layer("rain", user=True)
+        self.panel.set_field(W.field_from_grib(GFS))          # an old wind-only map
+        self.assertFalse(self.panel.layer_buttons["rain"].isEnabled())
+        self.assertTrue(self.panel.layer_buttons["wind"].isChecked(), "falls back to wind")
+        self.assertEqual(self.panel.layer, "rain", "the choice is kept for when the layers arrive")
+        self.panel.set_field(W.field_from_grib(LAYERS))
+        self.assertTrue(self.panel.layer_buttons["rain"].isChecked())
 
     def test_frame_cost(self):
         """One streak frame must stay well inside the 33 ms frame budget."""
