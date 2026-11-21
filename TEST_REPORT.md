@@ -4,15 +4,15 @@ Created By Shane BlackbuRn
 
 | Item | Result |
 |---|---|
-| Version | 2.3.0 (temperature and rain & snow layers on the Wind tab) |
+| Version | 2.3.1 (offers a restart when a newer version is installed underneath) |
 | Date | 2026-11-22 |
 | Environment | Ubuntu 24.04.5 (Linux Mint 22 base), Python 3.12, PyQt6 6.6.1 / Qt 6.4.2, headless (offscreen), 2 CPUs, `python3-keyring` installed (no D-Bus, so keys use the private file) |
-| Suites | as 1.18.0, plus **`test_migrate`** (new in 2.0.0) **`test_updates`** (new in 2.1.0) **`test_support`** (new in 2.1.1) **`test_widget_source`** (new in 2.1.2), **`test_grib2`** and **`test_wind`** (new in 2.2.0) |
-| Tests run | 596 |
-| Passed | 594 |
+| Suites | as 1.18.0, plus **`test_migrate`** (new in 2.0.0) **`test_updates`** (new in 2.1.0) **`test_support`** (new in 2.1.1) **`test_widget_source`** (new in 2.1.2), **`test_grib2`** and **`test_wind`** (new in 2.2.0), **`test_restart`** (new in 2.3.1) |
+| Tests run | 603 |
+| Passed | 601 |
 | Failed / errors | 0 / 0 |
 | Skipped | 2: `test_readonly_dir_raises_oserror` (root ignores directory permissions; it passed as the `nobody` user in 1.11), and the NASA-converter test (needs build-time numpy + tifffile). Neither is an app fault. On a machine without the ecCodes Python package (normal on Mint), `test_grib2`'s ecCodes cross-check also skips |
-| Run time | about 514 s (2 CPUs), including the 60 s soak |
+| Run time | about 522 s (2 CPUs), including the 60 s soak |
 | Command | `PYTHON=/usr/bin/python3.12 ./run_tests.sh` (full log in `test-results.log`) |
 
 **Mocks and simulations.** Every provider test runs against a local fake
@@ -20,6 +20,17 @@ server sending replies in each service's documented format. That proves
 WeatherDesk handles those formats, failures and recoveries. It does **not**
 prove the live services still send them. None of the weather services could
 be reached from the build machine (all blocked, HTTP 403 from its proxy).
+
+## 2.3.1: restart into a newly installed version
+
+| Check | Result |
+|---|---|
+| Button | "⬆ RBSB-Weather 9.0.1 was installed: click to restart" appears when the version file on disk becomes newer |
+| Ignored | The same version reinstalled, an older version, the file removed; an unchanged file is never re-read |
+| Update button | Hidden when the installed version covers it |
+| Restart | Same Python and module; --minimized when hidden; button "Restarting…", restored after 20 s if nothing took over; a failed start explains |
+| Real processes | Old copy runs, its files are swapped for a newer version, it hands over (exit 0) and the new version owns the socket: 12 of 12 runs |
+| **Real packages** | 2.3.1 installed and running; `apt install` of a 2.3.2 test package on top; the running copy logged "RBSB-Weather 2.3.2 has been installed (this copy is 2.3.1)", restarted (click simulated), handed over ("exited (0)") and 2.3.2 took over |
 
 ## 2.3.0: temperature and rain & snow layers
 

@@ -1457,3 +1457,45 @@ Created By Shane BlackbuRn
 - The live NOAA download with the new fields, and how the layers look.
 
 Created By Shane BlackbuRn
+
+## Session 2h – 2026-11-22 – v2.3.0 published; v2.3.1 (restart after an install)
+
+- **2.3.0 published** by Shane. Checked: files byte-identical (including two
+  layer screenshots), tag on the merge, the live update check offers 2.3.0 to
+  2.1.x and 2.2.0. The release notes use his credit "Designed and Created By
+  Shane BlackbuRn / Coded By Claude AI".
+- **Problem found:** "I just installed the latest but it did[n't] refresh the
+  previous version I still had open". That's how it was: apt doesn't touch a
+  running program.
+- **His choice:** "⬆ RBSB-Weather 2.3.x was installed: click to restart".
+
+### Decisions
+| Decision | Reason |
+|---|---|
+| Check the version file's time every 30 s; read it only when it changes | Costs nothing; catches apt and the update window alike |
+| Restart through the existing hand-over (start the new one; the old one yields) | Proven path that saves settings; no new shutdown code |
+| Start the new one hidden if this one is | It comes back the way it was |
+| Hide "Update available" for the version now installed | No confusing pair of buttons |
+
+### Problems found while testing
+1. **The real-process test failed 3 in 8 runs.** The test itself swapped
+   "2.3.1" for "9.0.1" (the same size) within one second, so Python reused its
+   compiled copy of the old file, and the "new" copy thought it was the old
+   one. A real install isn't affected:
+   - users can't write compiled files into `/usr/lib`;
+   - the package's prerm removes them;
+   - dpkg keeps each file's build time.
+
+   The test now runs like a real install (no compiled files): 12 of 12.
+
+### Tested
+- Full suite: 603 run, 601 passed, 2 skipped (environment-only), 0 failed.
+- Real packages: 2.3.1 running → `apt install` 2.3.2 (test build) → offered,
+  restarted, handed over (exit 0), 2.3.2 running.
+
+### Still needs your Mint
+- The button and tray notice on your desktop, after installing a newer version.
+  You'll first see it in real use when the next version after 2.3.1 is
+  installed.
+
+Created By Shane BlackbuRn

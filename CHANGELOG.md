@@ -4,7 +4,55 @@ Created By Shane BlackbuRn
 
 Entries before 2.0.0 use the app's old name, WeatherDesk, as they were written.
 
-## 2.3.0 – 2026-11-22 (on branch claude/rbsb-weather-2.3.0; not released)
+## 2.3.1 – 2026-11-22 (on branch claude/rbsb-weather-2.3.1; not released)
+
+Requested by Shane after installing 2.3.0: the copy he had open kept running
+the old version. He chose the wording "⬆ RBSB-Weather 2.3.x was installed: click
+to restart".
+
+### Added – restart into a newly installed version
+- **Noticing the install:** every 30 seconds the running copy checks the time
+  of its own version file on disk. Only if that changes (apt replaced the
+  files) does it read the version.
+- **If it's newer:**
+  - the status bar shows **⬆ RBSB-Weather x.y.z was installed: click to
+    restart**;
+  - the tray shows a notice once, and clicking the notice also restarts;
+  - an "Update available" button for that same version is hidden, since it's
+    now installed.
+- **Restarting:**
+  - settings are saved;
+  - the new version is started with the same Python and module (the
+    launcher's settings are passed on), hidden in the tray if this copy was;
+  - the new version asks this copy to hand over (the existing hand-over), and
+    this copy closes.
+  - If nothing has taken over after 20 seconds, the button comes back and the
+    status bar says how to restart by hand. If the start itself fails, a
+    message says so.
+- The same version reinstalled, an older version (a rollback), or the files
+  removed: nothing is shown.
+- Works for updates from Help → Check for Updates (after the package
+  installer) and from `apt install`.
+
+### Tests
+- New `tests/test_restart.py` (7 tests):
+  - the button and its exact text;
+  - ignoring a reinstall, a rollback or removal;
+  - not re-reading an unchanged file;
+  - hiding the matching update button;
+  - the restart command, with and without the tray;
+  - nothing taking over within 20 seconds;
+  - a failed start.
+- **A real-process test:** an old copy runs, its files are swapped for a newer
+  version as an upgrade does, and the old copy offers the restart, hands over
+  and exits 0, with the new version owning the single-instance socket.
+  - Passed 12 runs in a row, after fixing the test itself: it had swapped
+    "2.3.1" for "9.0.1" (same size) within one second, so Python reused its
+    compiled copy of the old file (3 runs in 8). The test now runs without
+    compiled files, like a real install, where users can't write them into
+    `/usr/lib` and the package removes them on upgrade.
+
+## 2.3.0 – 2026-11-22 (released as v2.3.0)
 
 Requested by Shane: "on the wind tab can we add to Other layers (temperature,
 rain)".
