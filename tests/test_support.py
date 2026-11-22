@@ -103,3 +103,31 @@ class TestCoffeeInWindow(TempEnvTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAppIcon(unittest.TestCase):
+    """2.5.1: Shane's RBSB-Weather icon is used for the window, tray and About box."""
+
+    def test_bundled_icon_sizes(self):
+        qapp()
+        from rbsb_weather.widgets import APP_ICON_SIZES, app_icon
+        icon = app_icon()
+        sizes = {(s.width(), s.height()) for s in icon.availableSizes()}
+        for s in APP_ICON_SIZES:
+            self.assertIn((s, s), sizes)
+        img = icon.pixmap(256, 256).toImage()
+        self.assertEqual((img.width(), img.height()), (256, 256))
+        # it's Shane's artwork, not the old painted fallback: a deep-blue rounded square with the
+        # sun's gold upper left and transparent corners
+        self.assertEqual(img.pixelColor(1, 1).alpha(), 0)
+        sun = img.pixelColor(80, 90)
+        self.assertTrue(sun.red() > 200 and sun.green() > 140 and sun.blue() < 120, sun.name())
+        mid = img.pixelColor(128, 250)
+        self.assertGreater(mid.blue(), mid.red())
+
+    def test_window_uses_it(self):
+        from rbsb_weather.widgets import APP_ICON_SIZES
+        src = (ROOT / "rbsb_weather/main_window.py").read_text()
+        self.assertIn("self.setWindowIcon(app_icon())", src)
+        for s in APP_ICON_SIZES:
+            self.assertTrue((ROOT / f"rbsb_weather/assets/app_icon_{s}.png").is_file())

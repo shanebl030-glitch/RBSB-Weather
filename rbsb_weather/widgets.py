@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PyQt6.QtCore import QPointF, QRectF, Qt
+from PyQt6.QtCore import QPointF, QRectF, QSize, Qt
 from PyQt6.QtGui import QColor, QFont, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PyQt6.QtWidgets import QSizePolicy, QWidget
 
@@ -208,8 +208,21 @@ def render_tray_icon(temp_c: Optional[float], unit: str, code: Optional[int] = N
     return QIcon(pix)
 
 
+APP_ICON_SIZES = (32, 64, 128, 256)
+
+
 def app_icon() -> QIcon:
-    """Application icon: themed icon if installed, else a painted sun/cloud."""
+    """Application icon: Shane's RBSB-Weather icon (2.5.1) bundled with the app, else the
+    installed theme icon, else a painted sun and cloud."""
+    from pathlib import Path
+    icon = QIcon()
+    assets = Path(__file__).resolve().parent / "assets"
+    for s in APP_ICON_SIZES:
+        f = assets / f"app_icon_{s}.png"
+        if f.is_file():
+            icon.addFile(str(f), QSize(s, s))
+    if not icon.isNull() and icon.availableSizes():
+        return icon
     themed = QIcon.fromTheme("rbsb-weather")
     if not themed.isNull():
         return themed

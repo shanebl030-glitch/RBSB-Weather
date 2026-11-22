@@ -4,15 +4,15 @@ Created By Shane BlackbuRn
 
 | Item | Result |
 |---|---|
-| Version | 2.5.0 (earthquakes on the Earth tabs, with notifications) |
+| Version | 2.5.1 (Shane's new app icon) |
 | Date | 2026-11-22 |
 | Environment | Ubuntu 24.04.5 (Linux Mint 22 base), Python 3.12, PyQt6 6.6.1 / Qt 6.4.2, headless (offscreen), 2 CPUs, `python3-keyring` installed (no D-Bus, so keys use the private file) |
-| Suites | as 1.18.0, plus **`test_migrate`** (new in 2.0.0) **`test_updates`** (new in 2.1.0) **`test_support`** (new in 2.1.1) **`test_widget_source`** (new in 2.1.2), **`test_grib2`** and **`test_wind`** (new in 2.2.0), **`test_restart`** (new in 2.3.1), **`test_screenshots`** (README pictures), **`test_alerts`** and **`test_alerts_gui`** (new in 2.4.0), **`test_quakes`** and **`test_quakes_gui`** (new in 2.5.0) |
-| Tests run | 678 |
-| Passed | 676 |
+| Suites | as 1.18.0, plus **`test_migrate`** (new in 2.0.0) **`test_updates`** (new in 2.1.0) **`test_support`** (new in 2.1.1) **`test_widget_source`** (new in 2.1.2), **`test_grib2`** and **`test_wind`** (new in 2.2.0), **`test_restart`** (new in 2.3.1), **`test_screenshots`** (README pictures), **`test_alerts`** and **`test_alerts_gui`** (new in 2.4.0), **`test_quakes`** and **`test_quakes_gui`** (new in 2.5.0); 2.5.1 adds icon checks to `test_support` and `test_packaging` |
+| Tests run | 680 |
+| Passed | 678 |
 | Failed / errors | 0 / 0 |
 | Skipped | 2: `test_readonly_dir_raises_oserror` (root ignores directory permissions; it passed as the `nobody` user in 1.11), and the NASA-converter test (needs build-time numpy + tifffile). Neither is an app fault. On a machine without the ecCodes Python package (normal on Mint), `test_grib2`'s ecCodes cross-check also skips |
-| Run time | about 546 s (2 CPUs), including the 60 s soak |
+| Run time | about 547 s (2 CPUs), including the 60 s soak |
 | Command | `PYTHON=/usr/bin/python3.12 ./run_tests.sh` (full log in `test-results.log`) |
 
 **Mocks and simulations.** Every provider test runs against a local fake

@@ -14,17 +14,21 @@ mkdir -p dist
 
 # --- application files
 install -d "$ROOT/usr/lib/$PKG/$MOD" "$ROOT/usr/bin" "$ROOT/usr/share/applications" \
-           "$ROOT/usr/share/icons/hicolor/scalable/apps" "$ROOT/usr/share/doc/$PKG" "$ROOT/DEBIAN"
+           "$ROOT/usr/share/doc/$PKG" "$ROOT/DEBIAN"
 install -m 644 rbsb_weather/*.py rbsb_weather/USER_GUIDE.md "$ROOT/usr/lib/$PKG/$MOD/"
 install -d "$ROOT/usr/lib/$PKG/$MOD/providers"
 install -m 644 rbsb_weather/providers/*.py "$ROOT/usr/lib/$PKG/$MOD/providers/"
 install -d "$ROOT/usr/lib/$PKG/$MOD/assets"
-install -m 644 rbsb_weather/assets/*.jpg rbsb_weather/assets/*.json "$ROOT/usr/lib/$PKG/$MOD/assets/"
+install -m 644 rbsb_weather/assets/*.jpg rbsb_weather/assets/*.json rbsb_weather/assets/*.png "$ROOT/usr/lib/$PKG/$MOD/assets/"
 install -m 755 packaging/rbsb-weather.sh "$ROOT/usr/bin/$PKG"
 # the old command keeps working for anyone used to it (or with it in scripts/shortcuts)
 ln -s "$PKG" "$ROOT/usr/bin/weatherdesk"
 install -m 644 packaging/rbsb-weather.desktop "$ROOT/usr/share/applications/$PKG.desktop"
-install -m 644 packaging/rbsb-weather.svg "$ROOT/usr/share/icons/hicolor/scalable/apps/$PKG.svg"
+# Shane's icon (2.5.1), one PNG per standard size
+for s in 16 24 32 48 64 128 256 512; do
+    install -d "$ROOT/usr/share/icons/hicolor/${s}x${s}/apps"
+    install -m 644 "packaging/icons/rbsb-weather-$s.png" "$ROOT/usr/share/icons/hicolor/${s}x${s}/apps/$PKG.png"
+done
 install -m 644 README.md "$ROOT/usr/share/doc/$PKG/README.md"
 gzip -9n -c CHANGELOG.md > "$ROOT/usr/share/doc/$PKG/changelog.gz"
 chmod 644 "$ROOT/usr/share/doc/$PKG/changelog.gz"

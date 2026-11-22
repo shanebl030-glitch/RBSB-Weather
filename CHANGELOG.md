@@ -4,7 +4,24 @@ Created By Shane BlackbuRn
 
 Entries before 2.0.0 use the app's old name, WeatherDesk, as they were written.
 
-## 2.5.0 – 2026-11-22 (on branch claude/rbsb-weather-2.5.0; not released)
+## 2.5.1 – 2026-11-22 (on branch claude/rbsb-weather-2.5.1; not released)
+
+Requested by Shane: "use the images attached for icon on RBSB-Weather Desktop and Android".
+
+### Changed
+- **New app icon:** Shane's RBSB-Weather artwork (the rounded-square version: the Sun,
+  the Moon, clouds, rain and lightning, with the RBSB-Weather name). It's used for:
+  - the menu and launcher (installed at every standard size, 16 to 512 pixels);
+  - the window and taskbar;
+  - the tray icon, when the temperature isn't shown in it;
+  - the About box.
+- The old drawn icon (`rbsb-weather.svg`) is no longer installed. Upgrading removes it.
+  If the menu still shows the old icon, log out and back in (some desktops keep a cache).
+- The original artwork is kept in `packaging/icons/`.
+
+Created By Shane BlackbuRn
+
+## 2.5.0 – 2026-11-22 (released as v2.5.0)
 
 Requested by Shane: "earth quake notification on the globe with a pulsing dot etc."
 

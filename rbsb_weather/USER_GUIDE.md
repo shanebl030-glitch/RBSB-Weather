@@ -683,6 +683,9 @@ RBSB-Weather stays free either way.
 
 ## Credits
 
+The RBSB-Weather icon was designed by Shane BlackbuRn.
+
+
 Weather data by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0) and
 [MET Norway](https://api.met.no/) (CC BY 4.0), or, if you add their keys,
 [OpenWeather](https://openweathermap.org/), [WeatherAPI.com](https://www.weatherapi.com/),

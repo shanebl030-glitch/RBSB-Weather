@@ -1619,3 +1619,25 @@ with a pulsing dote etc.."
 - Not tested live (no access from here).
 
 Created By Shane BlackbuRn
+
+## Session – 2026-11-22 – v2.5.1 (new icon)
+
+**Request:** "use the images attached for icon on RBSB-Weather Destop and Android"
+(an image with two versions of Shane's icon: a rounded square and a round badge).
+
+**What was done:**
+- The desktop uses the **rounded square**, which suits Linux menus and panels. The
+  round badge is used on Android (see that app's transcript).
+- I cut each icon out of the black background with clean, see-through edges, then
+  made PNGs at 16, 24, 32, 48, 64, 128, 256 and 512 pixels.
+- The `.deb` installs them in the standard icon folders. A copy inside the app is used
+  for the window, tray and About box, so the icon also shows when running from source.
+- Work is on the new branch `claude/rbsb-weather-2.5.1`, made from the released 2.5.0.
+  It isn't merged or released until Shane tests it.
+
+**Tested:** see TEST_REPORT.md. The new tests check every icon size in the package,
+that the old SVG is gone, and that the window icon is Shane's artwork (not the old
+painted one).
+
+Created By Shane BlackbuRn
+
