@@ -10,6 +10,7 @@ Created By Shane BlackbuRn
 from __future__ import annotations
 
 import os
+import struct
 import re
 import shutil
 import subprocess
@@ -91,7 +92,14 @@ class TestPackage(unittest.TestCase):
         self.assertIn("Icon=rbsb-weather", desk)
         self.assertIn("Name=RBSB-Weather", desk)
         self.assertIn("weatherdesk;", desk)             # still found by searching the old name
-        self.assertTrue((u / "share/icons/hicolor/scalable/apps/rbsb-weather.svg").is_file())
+        for sz in (16, 24, 32, 48, 64, 128, 256, 512):   # Shane's icon (2.5.1), every standard size
+            png = u / f"share/icons/hicolor/{sz}x{sz}/apps/rbsb-weather.png"
+            self.assertTrue(png.is_file(), png)
+            self.assertEqual(png.read_bytes()[:8], b"\x89PNG\r\n\x1a\n")
+            self.assertEqual(struct.unpack(">II", png.read_bytes()[16:24]), (sz, sz))
+        self.assertFalse((u / "share/icons/hicolor/scalable/apps/rbsb-weather.svg").exists())   # the old icon is gone
+        for sz in (32, 64, 128, 256):
+            self.assertTrue((u / f"lib/rbsb-weather/rbsb_weather/assets/app_icon_{sz}.png").is_file())
         for d in ("README.md", "changelog.gz", "copyright"):
             self.assertTrue((u / "share/doc/rbsb-weather" / d).is_file(), d)
 

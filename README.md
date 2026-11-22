@@ -1,4 +1,6 @@
-# RBSB-Weather 2.5.0
+# RBSB-Weather 2.5.1
+
+<img src="packaging/icons/rbsb-weather-256.png" alt="RBSB-Weather icon" width="128">
 
 *Formerly **WeatherDesk**. Renamed in 2.0.0 because "WeatherDesk" is used by many
 other apps; nothing else changed, and your settings come with you (see
@@ -190,7 +192,7 @@ the Wind tab shows a real NOAA GFS forecast saved for the tests.
 *The same on Earth Flat, with the card for a large undersea quake.*
 
 ```bash
-sudo apt install ./rbsb-weather_2.5.0_all.deb
+sudo apt install ./rbsb-weather_2.5.1_all.deb
 ```
 
 `apt` pulls in `python3-pyqt6` automatically. Launch **RBSB-Weather** from the
@@ -322,7 +324,7 @@ sends it. The full log is written to
 | `rbsb_weather/units.py`, `weather_codes.py` | Unit conversion and weather descriptions |
 | `tools/make_screenshots.py` | Takes the README screenshots from the real app, with sample data |
 | `tests/` | Test suite and fake server |
-| `packaging/` | Launcher, .desktop file, and icon |
+| `packaging/` | Launcher, .desktop file, and Shane's icon (`packaging/icons/`, every standard size, plus the original artwork) |
 
 ## Adding a weather provider
 
