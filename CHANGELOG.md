@@ -4,7 +4,7 @@ Created By Shane BlackbuRn
 
 Entries before 2.0.0 use the app's old name, WeatherDesk, as they were written.
 
-## 2.5.1 – 2026-11-22 (on branch claude/rbsb-weather-2.5.1; not released)
+## 2.5.1 – 2026-11-22 (released as v2.5.1)
 
 Requested by Shane: "use the images attached for icon on RBSB-Weather Desktop and Android".
 
