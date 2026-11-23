@@ -1641,3 +1641,11 @@ painted one).
 
 Created By Shane BlackbuRn
 
+**Shane (23 Nov):** "the icon look awesome on my desktop, in the app and on the taskbar". He tested 2.5.1 on Linux Mint and merged PR #14.
+- The release `v2.5.1` is published by Shane (Claude's session can't create releases) with:
+  - the tested `rbsb-weather_2.5.1_all.deb` (SHA-256 b6042402…8ad8);
+  - the source archive, `SHA256SUMS`, the CHANGELOG, the TEST_REPORT and the icon.
+- This CHANGELOG entry now reads "released as v2.5.1".
+
+Created By Shane BlackbuRn
+
