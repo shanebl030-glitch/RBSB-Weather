@@ -675,7 +675,7 @@ RBSB-Weather, and the menu still finds it if you search for "weatherdesk".
 
 ## Support RBSB-Weather
 
-☕ If you enjoy this app, consider buying me a coffee for NZ$0.99: [Buy me a coffee with PayPal](https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=M4EDN77T6EEPJ&item_name=Coffee+for+RBSB-Weather&amount=0.99&currency_code=NZD)
+☕ If you enjoy this app, consider buying me a coffee for NZ$1.47: [Buy me a coffee with PayPal](https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=M4EDN77T6EEPJ&item_name=Coffee+for+RBSB-Weather&amount=1.47&currency_code=NZD)
 
 You'll find the same link under **Help → Buy Me a Coffee…** and in **Help → About**.
 It opens PayPal in your browser, where you can pay with your PayPal account or a card.
