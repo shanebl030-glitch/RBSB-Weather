@@ -34,7 +34,7 @@ More pictures are in [Screenshots](#screenshots) below.
 
 ## Support
 
-☕ If you enjoy this app, consider buying me a coffee for NZ$0.99: [Buy me a coffee with PayPal](https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=M4EDN77T6EEPJ&item_name=Coffee+for+RBSB-Weather&amount=0.99&currency_code=NZD)
+☕ If you enjoy this app, consider buying me a coffee for NZ$1.47: [Buy me a coffee with PayPal](https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=M4EDN77T6EEPJ&item_name=Coffee+for+RBSB-Weather&amount=1.47&currency_code=NZD)
 
 RBSB-Weather is free and stays free. The same link is in the app under
 **Help → Buy Me a Coffee…** and **Help → About**.

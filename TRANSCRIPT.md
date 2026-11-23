@@ -1649,3 +1649,7 @@ Created By Shane BlackbuRn
 
 Created By Shane BlackbuRn
 
+
+**Shane (23 Nov):** "buy me a coffee to be $1.47 NZD", not as a new version and not announced. The amount is changed in the app, the README, the user guide and the tests. There is no version bump or CHANGELOG entry; it ships with the next release.
+
+Created By Shane BlackbuRn

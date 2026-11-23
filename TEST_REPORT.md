@@ -175,7 +175,7 @@ packing). Both need Shane's Mint.
 
 | Check | Result |
 |---|---|
-| The link | https://www.paypal.com payment link, Merchant ID M4EDN77T6EEPJ, NZ$0.99, NZD, "Coffee for RBSB-Weather"; no email address |
+| The link | https://www.paypal.com payment link, Merchant ID M4EDN77T6EEPJ, NZ$1.47, NZD, "Coffee for RBSB-Weather"; no email address |
 | Where it shows | Help → About (clickable, checked in the real About box and a screenshot), the User Guide, the README, and Help → Buy Me a Coffee… (opens it) |
 | No browser | The link is shown in a message so it can be copied |
 | Personal details | No Gmail address anywhere in the app's files or the README |

@@ -1,7 +1,7 @@
 """2.1.1: "Buy me a coffee" link (Help menu, About box, User Guide, README).
 
 Checks the link is the agreed PayPal payment link (Shane's public Merchant ID,
-NZ$0.99, https, paypal.com only, no email address) and that every place shows it.
+NZ$1.47, https, paypal.com only, no email address) and that every place shows it.
 Opening the browser is replaced by a recorder, so the tests never launch anything.
 
 Created By Shane BlackbuRn
@@ -25,12 +25,12 @@ class TestCoffeeLink(unittest.TestCase):
         self.assertEqual((u.scheme, u.hostname, u.path), ("https", "www.paypal.com", "/cgi-bin/webscr"))
         q = dict(urllib.parse.parse_qsl(u.query))
         self.assertEqual(q["business"], "M4EDN77T6EEPJ")
-        self.assertEqual(q["amount"], "0.99")
+        self.assertEqual(q["amount"], "1.47")
         self.assertEqual(q["currency_code"], "NZD")
         self.assertEqual(q["cmd"], "_xclick")
         self.assertIn("RBSB-Weather", q["item_name"])
         self.assertNotIn("@", COFFEE_URL, "no email address in a public link")
-        self.assertEqual(COFFEE_TEXT, "If you enjoy this app, consider buying me a coffee for NZ$0.99")
+        self.assertEqual(COFFEE_TEXT, "If you enjoy this app, consider buying me a coffee for NZ$1.47")
 
     def test_in_guide_and_readme(self):
         for f in (ROOT / "rbsb_weather" / "USER_GUIDE.md", ROOT / "README.md"):
